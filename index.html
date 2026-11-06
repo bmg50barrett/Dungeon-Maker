@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Duckweed's Dungeon Drafter</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="panel">
+      <!-- One form, laid out as four columns ("blades") that can each be collapsed to a thin strip. -->
+      <form id="params" class="blades" novalidate autocomplete="off">
+
+        <!-- column 1: rooms -->
+        <section class="blade" id="blade-rooms" data-blade="rooms">
+          <h2 class="blade-head">
+            <button type="button" class="blade-toggle" aria-expanded="true" aria-controls="blade-rooms-body" title="Collapse Rooms">
+              <span class="blade-title">Rooms</span>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </h2>
+          <div class="blade-body" id="blade-rooms-body">
+            <div class="field">
+              <label for="roomCount">Room count</label>
+              <input id="roomCount" name="roomCount" type="number" min="1" max="99" step="1" value="12" inputmode="numeric">
+              <p class="hint">1&ndash;99 rooms</p>
+              <p class="error" id="err-roomCount" role="alert"></p>
+            </div>
+
+            <div class="field">
+              <label for="avgRoomSize">Average room size</label>
+              <input id="avgRoomSize" name="avgRoomSize" type="number" min="1" max="999" step="1" value="30" inputmode="numeric">
+              <p class="hint" id="sizeHint">1&ndash;999 squares</p>
+              <p class="error" id="err-avgRoomSize" role="alert"></p>
+            </div>
+
+            <fieldset class="field pair">
+              <legend>Minimum room size</legend>
+              <div class="pair-inputs">
+                <div>
+                  <label for="minRoomWidth">Width <span class="optional">(across)</span></label>
+                  <input id="minRoomWidth" name="minRoomWidth" type="number" min="1" max="30" step="1" value="1" inputmode="numeric" title="Least a room measures across the map, in squares">
+                </div>
+                <span class="times" aria-hidden="true">&times;</span>
+                <div>
+                  <label for="minRoomLength">Length <span class="optional">(down)</span></label>
+                  <input id="minRoomLength" name="minRoomLength" type="number" min="1" max="30" step="1" value="1" inputmode="numeric" title="Least a room measures up and down the map, in squares">
+                </div>
+              </div>
+              <p class="hint" id="minSizeHint">No minimum</p>
+              <p class="error" id="err-minRoomWidth" role="alert"></p>
+              <p class="error" id="err-minRoomLength" role="alert"></p>
+            </fieldset>
+
+            <div class="field">
+              <label for="sizeVariance">Room size variance</label>
+              <input id="sizeVariance" name="sizeVariance" type="number" min="0" max="100" step="1" value="30" inputmode="numeric">
+              <p class="hint" id="varianceHint">Standard deviation, % of the average (0&ndash;100)</p>
+              <p class="error" id="err-sizeVariance" role="alert"></p>
+            </div>
+
+            <fieldset class="field segmented" id="spacing">
+              <legend>Room spacing</legend>
+              <div class="seg-options seg-three">
+                <input type="radio" id="spacing-compact" name="spacing" value="compact" checked>
+                <label for="spacing-compact">Compact</label>
+                <input type="radio" id="spacing-normal" name="spacing" value="normal">
+                <label for="spacing-normal">Normal</label>
+                <input type="radio" id="spacing-spaced" name="spacing" value="spaced">
+                <label for="spacing-spaced">Spaced Out</label>
+              </div>
+              <p class="hint" id="spacingHint">Rooms can touch · rooms a hallway joins are up to 4 squares apart</p>
+              <p class="error" id="err-spacing" role="alert"></p>
+            </fieldset>
+
+            <fieldset class="field chip-group" id="roomShapes">
+              <legend>Room shapes <button type="button" class="link-btn" id="shapesAll">All</button></legend>
+              <div class="chips">
+                <label class="chip"><input type="checkbox" name="roomShape" value="rect" checked><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><polygon points="2,3 14,3 14,13 2,13"/></svg>Rectangle</span></label>
+                <label class="chip"><input type="checkbox" name="roomShape" value="chamfer" checked><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><polygon points="4,2 12,2 12,4 14,4 14,12 12,12 12,14 4,14 4,12 2,12 2,4 4,4"/></svg>Chamfered</span></label>
+                <label class="chip"><input type="checkbox" name="roomShape" value="L"><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><polygon points="2,2 7,2 7,9 14,9 14,14 2,14"/></svg>L-shape</span></label>
+                <label class="chip"><input type="checkbox" name="roomShape" value="T"><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><polygon points="2,2 14,2 14,7 10,7 10,14 6,14 6,7 2,7"/></svg>T-shape</span></label>
+                <label class="chip"><input type="checkbox" name="roomShape" value="U"><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><polygon points="2,2 6,2 6,9 10,9 10,2 14,2 14,14 2,14"/></svg>U-shape</span></label>
+                <label class="chip"><input type="checkbox" name="roomShape" value="H"><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><polygon points="2,2 6,2 6,6 10,6 10,2 14,2 14,14 10,14 10,10 6,10 6,14 2,14"/></svg>H-shape</span></label>
+                <label class="chip"><input type="checkbox" name="roomShape" value="Z"><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><polygon points="6,2 14,2 14,8 10,8 10,14 2,14 2,8 6,8"/></svg>Z-shape</span></label>
+                <label class="chip"><input type="checkbox" name="roomShape" value="plus"><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><polygon points="6,2 10,2 10,6 14,6 14,10 10,10 10,14 6,14 6,10 2,10 2,6 6,6"/></svg>Plus</span></label>
+              </div>
+              <p class="hint" id="shapesHint">8 of 8 shapes on</p>
+              <p class="error" id="err-roomShapes" role="alert"></p>
+            </fieldset>
+          </div>
+        </section>
+
+        <!-- column 2: hallways -->
+        <section class="blade" id="blade-hallways" data-blade="hallways">
+          <h2 class="blade-head">
+            <button type="button" class="blade-toggle" aria-expanded="true" aria-controls="blade-hallways-body" title="Collapse Hallways">
+              <span class="blade-title">Hallways</span>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </h2>
+          <div class="blade-body" id="blade-hallways-body">
+            <fieldset class="field segmented">
+              <legend>Connections</legend>
+              <div class="seg-options">
+                <input type="radio" id="conn-hall" name="connectionType" value="hall" checked>
+                <label for="conn-hall">Hallways</label>
+                <input type="radio" id="conn-door" name="connectionType" value="door">
+                <label for="conn-door">Doorways</label>
+              </div>
+              <p class="hint">How most rooms join up.</p>
+            </fieldset>
+
+            <div class="field">
+              <label for="connectionRandomness">Connection randomization (%)</label>
+              <input id="connectionRandomness" name="connectionRandomness" type="number" min="0" max="100" step="1" value="14" inputmode="numeric">
+              <p class="hint" id="randomnessHint">Chance a connection uses the other type (0&ndash;100)</p>
+              <p class="error" id="err-connectionRandomness" role="alert"></p>
+            </div>
+
+            <fieldset class="field chip-group" id="hallTypes">
+              <legend>Hallway types <button type="button" class="link-btn" id="hallTypesAll">All</button></legend>
+              <div class="chips">
+                <label class="chip" title="A short passage between two rooms"><input type="checkbox" name="hallType" value="short" checked><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="5" width="4" height="6"/><rect x="11" y="5" width="4" height="6"/><rect x="5" y="7.2" width="6" height="1.6"/></svg>Short</span></label>
+                <label class="chip" title="A long straight passage with rooms lined up along its sides: it always serves at least 3 rooms"><input type="checkbox" name="hallType" value="spine" checked><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="7" width="14" height="2"/><rect x="2" y="2" width="4" height="4"/><rect x="10" y="2" width="4" height="4"/><rect x="6" y="10" width="4" height="4"/></svg>Spine</span></label>
+                <label class="chip" title="A winding passage with several bends"><input type="checkbox" name="hallType" value="curly"><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 12H5V4H11V12H15" fill="none" stroke="currentColor" stroke-width="2"/></svg>Curly</span></label>
+                <label class="chip" title="Hallways can fork, and rooms can hang off the side of any hallway (not just a spine), so short and curly hallways can serve 3 or more rooms too"><input type="checkbox" name="hallType" value="branching" checked><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 8H8M8 3V13M8 3H15M8 13H15" fill="none" stroke="currentColor" stroke-width="2"/></svg>Branching</span></label>
+              </div>
+              <p class="hint" id="hallTypesHint">4 of 4 types on</p>
+              <p class="error" id="err-hallTypes" role="alert"></p>
+            </fieldset>
+
+            <fieldset class="field segmented" id="hallDoors">
+              <legend>Hallway doors</legend>
+              <div class="seg-options seg-four">
+                <input type="radio" id="doors-none" name="hallDoors" value="none">
+                <label for="doors-none">None</label>
+                <input type="radio" id="doors-less" name="hallDoors" value="less">
+                <label for="doors-less">Less</label>
+                <input type="radio" id="doors-more" name="hallDoors" value="more">
+                <label for="doors-more">More</label>
+                <input type="radio" id="doors-all" name="hallDoors" value="all" checked>
+                <label for="doors-all">All</label>
+              </div>
+              <p class="hint" id="hallDoorsHint">About 1 in 3 hallway openings have a door</p>
+              <p class="error" id="err-hallDoors" role="alert"></p>
+            </fieldset>
+
+            <div class="field">
+              <label for="entrances">Entrances</label>
+              <input id="entrances" name="entrances" type="number" min="1" max="10" step="1" value="1" inputmode="numeric">
+              <p class="hint">External entrances, 1&ndash;10</p>
+              <p class="error" id="err-entrances" role="alert"></p>
+            </div>
+
+            <div class="field toggle-field">
+              <label class="switch" for="edgeEntrancesOnly">
+                <span class="switch-title">Entrances on outer edge only</span>
+                <input type="checkbox" id="edgeEntrancesOnly" name="edgeEntrancesOnly" role="switch" checked>
+                <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+                <span class="switch-state" id="edgeOnlyState" aria-hidden="true">On</span>
+              </label>
+              <p class="hint" id="edgeOnlyHint">Entrances are doors in the outer walls.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- column 3: seed, generate, results (summary) -->
+        <section class="blade" id="blade-generate" data-blade="generate">
+          <h2 class="blade-head">
+            <button type="button" class="blade-toggle" aria-expanded="true" aria-controls="blade-generate-body" title="Collapse Generate">
+              <span class="blade-title">Generate</span>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </h2>
+          <div class="blade-body" id="blade-generate-body">
+            <div class="field">
+              <label for="seed">Seed <span class="optional">(optional)</span></label>
+              <input id="seed" name="seed" type="text" placeholder="blank = random">
+              <p class="hint">Same inputs + same seed = same dungeon. Generating fills this in if it is blank, and the random button always puts its new seed here. Clear it, or use the random button, for a new dungeon.</p>
+            </div>
+
+            <button type="submit" id="generate">Re-generate dungeon</button>
+            <button type="button" id="generateRandom" title="Ignores the seed field, builds a new random dungeon and puts its seed in the field">Generate with random seed</button>
+
+            <section id="summary" class="summary" aria-live="polite"></section>
+
+            <!-- get the dungeon out of the app: a link, a picture, the data, or paper -->
+            <section class="export">
+              <h3>Share &amp; export</h3>
+              <div class="export-buttons">
+                <button type="button" id="copyLink" title="Copy a link that opens this exact dungeon, with its settings and colors">Copy link</button>
+                <button type="button" id="downloadPng" title="Save the map as a picture">Picture (PNG)</button>
+                <button type="button" id="downloadJson" title="Save the dungeon as data that other programs can read">Data (JSON)</button>
+                <button type="button" id="printMap" title="Print the map on one page">Print</button>
+              </div>
+              <label class="check"><input type="checkbox" id="exportLegend" checked> Legend and details on the picture and printout</label>
+              <input type="text" id="shareUrl" readonly hidden aria-label="Link to this dungeon">
+              <p class="hint" id="exportStatus" role="status" aria-live="polite"></p>
+            </section>
+
+            <!-- what is typed and picked in the columns is kept on this device, and comes back next visit -->
+            <section class="settings">
+              <h3>Settings <button type="button" class="link-btn" id="resetSettings" title="Put every input, switch and color back to how the page first comes">Reset all</button></h3>
+              <p class="hint">Your inputs, switches and colors are remembered on this device. The seed is not.</p>
+            </section>
+          </div>
+        </section>
+
+        <!-- column 4: how the map is drawn, not how it is built: these change at once, without generating again -->
+        <section class="blade" id="blade-display" data-blade="display">
+          <h2 class="blade-head">
+            <button type="button" class="blade-toggle" aria-expanded="true" aria-controls="blade-display-body" title="Collapse Display">
+              <span class="blade-title">Display</span>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </h2>
+          <div class="blade-body" id="blade-display-body">
+            <fieldset class="field segmented">
+              <legend>Label position</legend>
+              <div class="seg-options">
+                <input type="radio" id="labels-inside" name="labelPosition" value="inside" checked>
+                <label for="labels-inside">Inside</label>
+                <input type="radio" id="labels-outside" name="labelPosition" value="outside">
+                <label for="labels-outside">Outside</label>
+              </div>
+              <p class="hint" id="labelPositionHint">Room numbers sit in the middle of each room</p>
+            </fieldset>
+
+            <section class="options">
+              <label class="check"><input type="checkbox" id="showGrid" checked> Show 5 ft grid</label>
+              <label class="check"><input type="checkbox" id="showLabels" checked> Show room numbers</label>
+            </section>
+
+            <!-- one row per colour category, built by app.js from DM.COLOR_CATEGORIES (src/palette.js) -->
+            <section class="colors">
+              <h3>Colors <button type="button" class="link-btn" id="resetColors" title="Go back to the original colors">Reset</button></h3>
+              <div id="colorPickers"></div>
+            </section>
+          </div>
+        </section>
+      </form>
+    </aside>
+
+    <main class="stage">
+      <!-- the name of the app, across the top of the map (above it, so it never covers the dungeon) -->
+      <h1 class="map-title">Duckweed's Dungeon Drafter</h1>
+      <div class="map-area">
+        <canvas id="map" aria-label="Dungeon map"></canvas>
+        <div class="toolbar">
+          <button type="button" id="zoomIn" title="Zoom in" aria-label="Zoom in">+</button>
+          <button type="button" id="zoomOut" title="Zoom out" aria-label="Zoom out">&minus;</button>
+          <button type="button" id="fit" title="Fit dungeon to screen" aria-label="Fit to screen">Fit</button>
+        </div>
+        <!-- on the map itself, not in a column, so it stays in view when the columns are collapsed -->
+        <section class="legend" id="legend">
+          <button type="button" class="legend-toggle" id="legendToggle" aria-expanded="true" aria-controls="legendList" title="Hide the legend">
+            <span>Legend</span>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <ul id="legendList">
+            <li><span class="sw sw-room"></span> Room</li>
+            <li><span class="sw sw-hall"></span> Hallway</li>
+            <li><span class="sw sw-wall"></span> Wall</li>
+            <li><span class="sw sw-door"></span> Door</li>
+            <li><span class="sw sw-entrance"></span> Entrance (E1, E2&hellip;)</li>
+            <li><span class="sw sw-stairs"></span> Stairs entrance (inside)</li>
+          </ul>
+        </section>
+        <p class="canvas-hint">Scroll to zoom &middot; drag to pan &middot; double-click to fit</p>
+      </div>
+      <!-- only shown when printing: the picture made by the Print button -->
+      <img id="printImage" alt="The dungeon map, for printing">
+    </main>
+  </div>
+
+  <script src="src/rng.js"></script>
+  <script src="src/shapes.js"></script>
+  <script src="src/generator.js"></script>
+  <script src="src/labels.js"></script>
+  <script src="src/palette.js"></script>
+  <script src="src/share.js"></script>
+  <script src="src/render.js"></script>
+  <script src="src/app.js"></script>
+</body>
+</html>

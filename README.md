@@ -1,0 +1,329 @@
+# Duckweed's Dungeon Drafter
+
+Generates dungeon maps on a 5 ft grid and draws them on screen. No build step, no
+dependencies: open `index.html` in a browser. The name sits across the top of the map,
+above the dungeon (so it never covers it), and takes the color of the map's lines and text.
+
+## Inputs
+
+| Input | Range | Meaning |
+|---|---|---|
+| Room count | 1-99 | Number of rooms |
+| Average room size | 1-999 | Mean room area, in grid squares (1 square = 5 ft x 5 ft) |
+| Minimum room size: width and length | 1-30 each (default 1 x 1) | The least a room can measure across the map (width) and up and down it (length): 3 x 8 means every room is at least 3 wide and 8 long. 1 x 1 means no minimum |
+| Room size variance | 0-100 | Standard deviation of room area, as a % of the average |
+| Room shapes | at least one on (default on the page: Rectangle and Chamfered) | Which shapes rooms may take: rectangle, chamfered, L, T, U, H, Z, plus. Switch each on or off; rooms pick at random among the ones that are on |
+| Room spacing | Compact / Normal / Spaced Out (default Compact) | How far apart rooms are; see below. Compact rooms can share walls and rooms a hallway joins are at most 4 squares apart; Normal rooms are 1-6 apart and never touch; Spaced Out rooms are 2-12 apart and never touch |
+| Label position | Inside / Outside (default Inside) | Where room numbers are drawn: on the room's middle square, or just beyond one of its walls without overlapping any room (see below). A display option: it changes at once, without regenerating |
+| Entrances | 1-10 (default 1) | External entrances into the dungeon |
+| Entrances on outer edge only | On / Off (default On) | On: every entrance is a door in the outer wall. Off: entrances can be in any room (see below) |
+| Connections | Hallways / Doorways | How most rooms are joined |
+| Connection randomization | 0-100 (default 14) | % chance that a connection uses the other type. 14 is about 1 in 7; 0 never mixes; 50 is an even mix; 100 flips every connection |
+| Hallway types | short, spine, curly, branching (default on the page: Short, Spine and Branching) | Which kinds of hallway may be built; see below. At least one of short, spine and curly must be on wherever hallways can occur at all |
+| Hallway doors | None / Less / More / All (default All on the page) | How many of a hallway's openings into rooms have a door rather than an open archway: none, about 1 in 3, about 2 in 3, or all. Doorway connections always have a door. Changing it only adds or removes doors: with the same seed the rooms and hallways stay put |
+| Seed (optional) | any text | Same inputs + same seed = identical dungeon. If the box is blank when you press **Re-generate dungeon**, the seed that was used is put in the box, so you can keep it, change it or share it; the next Generate then rebuilds that same dungeon, so clear the box (or use **Generate with random seed**, which ignores whatever is in the box, builds a new dungeon and puts its seed in the box) for a new one. The first dungeon, drawn when the page opens, does not fill the box |
+
+Room areas follow a normal distribution centred on the average. A room cannot be
+smaller than one square, which would nudge the mean upward at high variance, so the
+distribution is shifted to keep the mean on target. The standard deviation of what you
+actually get is slightly below the nominal value at 75-100%.
+
+**Minimum room size** sets a floor on a room's width (across the map) and length (up and
+down it), the size of its bounding box, so an L or a T is measured across its whole
+extent. Rooms are never turned to fit: 3 wide x 8 long means at least 3 across and 8
+down, so every room is tall rather than wide at the minimum, and 8 x 3 gives the
+opposite. Set both to the same number for rooms that can be either way round. If the
+average room size is smaller than width x length (an average of 5 with a minimum of
+5 x 5 = 25 squares), rooms are built around width x length instead, and the variance
+percentage is taken of that. The average is still held, and no room is ever below the
+minimum, so there is little room for variation when the average is at or just above
+the minimum: nearly every room is exactly the minimum size, with a few larger (the real
+mean ends up about 4% above at 30% variance, 20% above at 100%). The variance only
+spreads rooms out once the average is comfortably above width x length. Very lopsided
+minimums (1 wide x 15 long) leave little choice: a room 1 wide can only be a strip, and
+any other shape needs a wider box than its area calls for, so those rooms average
+larger than asked. Hallway lengths follow the size rooms are built around. A minimum of
+1 x 1 changes nothing.
+
+## The map
+
+- Rooms are sets of whole grid squares, so every wall is a straight horizontal or
+  vertical line with its corners on grid vertices, and every corner is 90 degrees
+  (inside) or 270 degrees (outside). Shapes: rectangle, L, T, U, H, plus, Z/step,
+  chamfered, each of which can be switched on or off (**Room shapes**). Shapes come
+  in any rotation. No holes, no pinch points.
+- A shape is only offered to a room big enough to look like it (an L needs 5 squares,
+  an H 7, a plus or Z 10, a chamfered room 16). If every shape you left on is too big
+  for a small room, that room is a plain rectangle and the summary says how many were.
+  Rectangles are the one shape that fits any size, so with only a large shape on, a
+  dungeon of tiny rooms is mostly rectangles.
+- **Room spacing** (Rooms column) sets how far apart rooms are. A *gap* is the number of
+  empty squares between two rooms, in a straight line: rooms that touch are 0 apart, and a
+  room at another's corner counts as touching.
+
+  | Spacing | Closest | Furthest (rooms a hallway joins) |
+  |---|---|---|
+  | Compact | 0: rooms can share a wall | 4 |
+  | Normal | 1 | 6 |
+  | Spaced Out | 2 | 12 |
+
+  **A door overrides the closest rule.** Two rooms joined by a doorway share a wall (the door is
+  in it), in every spacing. Every other pair of rooms keeps the closest gap, so in Normal and
+  Spaced Out rooms only touch where a door joins them. A room is placed against a room it is
+  joined to by a door, never against one it is not. (A room that touches its parent can still
+  have its own gap to every other room.) Compact has no closest gap, so any rooms may touch.
+  The furthest rule holds for rooms that a hallway joins: every room a hallway serves is within
+  it of another room that hallway serves.
+
+  The furthest rule shortens hallways that would be longer: a short or spine hallway is cut to
+  fit (so at Compact a spine is 3-4 squares long, at Normal 4-6, and only at Spaced Out does it
+  reach 8-12), and a curly hallway shrinks its runs and jogs to fit (at Compact it is two jogs of
+  one or two squares). Spines are always straight. This applies on top of the scaling with room
+  size below, so a larger room no longer means a longer hallway beyond the limit.
+- Doorways join rooms that share a wall.
+- Hallways are 1 square wide and may bend, but one hallway can serve **many rooms**: a
+  room can sit at each end, along either long side, or at the end of a branch that
+  forks off the hallway. Some hallways run long and straight so that rooms line up
+  along them. Every room's entrance into a hallway is a door or an open archway, as
+  set by **Hallway doors**. A hallway can bend round a room that is in its way, but it
+  is never allowed to be more than 1.5 times as long as the direct gap it crosses (plus
+  4 squares), so no hallway wraps round the dungeon to reach a room that is close by; a
+  room that cannot be reached more directly is placed somewhere else. Curly hallways wind
+  on purpose and are not held to this.
+- **Hallway types** are switched on and off like room shapes. Three are ways of
+  starting a new hallway from a room, picked at random among the ones that are on
+  (short 40, spine 40 and curly 20 parts in 100, shared out again when one is off):
+  - **Short**: a short passage, which can end a few squares off to one side (2-8 squares
+    long at the default room size, cut to fit the Room spacing: at most 4 at Compact, 6 at Normal).
+  - **Spine**: a long straight passage (8-20 squares, but never more than the Room spacing allows:
+    12 at Spaced Out, 6 at Normal, 4 at Compact) with rooms lined up along its
+    sides, so it serves several rooms. **Every spine serves at least 3 rooms**, whatever else
+    is on, Branching included: the two rooms it joins and at least one more along its side.
+    A spine is built together with its third room, and if no room fits along a candidate
+    spine, that spine is not built at all (so a spine is never a plain two-room hallway).
+    The last room of a dungeon can only join an existing spine, never start one; with Spine
+    the only hallway type on, that room is now and then reached by a doorway instead, when
+    no spine has space beside it. Other rooms then hang along the spine's sides as usual
+    (about 4 rooms per spine with only Spine on). In a dungeon that is mostly doorways
+    there are few hallway connections to go round, so it has fewer spines.
+  - **Curly**: a winding passage that jogs sideways two or three times, so it has at
+    least four bends. It runs about 15-20 squares in all at the default room size with Spaced Out
+  spacing (shorter at Normal and Compact, where it still keeps its four bends).
+  - **Branching**: hallways can fork (a branch is itself a short, spine or curly passage,
+    whichever are on), and rooms can hang off the side of **any** hallway, not just a
+    spine, so short and curly hallways can serve 3 or more rooms too. With it off, a hallway
+    that is not a spine joins exactly two rooms.
+
+  Hallways never loop: they only ever lead to rooms that are not connected yet, so if
+  every connection is a hallway there is exactly one route between any two rooms. (There
+  is no Loops type to switch on.)
+
+  Doorways are not a hallway type: they are chosen with **Connections**. With every
+  connection a doorway (Doorways at 0%, or Hallways at 100%) no hallway is built, so the
+  types are not used. If a dungeon is crowded and the type it asked for does not fit,
+  the other connection type is used as a last resort, but hallways built then still keep
+  to the types that are on.
+- Hallway lengths scale with room size, so the dungeon looks the same at any scale:
+  at the default 30 squares a hallway between two rooms is 2-8 squares (8-20 for a long
+  straight one); at 3 squares it is 1-3, and from about 270 squares up it stays at 6-24 (3x). The
+  scale follows the room's side (the square root of its area) and stops at 0.3x and 3x.
+  Each straight run of a curly hallway scales the same way (2-4 squares at the default).
+  The figures are before **Room spacing** caps them (4, 6 or 12 squares between rooms).
+- A few extra doorways are added after the rooms are joined, between rooms that share a
+  wall, so some dungeons have a circuit. (Only doorways: hallways never make one. Rooms only
+  share a wall where a doorway joined them, so at Normal and Spaced Out there are none to add.)
+- Entrances are labelled E1, E2... With **Entrances on outer edge only** On they are
+  doors in the outer walls, spread as far apart as possible, with an arrow pointing
+  into the dungeon. A wall is on the outside only if a straight line out from its door,
+  away from the room, runs to the edge of the map without crossing any room or hallway.
+  A door that opens into a pocket between rooms, even one that winds round to open
+  ground, is not on the outside.
+- With it Off, entrances are spread over the whole dungeon and can be in any room. A
+  room with a wall on the outside (by the same line test) still gets a door and arrow.
+  A room buried inside the dungeon gets a **stairs** marker on its floor (a stairway or
+  shaft to the surface) instead, kept clear of doorways. How many are stairs depends on
+  how many rooms are buried: about 1 in 8 for a typical 14-room dungeon.
+- Rooms are numbered breadth-first starting from E1's room.
+- **Label position** (Display column) chooses where each room's number is drawn. **Inside**
+  puts it on the room's middle square. **Outside** moves it just beyond one of the room's
+  walls, in the gap between rooms, and never on top of any room (its own included). Each
+  number goes on the nearest free wall, preferring the top and the side facing away from
+  the middle of the dungeon, and keeps clear of other numbers, hallways and the arrows
+  and labels of entrances where it can. If the only free place is a few squares from the
+  wall, a thin line joins the number back to it. A room with no free place within reach
+  keeps its number inside. This only changes how the map is drawn, so it applies at once
+  without regenerating, and the map refits so the outside numbers are not cut off.
+- **Colors** (Display column) has a row for each kind of thing on the map, each with four
+  ready-made colors and a free color picker (the ring of colors on the end; once you use
+  it, it shows your color). The first ready-made color in every row is the default (the
+  colors the map was first drawn in, except Hallways, which starts as Clay; the old Straw is
+  still there as the last choice). The legend on the map follows the colors, and **Reset** puts them all back. The
+  rows:
+
+  | Row | What it colors |
+  |---|---|
+  | Background | the paper behind the map, and the halo round the entrance labels |
+  | Rooms | room floors (room numbers and the scale bar sit on a slightly see-through copy of it) |
+  | Hallways | hallway floors |
+  | Lines and text | walls, room numbers, the lines tying an outside number to its wall, the scale bar |
+  | Grid | the 5 ft grid, fainter on bare ground and stronger on floors |
+  | Doors | doors between rooms and hallways: the picked color, with a darker outline worked out from it |
+  | Entrances | the arrow, its E1 label, the stairs marker, and the entrance door mark (a lighter shade, with a darker outline) |
+
+  A color is one value, `#rrggbb`; the colors that go with it are worked out in
+  `src/palette.js`. Colors are remembered between visits (see Remembered settings).
+- Controls: scroll to zoom, drag to pan, double-click (or **Fit**) to fit the map.
+- The inputs are in four columns side by side: **Rooms** (count, sizes, shapes),
+  **Hallways** (connection type, randomization, hallway types, doors, entrances),
+  **Generate** (seed, the buttons and the results) and **Display** (label position, the
+  grid and room-number switches, and colors). Display only changes how the map is
+  drawn, so it applies at once. Click a
+  column's title bar to collapse it to a thin strip and give the map more room, and
+  click the strip to open it again. Which columns are collapsed is remembered. A
+  collapsed column opens by itself if one of its inputs has an error. On a narrow
+  screen the columns stack and collapse like an accordion.
+- The **legend** is a small card in the top left corner of the map, not in a column, so it
+  stays in view however many columns are collapsed. Click its title to fold it away if it
+  is covering part of the dungeon, and again to bring it back.
+
+## Remembered settings
+
+The page keeps your settings in this browser and puts them back on your next visit:
+every input in the Rooms and Hallways columns (counts, sizes, spacing, shapes, hallway types, doors,
+entrances, the outer-edge switch), the display choices (label position, grid and room-number
+switches) and every color. They are saved as you change them. Which columns are collapsed is
+remembered too, separately.
+
+- The **seed is not remembered**: it would make every visit open the same dungeon. The
+  first dungeon of a visit is built with a new random seed.
+- A **share link** opened in the address bar wins over what is remembered, and does not
+  replace it: your own settings come back next time you open the page without a link. (Once
+  you change something while a link's settings are showing, the whole set is remembered.)
+- **Reset all** (the Settings section at the bottom of the Generate column) puts every
+  input, switch and color back to how the page first comes, forgets what was kept, and builds
+  a new dungeon.
+- The settings are stored in the browser's `localStorage` under `dungeonMaker.settings`,
+  as the same text a share link holds (so they are read as forgivingly: anything that is not
+  valid is dropped and the usual value is used). Nothing is sent anywhere. If the browser
+  blocks storage (private windows, a local file in some browsers), the page works as before
+  and nothing is remembered. Clearing the site's data forgets them.
+
+## Share and export
+
+At the bottom of the Generate column. All of it is made in the page: nothing is uploaded.
+
+- **Copy link** copies a link that opens this exact dungeon. It holds the inputs, the seed
+  that was really used (even if the seed box was blank) and how the map is drawn: label
+  position, grid and room-number switches, and any colors you changed. Open it, or paste
+  it into the address bar of a page that is already open, and the form fills in and the
+  same dungeon is built. The link is for the dungeon on the map, not for what is typed in
+  the form now, so change something and press Generate first if you want a link to that.
+  If the browser will not let the page use the clipboard, the link appears in a box to
+  copy by hand. Making any new dungeon takes the link out of the address bar.
+- **Picture (PNG)** saves the whole map, not just the part on screen, as `dungeon-<seed>.png`.
+  It is drawn bigger than the screen (about 4000 pixels on the long side, but never less
+  than 8 pixels a square, so a very large dungeon gives a larger file) so it stays sharp
+  when printed. With **Legend and details on the picture** on, a strip under
+  the map shows the seed, room count and size, a scale bar and a key to the symbols that
+  dungeon actually has.
+- **Data (JSON)** saves the dungeon as data (see the model below) for other programs.
+- **Print** prints the map on one page, with the same picture (and the same legend switch).
+  Ctrl+P and the browser's own Print menu print the map too, but the picture is made at
+  the last moment there, so the Print button is the more dependable way.
+
+A link looks like
+
+```
+#v=1&rooms=12&size=30&minw=1&minl=1&var=30&ent=2&rand=14&conn=hall&edge=1&shapes=rect,L,T&halls=short,spine&doors=less&spacing=compact&seed=679300265&label=outside&grid=0&nums=0&color.rooms=aabbcc
+```
+
+A link made before **Room spacing** existed has no `spacing` key; it leaves the page's choice as it is
+(Compact when the page opens fresh), like any other key a link leaves out.
+
+The display keys (`label`, `grid`, `nums`, `color.<row>`) appear only when they differ from
+the usual look, so what a link leaves out is the usual. (Links made while hallways still started as Straw leave the hallway color out, so they now open with Clay hallways; add `color.hallways=efe5ca` for Straw.) Anything in a link that is not
+valid is ignored, key by key, so a damaged link still opens with what is left. Links
+need the page they were made on to still exist: one made from a file on your computer
+only works on your computer.
+
+A link holds the inputs, not the dungeon, so it relies on the generator making the same
+dungeon from the same inputs. That holds for as long as the generator does not change;
+an update to the layout rules can make an old link open a different (but still valid)
+dungeon. The JSON file does not have that problem.
+
+## Files
+
+```
+index.html, styles.css   page
+src/rng.js               seedable random numbers
+src/shapes.js            room shapes (rectilinear polyominoes), `DM.SHAPE_KINDS`
+src/generator.js         layout: placement, hallway routing (A*), entrances, output model
+src/labels.js            where room numbers go (inside, or outside the walls): `DM.placeOutsideLabels`
+src/palette.js           map colors: the ready-made choices per category, `DM.themeFrom`
+src/share.js             share links, file names, JSON and caption for exports: `DM.encodeShare`, `DM.decodeShare`
+src/render.js            canvas drawing, zoom/pan, the exported picture (`exportImage`)
+src/app.js               form handling, export buttons, opening links
+tests/run.js             headless validation:  node tests/run.js
+```
+
+`DM.generateDungeon(params)` returns plain JSON-serialisable data, which is what
+future export / editing features should build on:
+
+```
+{ width, height,                 // in squares
+  rooms:       [{ id, label, kind, area, bbox, labelCell, cells: [[x, y], ...] }],
+               // kind: 'rect' | 'chamfer' | 'L' | 'T' | 'U' | 'H' | 'Z' | 'plus'
+  halls:       [{ id, kind, cells: [[x, y], ...], rooms: [roomId, ...], connection }],
+               // kind: how the hallway started: 'short' | 'spine' | 'curly';
+  connections: [{ id, type: 'door'|'hall', rooms: [roomId, ...], hall,
+                  openings: [{ x, y, d, style, room }] }],
+  entrances:   [{ id, label, kind: 'door'|'stairs', room, x, y, d }],
+  warnings, stats, seed, params }
+```
+
+`params.hallTypes` lists the hallway types that were on. `stats.hallTypeCounts` says how
+often each was used, `{ short, spine, curly, branching }`: a branch off an existing
+hallway counts as its own kind and as `branching`, and so does a room hung off a hallway's
+side (unless Branching is off: rooms along a spine are then just part of the spine).
+
+`params.spacing` is the room spacing (`'compact'`, the default when it is left out, `'normal'` or
+`'spaced'`); `DM.SPACING_GAPS` holds each one's closest and furthest gap.
+
+A `'door'` connection joins exactly two rooms through one opening. A `'hall'`
+connection is one hallway: its `cells` form a single connected (possibly branching)
+passage, `rooms` lists every room it serves (2 or more), and each of those rooms has
+exactly one entry in `openings`.
+
+Coordinates start at (0, 0) top-left, y grows downward. Cell `(x, y)` covers the
+square `[x, x+1] x [y, y+1]`. `d` is a side of the cell: 0 = N, 1 = E, 2 = S, 3 = W.
+An opening is the edge on side `d` of room cell `(x, y)` (`room` says which room that
+is); across that edge is the other room, or the hallway. A `'door'` entrance is the
+edge on that side of that cell. A `'stairs'` entrance is the floor cell `(x, y)`
+itself, and `d` is the wall side the stairs climb towards.
+
+## Tuning
+
+`DM.GENERATOR_CONFIG` in `src/generator.js` holds the knobs: how many extra doorways
+to add (`extraConnectionFraction`), hallway length, how many hallway openings get a door for each Hallway doors
+setting (`hallDoorChance`), how often each kind of new hallway is chosen (`hallKindWeights`:
+short, spine, curly), how winding curly hallways are (`curlySegment`, `curlyJogs`), how
+often a room joins an existing hallway instead of starting a new one
+(`hallParentChance`), how
+tightly the dungeon packs together, and so on.
+
+How far apart rooms are is the `SPACING` table (`DM.SPACING_GAPS`): the closest and furthest gap
+for each Room spacing choice. It caps the hallway distances below, whatever the room size.
+
+The hallway distances there (`hallLength`, `spineLength`, `curlySegment`, `hallLateral`,
+`maxHallPath`, `pathMargin`) are for rooms of `hallScaleSize` (30) squares and are
+scaled for other sizes by `DM.hallSettings(avgRoomSize)`. `maxDetour` and `detourSlack` set
+how much longer than the direct gap a routed hallway may be (`DM.hallPathLimit`). Set `hallScaleMin` and
+`hallScaleMax` to 1 to switch the scaling off, or widen them to scale further.
+
+The randomization percentage is the chance for each connection, not a quota, so a
+small dungeon can land a little above or below it. It is also not a hard guarantee:
+if the layout leaves no room for the chosen type at some spot (for example a
+doorway where no wall can be shared), the other type is used instead. If every
+hallway type that can start a hallway is switched off, that fallback is not available
+either, and a crowded dungeon may end up with fewer rooms than asked for (the summary
+says so).
