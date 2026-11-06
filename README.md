@@ -298,6 +298,62 @@ dungeon from the same inputs. That holds for as long as the generator does not c
 an update to the layout rules can make an old link open a different (but still valid)
 dungeon. The JSON file does not have that problem.
 
+## Using it with Claude (MCP server)
+
+The `mcp/` folder is a small server that lets Claude, in the Claude desktop app, make dungeons with this
+generator, change them with the Edit mode tools, and draw them with this page's own picture code (the
+picture is the one **Picture (PNG)** makes). So a campaign can be drafted in one conversation: Claude makes
+the map, then writes the content for each room by the numbers printed on it.
+
+**Setup** (once; needs Node.js 18 or newer):
+
+1. In the `mcp` folder run `npm install`. It brings `@napi-rs/canvas`, the one package, which draws the picture.
+2. Add the server to Claude's config file (`claude_desktop_config.json`; in Claude, Settings, Developer,
+   **Edit Config** opens it). Add a `"mcpServers"` entry next to what is already there, with the paths of
+   your own Node and of `mcp/server.js`:
+
+   ```json
+   {
+     "mcpServers": {
+       "dungeon-maker": {
+         "command": "C:\\Program Files\\nodejs\\node.exe",
+         "args": ["C:\\Users\\you\\OneDrive\\D&D\\Dungeon Maker\\mcp\\server.js"]
+       }
+     }
+   }
+   ```
+
+   Backslashes are doubled in JSON. To save maps somewhere other than the `maps` folder next to the app, add
+   `"env": { "DUNGEON_MAKER_MAPS": "C:\\somewhere\\else" }` inside the `"dungeon-maker"` entry.
+3. Quit Claude completely and open it again. In a new chat the tools are under the tools menu.
+
+**What Claude can do.** Each tool answers in words, and with the picture where it says so.
+
+| Tool | What it does |
+| --- | --- |
+| `generate_dungeon` | Makes a dungeon from any of the page's settings (all optional, with the page's starting values) and a seed. Answers with the picture and a description of every room, door, hallway and entrance. |
+| `open_dungeon` | Opens a dungeon saved as **Data (JSON)**, from the page or from `save_dungeon`. A bare file name is looked for in the maps folder. |
+| `describe_dungeon` | The description alone: each room by its number on the map, with its shape, size in feet and place on the map, its doors and what they lead to. |
+| `edit_dungeon` | A list of edits: change a door (door, locked, secret, no door), draw a hallway through some squares, delete a stretch of hallway. The rules are Edit mode's. |
+| `draw_map` | The picture alone, with the legend, grid, room numbers, number position and colors as chosen. |
+| `save_dungeon` | Writes the picture (`.png`) and the data (`.json`) to the maps folder. A name already used gets `-2`, `-3`, ... unless `overwrite` is set. |
+| `list_dungeons` | The dungeons in use, and the saved maps. |
+
+Things to know:
+
+- Claude always calls rooms by the numbers on the map (a room's `label`, which is not its index in the data), so
+  what it writes matches the picture.
+- A door is written like `(12,7) east`: the east side of square (12,7), counted from the top left. That is
+  what `edit_dungeon` takes to change it. Hallways are changed by the squares they pass through.
+- Dungeons live in memory under ids (`d1`, `d2`, ...) while the server runs; the files from `save_dungeon` are
+  what stays. As with the page, a seed no longer gives the dungeon once it has been edited, so save the data.
+- If a hallway reaches past the top or left edge the map grows and every square's coordinates move; the
+  answer says by how much, and hallways are numbered again (H1, H2, ...).
+- Entrance doors cannot be changed, as in Edit mode. Nothing is sent anywhere: the server runs on your
+  computer and Claude only gets what the tools answer.
+
+`node tests/mcp.js` checks the tools, the protocol and the real process (after `npm install` in `mcp/`).
+
 ## Files
 
 ```
@@ -308,10 +364,16 @@ src/generator.js         layout: placement, hallway routing (A*), entrances, out
 src/labels.js            where room numbers go (inside, or outside the walls): `DM.placeOutsideLabels`
 src/palette.js           map colors: the ready-made choices per category, `DM.themeFrom`
 src/share.js             share links, file names, JSON and caption for exports: `DM.encodeShare`, `DM.decodeShare`
-src/edit.js              hallway editing on the data: `DM.planHallway`, `DM.addHallway`, `DM.deleteHallStretch`, `DM.editState`
+src/edit.js              hallway editing on the data: `DM.planHallway`, `DM.addHallway`, `DM.deleteHallStretch`, `DM.editState`, `DM.walkCells`
 src/render.js            canvas drawing, zoom/pan, the Edit mode tools (clicks, strokes), the exported picture (`exportImage`)
 src/app.js               form handling, export buttons, opening links, the Edit button and tools, the lose-edits warning
 tests/run.js             headless validation:  node tests/run.js
+mcp/server.js            the MCP server Claude connects to: the protocol, over stdin and stdout
+mcp/lib/tools.js         the tools Claude can call, and what each accepts
+mcp/lib/dm.js            loads src/ into Node, and draws the picture with the page's own renderer
+mcp/lib/describe.js      a dungeon in words, by the numbers on the map
+mcp/lib/store.js         dungeons in use, saving and opening files
+tests/mcp.js             tests of the server:  node tests/mcp.js  (after npm install in mcp/)
 ```
 
 `DM.generateDungeon(params)` returns plain JSON-serialisable data, which is what

@@ -1,0 +1,5 @@
+# the packages of the MCP server (npm install in mcp/ brings them back)
+mcp/node_modules/
+
+# maps saved by the MCP server's save_dungeon tool
+maps/

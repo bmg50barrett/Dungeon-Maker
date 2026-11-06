@@ -17,29 +17,8 @@
   const CLICK_SLOP = 4; // px a pointer may travel and still count as a click (not a drag) in edit mode
   const MAX_STROKE = 5000; // squares one hallway stroke may cover
 
-  /** The squares from a (left out) to b, each next to the one before (a straight run, or as straight as squares allow). */
-  function walkCells(a, b) {
-    const out = [];
-    let x = a[0];
-    let y = a[1];
-    const nx = Math.abs(b[0] - x);
-    const ny = Math.abs(b[1] - y);
-    const sx = Math.sign(b[0] - x);
-    const sy = Math.sign(b[1] - y);
-    let ix = 0;
-    let iy = 0;
-    while (ix < nx || iy < ny) {
-      if (iy >= ny || (ix < nx && (0.5 + ix) * ny <= (0.5 + iy) * nx)) {
-        x += sx;
-        ix++;
-      } else {
-        y += sy;
-        iy++;
-      }
-      out.push([x, y]);
-    }
-    return out;
-  }
+  // fills in the squares between two the pointer reported, for a hallway stroke (in edit.js)
+  const walkCells = DM.walkCells;
 
   /** Size multiplier for entrance arrows: they never shrink below ~11 px per cell-unit. */
   function entranceUnit(scale) {
