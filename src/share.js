@@ -24,6 +24,7 @@
     ['var', 'sizeVariance'],
     ['ent', 'entrances'],
     ['rand', 'connectionRandomness'],
+    ['hallw', 'hallWidth'],
   ];
 
   // inputs that are fine on their own, used to check one value at a time (it takes a whole set to validate)

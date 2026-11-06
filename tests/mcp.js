@@ -197,6 +197,13 @@ console.log('== generate and describe');
   if (!bad({ hallTypes: ['curly', 'banana'] })) fail('generate', 'a hallway type that does not exist was accepted');
   if (!bad({ picture: 'yes' })) fail('generate', '"yes" was accepted for picture');
   if (!bad({ hallDoors: 'some' })) fail('generate', 'a made-up hallDoors was accepted');
+  if (!bad({ hallWidth: 11 }) || !bad({ hallWidth: 0 })) fail('generate', 'a hallway width outside 1 to 10 was accepted');
+  {
+    // a hallway width is passed on to the generator: the same seed comes out differently for it
+    const plain = tools.generate_dungeon.run({ roomCount: 8, seed: 'wide-mcp', picture: false }).text;
+    const wide = tools.generate_dungeon.run({ roomCount: 8, hallWidth: 3, seed: 'wide-mcp', picture: false }).text;
+    if (plain === wide) fail('generate', 'hallWidth 3 made no difference to the dungeon');
+  }
   if (labelsDiffer === false) {
     // not an error: some dungeons number rooms as they are stored. The check above used labels either way.
   }

@@ -35,6 +35,7 @@
                 <label class="chip" title="Rooms circle a central courtyard and close into a loop"><input type="radio" name="layout" value="ring"><span class="chip-body">Ring</span></label>
                 <label class="chip" title="Rounded and irregular, like a natural cave, with more winding passages"><input type="radio" name="layout" value="cavern"><span class="chip-body">Cavern</span></label>
                 <label class="chip" title="A big central room with every hallway running out from it like the spokes of a wheel, and the other rooms along them"><input type="radio" name="layout" value="radial"><span class="chip-body">Radial</span></label>
+                <label class="chip" title="One very long straight hallway, running up and down the map, with every room and branch along it"><input type="radio" name="layout" value="mainst"><span class="chip-body">Main St.</span></label>
                 <label class="chip" title="Packed into a square footprint"><input type="radio" name="layout" value="square"><span class="chip-body">Square</span></label>
                 <label class="chip" title="A tall, narrow dungeon: longer up and down the map than across"><input type="radio" name="layout" value="long"><span class="chip-body">Long</span></label>
                 <label class="chip" title="A wide, shallow dungeon: longer across the map than up and down"><input type="radio" name="layout" value="wide"><span class="chip-body">Wide</span></label>
@@ -164,6 +165,13 @@
               <p class="hint" id="hallTypesHint">4 of 4 types on</p>
               <p class="error" id="err-hallTypes" role="alert"></p>
             </fieldset>
+
+            <div class="field">
+              <label for="hallWidth">Hallway width</label>
+              <input id="hallWidth" name="hallWidth" type="number" min="1" max="10" step="1" value="1" inputmode="numeric">
+              <p class="hint">Squares across, 1&ndash;10 (hallways drawn by hand are always 1)</p>
+              <p class="error" id="err-hallWidth" role="alert"></p>
+            </div>
 
             <fieldset class="field segmented" id="hallDoors">
               <legend>Hallway doors</legend>

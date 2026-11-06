@@ -36,7 +36,7 @@ Duckweed's Aeldara is a printed-book look: parchment, ink, and two accents, wine
 
 | Input | Range | Meaning |
 |---|---|---|
-| Overall layout | Random / Cathedral / Ring / Cavern / Radial / Square / Long / Wide (default Random) | The shape the dungeon as a whole leans towards; see below |
+| Overall layout | Random / Cathedral / Ring / Cavern / Radial / Main St. / Square / Long / Wide (default Random) | The shape the dungeon as a whole leans towards; see below |
 | Room count | 1-99 | Number of rooms |
 | Average room size | 1-999 | Mean room area, in grid squares (1 square = 5 ft x 5 ft) |
 | Minimum room size: width and length | 1-30 each (default 1 x 1) | The least a room can measure across the map (width) and up and down it (length): 3 x 8 means every room is at least 3 wide and 8 long. 1 x 1 means no minimum |
@@ -49,6 +49,7 @@ Duckweed's Aeldara is a printed-book look: parchment, ink, and two accents, wine
 | Connections | Hallways / Doorways | How most rooms are joined |
 | Connection randomization | 0-100 (default 14) | % chance that a connection uses the other type. 14 is about 1 in 7; 0 never mixes; 50 is an even mix; 100 flips every connection |
 | Hallway types | short, spine, curly, branching (default on the page: Short, Spine and Branching) | Which kinds of hallway may be built; see below. At least one of short, spine and curly must be on wherever hallways can occur at all |
+| Hallway width | Whole number 1–10 (default 1) | How many squares across the generated hallways are. A wide hallway is a band that many squares across, with a full square at each bend; rooms still open onto it through a single door square, as before. The spacing rules stay the same, so the dungeon simply comes out bigger, and at wide settings a small or tightly packed dungeon may fit fewer rooms than asked for (the page says so). Hallways you draw yourself in Edit mode, or add with the MCP server's `edit_dungeon`, are always 1 wide |
 | Hallway doors | None / Less / More / All (default All on the page) | How many of a hallway's openings into rooms have a door rather than an open archway: none, about 1 in 3, about 2 in 3, or all. Doorway connections always have a door. Changing it only adds or removes doors: with the same seed the rooms and hallways stay put |
 | Seed (optional) | any text | Same inputs + same seed = identical dungeon. If the box is blank when you press **Re-generate dungeon**, the seed that was used is put in the box, so you can keep it, change it or share it; the next Generate then rebuilds that same dungeon, so clear the box (or use **Generate with random seed**, which ignores whatever is in the box, builds a new dungeon and puts its seed in the box) for a new one. The first dungeon, drawn when the page opens, does not fill the box |
 
@@ -100,6 +101,7 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
   | Ring | The rooms are put in order round a circle with an empty middle, a courtyard. When the last room comes round near enough to the first, one more connection joins them, a doorway where they share a wall or else a short hallway (so a ring is the one place hallways run in a circle). It closes in most dungeons, not all: if the ends do not come close enough, it is left open like a C. With Short hallways switched off it closes by a doorway or not at all |
   | Cavern | A few round chambers of different sizes around a middle one, meeting in narrow necks, like the outline of a cave. Curly hallways are picked twice as often as usual (if Curly is on) |
   | Radial | A wheel: the biggest room is the hub in the middle, and every hallway starts at it. Up to four long straight spines leave by different sides of the hub (more rooms, more spokes) with the other rooms along their sides, so every other room is on a hallway that comes from the hub and there are no doorways between rooms. It works best with Spine on; with Branching off only spines take rooms along their sides, and with neither Spine nor Branching every room gets a spoke of its own (so a large dungeon may crowd the hub). Where the settings allow no hallway at all, rooms are doorways off the hub instead |
+  | Main St. | One very long straight hallway across the middle, running up and down the map, with the rooms opening straight onto it along both sides and some on short straight branches (alleys) off it. The street's length grows with the number of rooms (it can be over a hundred squares for a big dungeon); the whole dungeon is a single hallway with branches. The street is a spine, so it needs Spine switched on (and at least three rooms) to be long: without it the first hallway is an ordinary one, with the rooms along its sides; with Branching off there are no alleys. There are no doorways between rooms, except that where the settings allow no hallway at all the rooms come in a row of doorways |
   | Square | Packed into a square: as broad as it is long, and fuller than Random |
   | Long | Tall and narrow: two to three times as long up and down the map as across |
   | Wide | Wide and shallow: two to three times as long across the map as up and down |
@@ -461,7 +463,7 @@ side (unless Branching is off: rooms along a spine are then just part of the spi
 `params.spacing` is the room spacing (`'compact'`, the default when it is left out, `'normal'` or
 `'spaced'`); `DM.SPACING_GAPS` holds each one's closest and furthest gap. `params.layout` is the overall
 layout (one of `DM.LAYOUTS`: `'random'`, the default when it is left out, `'cathedral'`, `'ring'`, `'cavern'`,
-`'radial'`, `'square'`, `'long'` or `'wide'`). Each layout other than random is a footprint (`DM.makeLayout`) that candidate
+`'radial'`, `'mainst'`, `'square'`, `'long'` or `'wide'`). Each layout other than random is a footprint (`DM.makeLayout`) that candidate
 places are scored against and, early on, kept inside; it draws its numbers from a stream of its own, so
 random dungeons come out as they always did. A ring's closing connection is the one hallway between rooms
 that are already joined.

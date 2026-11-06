@@ -101,9 +101,9 @@ function checkDungeon(dun, ctx) {
       }
     }
     if (seenCells.size !== h.cells.length) fail(ctx, `hall ${h.id} is not one connected piece (${seenCells.size}/${h.cells.length})`);
-    // hallways are 1 cell wide: no 2x2 blocks of passage
+    // hallways are as wide as asked (1 cell unless a width was set): no 2x2 blocks of passage in a 1-wide one
     for (const [x, y] of h.cells) {
-      if (mine.has(`${x + 1},${y}`) && mine.has(`${x},${y + 1}`) && mine.has(`${x + 1},${y + 1}`)) {
+      if (dun.params.hallWidth === 1 && mine.has(`${x + 1},${y}`) && mine.has(`${x},${y + 1}`) && mine.has(`${x + 1},${y + 1}`)) {
         fail(ctx, `hall ${h.id} is wider than one cell at (${x},${y})`);
       }
     }
@@ -1396,7 +1396,7 @@ console.log('== overall layout');
   // The layout is a lean towards a shape, so it is judged on how a batch of dungeons come out, and every one of them
   // still has to be a good dungeon (checkDungeon holds each to all the rules: rooms, hallways, spacing).
   const base = { roomCount: 12, avgRoomSize: 30, sizeVariance: 30, entrances: 2, connectionType: 'hall', connectionRandomness: 14 };
-  const LAYOUT_NAMES = ['random', 'cathedral', 'ring', 'cavern', 'radial', 'square', 'long', 'wide'];
+  const LAYOUT_NAMES = ['random', 'cathedral', 'ring', 'cavern', 'radial', 'mainst', 'square', 'long', 'wide'];
   if (JSON.stringify(DM.LAYOUTS) !== JSON.stringify(LAYOUT_NAMES)) fail('layout', `the layouts are ${DM.LAYOUTS}`);
   if (DM.DEFAULT_LAYOUT !== 'random') fail('layout', 'the default layout is not random');
 
@@ -1544,6 +1544,98 @@ console.log('== overall layout');
     if (halls.connections.some((c) => c.type !== 'hall')) fail('layout', 'radial made a doorway where hallways are possible');
   }
 
+  // Main St.: one long straight hallway with the rooms along its sides and branching off it, running up and down the map
+  {
+    const run = (d) => {
+      let best = 0;
+      let vertical = false;
+      for (const h of d.halls) {
+        const xs = new Map();
+        const ys = new Map();
+        for (const [x, y] of h.cells) {
+          xs.set(x, (xs.get(x) || 0) + 1);
+          ys.set(y, (ys.get(y) || 0) + 1);
+        }
+        const mx = Math.max(...xs.values());
+        const my = Math.max(...ys.values());
+        if (Math.max(mx, my) > best) {
+          best = Math.max(mx, my);
+          vertical = mx > my;
+        }
+      }
+      return { best, vertical };
+    };
+    for (const spacing of DM.SPACINGS) {
+      for (const count of [5, 12, 25]) {
+        let single = 0;
+        let across = 0;
+        const tries = 30;
+        for (let s = 0; s < tries; s++) {
+          const dun = DM.generateDungeon({ ...base, roomCount: count, spacing, layout: 'mainst', seed: `mainst-${spacing}${count}-${s}` });
+          if (dun.connections.some((c) => c.type !== 'hall')) fail('layout', `mainst ${spacing} ${count}: a doorway between rooms`);
+          const reached = new Set(dun.connections.flatMap((c) => c.rooms));
+          if (dun.rooms.some((r) => !reached.has(r.id))) fail('layout', `mainst ${spacing} ${count}: a room with no hallway`);
+          const { best, vertical } = run(dun);
+          if (best < Math.min(14, 2 * count)) fail('layout', `mainst ${spacing} ${count}: the longest straight hallway is only ${best} squares`);
+          if (dun.halls.length === 1) single++;
+          if (!vertical) across++;
+        }
+        if (single / tries < 0.85) fail('layout', `mainst ${spacing} ${count}: only ${single} of ${tries} dungeons are a single hallway`);
+        if (across > 0) fail('layout', `mainst ${spacing} ${count}: the street ran across the map in ${across} of ${tries} dungeons`);
+      }
+    }
+    // the street is longer for more rooms
+    const len = (count) => run(DM.generateDungeon({ ...base, roomCount: count, layout: 'mainst', spacing: 'normal', seed: 'mainst-len' })).best;
+    if (!(len(30) > len(8))) fail('layout', 'a bigger Main St. dungeon should have a longer street');
+    // where the settings allow no hallway, the rooms come in a row of doorways
+    const rows = DM.generateDungeon({ ...base, roomCount: 8, layout: 'mainst', connectionType: 'door', connectionRandomness: 0, hallTypes: [], seed: 'mainst-doors' });
+    checkDungeon(rows, 'mainst, no hallways possible');
+    if (rows.halls.length > 0) fail('layout', 'Main St. built a hallway where none is possible');
+  }
+
+  // hallway width: wide hallways are real bands, and the whole dungeon still checks out
+  {
+    for (const width of [2, 3, 5, 10]) {
+      for (const layout of ['random', 'radial', 'mainst', 'ring']) {
+        if (layout === 'radial' && width === 10) continue; // (ten squares wide, the spokes leave room for fewer rooms: the generator says so)
+        for (const count of [4, 12]) {
+          for (let s = 0; s < 6; s++) {
+            const dun = DM.generateDungeon({ ...base, roomCount: count, layout, hallWidth: width, connectionType: 'hall', connectionRandomness: 0, seed: `wide-${width}-${layout}-${count}-${s}` });
+            checkDungeon(dun, `hall width ${width}, ${layout}, ${count} rooms`);
+            if (dun.params.hallWidth !== width) fail('width', 'the width is not kept in the dungeon\'s inputs');
+            // some stretch of passage is a full width across: a line of that many squares (a 1-wide hallway has none)
+            const cells = new Set(dun.halls.flatMap((h) => h.cells.map(([x, y]) => `${x},${y}`)));
+            let block = false;
+            for (const key of cells) {
+              const [x, y] = key.split(',').map(Number);
+              for (const [dx, dy] of [[1, 0], [0, 1]]) {
+                let n = 0;
+                while (n < width && cells.has(`${x + dx * n},${y + dy * n}`)) n++;
+                if (n === width) block = true;
+              }
+              if (block) break;
+            }
+            if (cells.size > 0 && !block) fail('width', `${layout} ${count} rooms, width ${width}: no hallway is ${width} squares across`);
+          }
+        }
+      }
+    }
+    // width 1 is what was always built; anything not a whole number from 1 to 10 is refused
+    const plain = DM.generateDungeon({ ...base, seed: 'wide-same' });
+    const one = DM.generateDungeon({ ...base, hallWidth: 1, seed: 'wide-same' });
+    if (JSON.stringify(plain.halls) !== JSON.stringify(one.halls)) fail('width', 'width 1 changed the dungeon');
+    for (const bad of [0, 11, 2.5, 'x', -1]) {
+      if (DM.validateParams({ ...base, hallWidth: bad }).ok) fail('width', `hall width ${bad} was accepted`);
+    }
+    // a wider hallway means more passage, and so a bigger dungeon
+    const area = (w) => {
+      let total = 0;
+      for (let s = 0; s < 10; s++) total += DM.generateDungeon({ ...base, hallWidth: w, connectionType: 'hall', connectionRandomness: 0, seed: `wide-area-${s}` }).halls.reduce((n, h) => n + h.cells.length, 0);
+      return total;
+    };
+    if (!(area(4) > 2 * area(1))) fail('width', 'a width of 4 should give far more hallway than a width of 1');
+  }
+
   // a ring is the one place hallways run in a circle, and its closing hallway is a short one: with Short switched off it closes by doorway or not at all
   for (let s = 0; s < 20; s++) {
     const dun = DM.generateDungeon({ ...base, roomCount: 14, layout: 'ring', hallTypes: ['spine'], connectionRandomness: 0, seed: `ring-nohall${s}` });
@@ -1551,7 +1643,7 @@ console.log('== overall layout');
     for (const h of dun.halls) if (h.kind !== 'spine') fail('layout', 'a closing hallway of a kind that is switched off');
   }
   // only a ring runs its hallways in a circle: with every other layout the hallways alone join the rooms as a tree
-  for (const name of ['cathedral', 'cavern', 'radial', 'square', 'long', 'wide']) {
+  for (const name of ['cathedral', 'cavern', 'radial', 'mainst', 'square', 'long', 'wide']) {
     for (let s = 0; s < 10; s++) {
       const dun = DM.generateDungeon({ ...base, layout: name, seed: `noloop-${name}${s}` });
       if (dun.stats.hallLinks > dun.rooms.length - 1) fail('layout', `${name}: hallways made a loop`);
@@ -1727,7 +1819,7 @@ console.log('== page layout');
     if (JSON.stringify(radios.map((m) => m[1])) !== JSON.stringify(DM.LAYOUTS)) fail('layout', `the page offers layouts [${radios.map((m) => m[1])}], the generator has [${DM.LAYOUTS}]`);
     if (radios.filter((m) => /\schecked/.test(m[2])).map((m) => m[1]).join() !== DM.DEFAULT_LAYOUT) fail('layout', `the page should start on the ${DM.DEFAULT_LAYOUT} layout`);
     for (const name of DM.LAYOUTS) {
-      if (!new RegExp(`value="${name}"[^>]*><span class="chip-body">${name[0].toUpperCase()}${name.slice(1)}</span>`).test(html)) fail('layout', `the ${name} layout has no chip with its name`);
+      if (!new RegExp(`value="${name}"[^>]*><span class="chip-body">${name === 'mainst' ? 'Main St.' : name[0].toUpperCase() + name.slice(1)}</span>`).test(html)) fail('layout', `the ${name} layout has no chip with its name`);
     }
     if (!html.includes('<legend>Overall layout</legend>') || !html.includes('id="layoutHint"') || !html.includes('id="err-layout"')) fail('layout', 'the layout choice needs a legend, a hint and an error line');
     const hints = (appJs.match(/const LAYOUT_HINTS = \{[\s\S]*?\n  \};/) || [''])[0];

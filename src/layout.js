@@ -12,7 +12,7 @@
   const DM = (globalThis.DM = globalThis.DM || {});
 
   /** The layouts, in the order the page lists them. */
-  const LAYOUTS = ['random', 'cathedral', 'ring', 'cavern', 'radial', 'square', 'long', 'wide'];
+  const LAYOUTS = ['random', 'cathedral', 'ring', 'cavern', 'radial', 'mainst', 'square', 'long', 'wide'];
   const DEFAULT_LAYOUT = 'random';
 
   /*
@@ -153,6 +153,22 @@
       layout.radial = true;
       layout.outside = (x, y) => Math.max(0, Math.hypot(x, y) - R);
       layout.score = (x, y) => x * x + y * y + OUTSIDE * Math.pow(layout.outside(x, y), 2);
+      return layout;
+    }
+
+    if (name === 'mainst') {
+      // Main St.: one very long straight hallway across the middle, running up and down the map (so that it fits a page
+      // better), with the rooms along its sides and branching off it. The generator builds the street itself (see
+      // Builder.placeNextMain); this shape is the band along it that the rooms are drawn into
+      const vertical = true;
+      const half = 2.2 * side + 2 * gap; // how far from the street's line a room's middle may be
+      const along = (x, y) => (vertical ? y : x);
+      const across = (x, y) => (vertical ? x : y);
+      layout.main = true;
+      layout.vertical = vertical;
+      layout.outside = (x, y) => Math.max(0, Math.abs(across(x, y)) - half);
+      // drawn in towards the street, and a little towards its middle, so the rooms fill it out from there
+      layout.score = (x, y) => across(x, y) * across(x, y) + 0.03 * along(x, y) * along(x, y) + OUTSIDE * Math.pow(layout.outside(x, y), 2);
       return layout;
     }
 

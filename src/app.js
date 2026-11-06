@@ -5,7 +5,7 @@
   const DM = globalThis.DM;
   const $ = (id) => document.getElementById(id);
 
-  const FIELDS = ['roomCount', 'avgRoomSize', 'minRoomWidth', 'minRoomLength', 'sizeVariance', 'entrances', 'connectionRandomness'];
+  const FIELDS = ['roomCount', 'avgRoomSize', 'minRoomWidth', 'minRoomLength', 'sizeVariance', 'entrances', 'connectionRandomness', 'hallWidth'];
   const renderer = new DM.DungeonRenderer($('map'));
   DM.renderer = renderer; // handy for poking around in the browser console
 
@@ -143,6 +143,7 @@
     ring: 'Rooms circle an empty courtyard and close into a loop',
     cavern: 'Rounded and irregular like a cave, with more winding passages',
     radial: 'The biggest room in the middle, every hallway running out from it like spokes, other rooms along them',
+    mainst: 'One very long straight hallway, up and down the map, with the rooms and branches along it',
     square: 'Packed into a square footprint',
     long: 'A tall, narrow dungeon, longer up and down than across',
     wide: 'A wide, shallow dungeon, longer across than up and down',

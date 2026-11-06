@@ -23,6 +23,7 @@ const APP_DEFAULTS = {
   connectionRandomness: 14,
   hallTypes: ['short', 'spine', 'branching'],
   hallDoors: 'all',
+  hallWidth: 1,
   entrances: 1,
   edgeEntrancesOnly: true,
 };
@@ -43,7 +44,7 @@ const SETTINGS = {
   minRoomLength: int(1, 30, 'Least a room measures up and down the map (north-south), in squares (default 1: no minimum).'),
   sizeVariance: int(0, 100, 'How much room sizes vary, as a percentage of the average (default 30).'),
   spacing: { type: 'string', enum: ['compact', 'normal', 'spaced'], description: 'How far apart rooms are: compact (rooms may touch; default), normal or spaced.' },
-  layout: { type: 'string', enum: ['random', 'cathedral', 'ring', 'cavern', 'radial', 'square', 'long', 'wide'], description: 'The overall shape the dungeon leans towards: random (default, no shape), cathedral (a long nave crossed by a transept), ring (rooms circling an empty middle, closed into a loop), cavern (a few round chambers), radial (the biggest room in the middle, every hallway running out from it like the spokes of a wheel and the other rooms along them; all hallways, no doorways between rooms unless hallways are switched off), square, long (taller than wide) or wide (wider than tall).' },
+  layout: { type: 'string', enum: ['random', 'cathedral', 'ring', 'cavern', 'radial', 'mainst', 'square', 'long', 'wide'], description: 'The overall shape the dungeon leans towards: random (default, no shape), cathedral (a long nave crossed by a transept), ring (rooms circling an empty middle, closed into a loop), cavern (a few round chambers), radial (the biggest room in the middle, every hallway running out from it like the spokes of a wheel and the other rooms along them; all hallways, no doorways between rooms unless hallways are switched off), mainst (Main St.: one very long straight hallway, up and down the map, with the rooms along its sides and on branches off it; all hallways), square, long (taller than wide) or wide (wider than tall).' },
   roomShapes: {
     type: 'array',
     items: { type: 'string', enum: ['rect', 'chamfer', 'L', 'T', 'U', 'H', 'Z', 'plus'] },
@@ -57,6 +58,7 @@ const SETTINGS = {
     description: 'Hallway types that may be built (default ["short","spine","branching"]): short, spine (a long straight passage with rooms along it), curly (winding), branching (hallways fork, and rooms hang off any hallway). At least one of short, spine or curly is needed if hallways are built.',
   },
   hallDoors: { type: 'string', enum: ['none', 'less', 'more', 'all'], description: 'How many hallway openings into rooms have a door rather than an open archway (default "all").' },
+  hallWidth: int(1, 10, 'How many squares across the generated hallways are (default 1). Wider hallways make a bigger dungeon. Hallways added later with edit_dungeon are always 1 wide.'),
   entrances: int(1, 10, 'How many ways in from outside (default 1).'),
   edgeEntrancesOnly: { type: 'boolean', description: 'Entrances only as doors in the outer walls (default true). If false, some may be stairs inside the dungeon.' },
   seed: { type: 'string', description: 'Any text or number. The same settings and seed always give the same dungeon. Leave out for a random one.' },

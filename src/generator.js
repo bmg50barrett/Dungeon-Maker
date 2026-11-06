@@ -45,6 +45,8 @@
     entrances: [1, 10],
     // % of connections that use the opposite type from the chosen one
     connectionRandomness: [0, 100],
+    // how wide the hallways the generator builds are, in squares (1 when not given)
+    hallWidth: [1, 10],
   };
 
   /** Used when a caller does not supply connectionRandomness: 14% is the nearest whole percent to 1 in 7. */
@@ -200,12 +202,13 @@
       sizeVariance: 'Size variance',
       entrances: 'Entrances',
       connectionRandomness: 'Connection randomization',
+      hallWidth: 'Hallway width',
     };
     for (const key of Object.keys(LIMITS)) {
       const [lo, hi] = LIMITS[key];
       let v = raw[key];
       if (key === 'connectionRandomness' && (v === undefined || v === null)) v = DEFAULT_CONNECTION_RANDOMNESS;
-      if ((key === 'minRoomWidth' || key === 'minRoomLength') && (v === undefined || v === null)) v = 1; // no minimum
+      if ((key === 'minRoomWidth' || key === 'minRoomLength' || key === 'hallWidth') && (v === undefined || v === null)) v = 1; // no minimum / one square wide
 
       const n = typeof v === 'string' ? (v.trim() === '' ? NaN : Number(v)) : Number(v);
       if (v === undefined || v === null || !Number.isInteger(n) || n < lo || n > hi) {
@@ -441,6 +444,20 @@
       // hallway at all, its rooms are doorways off the hub instead (and off each other, once the hub's walls are full)
       this.radial = !!(this.layout && this.layout.radial);
       this.radialDoors = this.radial && !hallwaysPossible(params);
+      // Main St.: one long straight hallway, with the rooms along its sides and branching off it (doorways in a row instead,
+      // where the settings allow no hallway). Its length grows with the number of rooms: about 7 in 10 rooms go directly
+      // along its two sides, and the rest on branches
+      this.main = !!(this.layout && this.layout.main);
+      this.mainDoors = this.main && !hallwaysPossible(params);
+      if (this.main) {
+        const roomSide = Math.sqrt(baseRoomArea(params));
+        const perSide = Math.ceil((0.7 * Math.max(shapes.length - 1, 1)) / 2);
+        this.streetLen = Math.max(14, Math.min(130, Math.ceil(perSide * (1.6 * roomSide + Math.max(1, this.gap.min)))));
+        // the first room is at one end, so that the street, running from it, is centred on the map
+        const first = shapes[0];
+        const shift = Math.round((this.layout.vertical ? first.h + this.streetLen : first.w + this.streetLen) / 2);
+        this.layout.start = this.layout.vertical ? { x: 0, y: -shift + Math.floor(first.h / 2) } : { x: -shift + Math.floor(first.w / 2), y: 0 };
+      }
       // how many spokes run out from the hub (more rooms, more spokes, up to one from each side), and which sides they leave by
       this.armTarget = Math.min(4, Math.max(1, Math.ceil((shapes.length - 1) / 5)));
       // (with neither spines nor branching, a hallway serves one room only, so every room needs a spoke of its own)
@@ -448,7 +465,12 @@
       this.armDirs = [];
       this.layoutTol = Infinity; // how far beyond the layout's shape a room may go just now (opens up as attempts run out)
       const base = Math.max(Math.ceil(Math.sqrt(sumArea * 4)) * 2 + 80 + 2 * this.hall.spine[1] + spread, maxDim * 4 + 40);
-      const side = this.layout ? Math.ceil(base * 1.5) : base; // (a shape that is long or has arms reaches further from the middle)
+      // (wide hallways take up room too, so the map is bigger for them)
+      this.hw = params.hallWidth || 1;
+      this.bandLo = -Math.floor((this.hw - 1) / 2);
+      this.bandHi = Math.ceil((this.hw - 1) / 2);
+      const wideExtra = this.hw > 1 ? Math.ceil((this.hw - 1) * Math.sqrt(shapes.length) * 8) : 0;
+      const side = (this.layout ? Math.ceil(base * 1.5) : base) + wideExtra; // (a shape that is long or has arms reaches further from the middle)
       this.W = side;
       this.H = side;
       // 0 = empty, +n = room with index n-1, -n = hall with index n-1
@@ -474,6 +496,7 @@
 
     chooseType() {
       if (this.radial) return this.radialDoors ? 'door' : 'hall'; // every room hangs off a hallway
+      if (this.main) return this.mainDoors ? 'door' : 'hall';
       const base = this.params.connectionType;
       const other = base === 'door' ? 'hall' : 'door';
       return this.rng.chance(this.params.connectionRandomness / 100) ? other : base;
@@ -548,7 +571,7 @@
      * between two rooms and can then grow branches and gain more rooms (see
      * extendHall / attachToHall), so one hallway can serve many rooms.
      */
-    addHall(path, kind) {
+    addHall(path, kind, len = path.length) {
       const id = this.halls.length;
       for (const [x, y] of path) {
         this.occ[y * this.W + x] = -(id + 1);
@@ -557,13 +580,15 @@
       }
       this.cellCount += path.length;
       // kind: how the hallway started ('short', 'spine' or 'curly'); branches it grows later do not change it
-      const hall = { id, kind, cells: path.slice(), isHall: true, conn: null };
+      // (len: how long the passage is, which for a wide hallway is not how many cells it has)
+      const hall = { id, kind, cells: path.slice(), isHall: true, conn: null, len };
       this.halls.push(hall);
       return hall;
     }
 
     /** Add more passage cells (a branch) to an existing hallway. */
-    extendHall(hall, path) {
+    extendHall(hall, path, len = path.length) {
+      hall.len += len;
       for (const [x, y] of path) {
         this.occ[y * this.W + x] = -(hall.id + 1);
         this.sumX += x + 0.5;
@@ -753,14 +778,107 @@
     }
 
     /**
+     * The cells a wide hallway covers along a route (a list of centre cells): a band `hw` squares across, with a full
+     * square at each bend. `d0` is the direction the route leaves its start in, `d1` the direction it arrives at its end in
+     * (the end of a hallway is square against a wall). Returns the cells as [x, y] pairs, each once.
+     */
+    widen(route, d0, d1) {
+      if (this.hw === 1) return route;
+      const { W, bandLo: lo, bandHi: hi } = this;
+      const seen = new Set();
+      const out = [];
+      const put = (x, y) => {
+        const k = y * W + x;
+        if (!seen.has(k)) {
+          seen.add(k);
+          out.push([x, y]);
+        }
+      };
+      const dirOf = (a, b) => (b[0] > a[0] ? 1 : b[0] < a[0] ? 3 : b[1] > a[1] ? 2 : 0);
+      for (let i = 0; i < route.length; i++) {
+        const [x, y] = route[i];
+        const din = i > 0 ? dirOf(route[i - 1], route[i]) : d0;
+        const dout = i < route.length - 1 ? dirOf(route[i], route[i + 1]) : d1;
+        if (din !== dout) {
+          for (let a = lo; a <= hi; a++) for (let b = lo; b <= hi; b++) put(x + a, y + b);
+        } else if (DX[dout] !== 0) {
+          for (let b = lo; b <= hi; b++) put(x, y + b);
+        } else {
+          for (let a = lo; a <= hi; a++) put(x + a, y);
+        }
+      }
+      return out;
+    }
+
+    /**
+     * Can a wide hallway follow `route` between regions idA and idB? Every cell it covers must be empty, and all that it
+     * touches must be those two regions (a hallway only where `startsAtHall` / `endsAtHall` say a branch meets one, and only
+     * at that end), and the route must not come back alongside itself closer than a width.
+     * @returns {number[][]|null} the cells covered, or null
+     */
+    checkWide(route, d0, d1, idA, idB) {
+      const { W, H, occ } = this;
+      const cells = this.widen(route, d0, d1);
+      const inside = new Set();
+      for (const [x, y] of cells) {
+        if (x < 2 || y < 2 || x > W - 3 || y > H - 3) return null;
+        if (occ[y * W + x] !== 0) return null;
+        inside.add(y * W + x);
+      }
+      // the ends of the route, where a hallway may be touched
+      const ends = new Set();
+      if (idA < 0) for (const [x, y] of this.widen(route.slice(0, 1), d0, d0)) ends.add(y * W + x);
+      if (idB < 0) for (const [x, y] of this.widen(route.slice(-1), d1, d1)) ends.add(y * W + x);
+      for (const [x, y] of cells) {
+        const k = y * W + x;
+        for (let d = 0; d < 4; d++) {
+          const n = k + DY[d] * W + DX[d];
+          if (inside.has(n)) continue;
+          const v = occ[n];
+          if (v === 0) continue;
+          if (v !== idA && v !== idB) return null;
+          if (v < 0 && !ends.has(k)) return null;
+        }
+      }
+      // two stretches of the route that are not simply a bend in one another must be a clear gap apart, or they merge
+      const at = new Map();
+      route.forEach(([x, y], i) => at.set(y * W + x, i));
+      const w = this.hw;
+      for (let i = 0; i < route.length; i++) {
+        const [x, y] = route[i];
+        for (let dy = -w; dy <= w; dy++) {
+          for (let dx = -w; dx <= w; dx++) {
+            const j = at.get((y + dy) * W + x + dx);
+            if (j === undefined || j <= i + 1) continue;
+            if (Math.abs(dx) + Math.abs(dy) !== j - i) return null; // (a detour: the route has come back on itself)
+          }
+        }
+      }
+      return cells;
+    }
+
+    /**
      * A hallway cell must be empty and may only touch the regions it joins
      * (idA / idB, each a room or a hallway). It may touch a hallway only at an
      * `endpoint` of a route (where a branch meets it), never along the way, and
      * then at exactly one cell. Otherwise a new passage would hug the old one
      * and merge into a hallway wider than one cell.
+     * (For a wide hallway this is only the first, rough test of a centre cell: the whole box round it, a width and a
+     * square either side, must be empty or one of the two regions. checkWide makes the exact check of a finished route.)
      */
     hallCellOk(x, y, idA, idB, endpoint = true) {
       const { W, occ } = this;
+      if (this.hw > 1) {
+        const reach = this.bandHi + 1;
+        if (x < reach || y < reach || x >= W - reach || y >= this.H - reach) return false;
+        for (let b = this.bandLo - 1; b <= this.bandHi + 1; b++) {
+          for (let a = this.bandLo - 1; a <= this.bandHi + 1; a++) {
+            const v = occ[(y + b) * W + x + a];
+            if (v !== 0 && v !== idA && v !== idB) return false;
+          }
+        }
+        return occ[y * W + x] === 0;
+      }
       const k = y * W + x;
       if (occ[k] !== 0) return false;
       let hallNeighbours = 0;
@@ -780,8 +898,9 @@
      * and keeping clear of every room except idA / idB.
      * @returns {number[][]|null} cells from start to goal, inclusive
      */
-    findPath(sx, sy, sdir, gx, gy, idA, idB) {
+    findPath(sx, sy, sdir, gx, gy, idA, idB, gdir = sdir) {
       const { W } = this;
+      const wide = this.hw > 1; // (a wide hallway leaves its start and meets its end square on, so it cannot bend there)
       const M = this.hall.margin;
       const minX = Math.max(2, Math.min(sx, gx) - M);
       const maxX = Math.min(W - 3, Math.max(sx, gx) + M);
@@ -844,6 +963,7 @@
           if (nd === OPP[dir]) continue;
           const nx = cx + DX[nd];
           const ny = cy + DY[nd];
+          if (wide && ((cx === sx && cy === sy && nd !== sdir) || (nx === gx && ny === gy && nd !== gdir))) continue;
           if (nx < minX || nx > maxX || ny < minY || ny > maxY) continue;
           if (!cellOk(nx, ny)) continue;
           const ns = (((ny - minY) * ww + (nx - minX)) << 2) | nd;
@@ -869,9 +989,10 @@
      * legal hallway cell between regions idA and idB, otherwise null. Used for routes
      * that are laid out directly rather than found by findPath.
      */
-    checkRoute(route, idA, idB, startsAtHall) {
+    checkRoute(route, idA, idB, startsAtHall, anyLength = false) {
       const { W, H } = this;
-      if (route.length > this.hall.maxPath) return null;
+      if (route.length > this.hall.maxPath && !anyLength) return null; // (Main St. is as long as it needs to be)
+      if (this.hw > 1) return route; // (a wide hallway is checked as a whole, by checkWide)
       for (let i = 0; i < route.length; i++) {
         const [x, y] = route[i];
         if (x < 2 || y < 2 || x > W - 3 || y > H - 3) return null;
@@ -951,8 +1072,9 @@
      * Which kind of hallway to start next: one of the kinds that are switched on, by weight.
      * Null if there is none to pick (every kind is off, or only spines are on and spines are ruled out).
      */
-    pickKind(allowSpine = true) {
-      const kinds = allowSpine ? this.kinds : this.kinds.filter((k) => k !== 'spine');
+    pickKind(allowSpine = true, only = null) {
+      let kinds = allowSpine ? this.kinds : this.kinds.filter((k) => k !== 'spine');
+      if (only) kinds = kinds.filter((k) => only.includes(k));
       if (kinds.length === 0) return null;
       const winding = this.layout ? this.layout.winding : 1; // (a cavern's passages wind more)
       return kinds[this.rng.weightedIndex(kinds.map((k) => CONFIG.hallKindWeights[k] * (k === 'curly' ? winding : 1)))];
@@ -963,8 +1085,8 @@
     }
 
     /** Record a hallway between edge ea (a cell of room a) and edge eb (a cell of room b). */
-    commitHall(path, a, b, ea, eb, kind) {
-      this.connectHall(this.addHall(path, kind), a, b, ea, eb);
+    commitHall(path, a, b, ea, eb, kind, len = path.length) {
+      this.connectHall(this.addHall(path, kind, len), a, b, ea, eb);
     }
 
     /** Join rooms a and b through a hallway that has been laid down already (see addHall). */
@@ -1036,7 +1158,11 @@
       // started with another room still to place (it is built together with the new room, see below).
       const spineOk = fromHall || this.rooms.length + 1 < this.shapes.length;
       // (a radial dungeon's plan for a spoke can ask for a spine, as long a one as it needs, leaving the hub by a given side)
-      const kind = plan && plan.spine && spineOk && this.kinds.includes('spine') ? 'spine' : this.pickKind(spineOk);
+      let kind = plan && plan.spine && spineOk && this.kinds.includes('spine') ? 'spine' : this.pickKind(spineOk);
+      // (Main St. is a spine if spines are on, or else as straight and long a hallway as the types allow)
+      // (and a branch off Main St. is a straight alley, short or a spine, out from the street)
+      if (plan && plan.alley) kind = ['short', 'spine'].filter((k) => this.kinds.includes(k))[0] && this.pickKind(spineOk, ['short', 'spine']) || kind;
+      if (plan && plan.street) kind = ['spine', 'short', 'curly'].find((k) => this.kinds.includes(k) && (k !== 'spine' || spineOk)) || kind;
       if (kind === null) return null; // every way of starting a hallway is switched off (or only a spine, with no room to spare)
       const allowId = fromHall ? -(parent.id + 1) : parent.id + 1;
       let sides = null;
@@ -1046,26 +1172,25 @@
         if (sides.length === 0) return null;
         straightSides = sides.filter((s) => s.straight);
       }
-      const [lo, hi] = plan && plan.range && kind === 'spine' && !fromHall ? plan.range : this.lengthRange(kind, extra, fromHall);
+      const planned = !!(plan && plan.range && !fromHall && kind === 'spine');
+      const [lo, hi] = planned ? plan.range : this.lengthRange(kind, extra, fromHall);
       const lateralMax = Math.min(this.hall.lateral, this.gap.max + 1); // (a room off to the side is still within the greatest gap)
       const served = fromHall ? parent.conn.rooms : [parent.id]; // the rooms the new one has to be near enough to
       const newSpine = kind === 'spine' && !fromHall; // a hallway that starts as a spine (a branch of that length off another hallway does not)
 
       // a new spoke leaves the hub where there is most room from the spokes already there, so they fan out
       let hubEdges = null;
-      if (this.radial && !fromHall && parent === this.rooms[0]) {
-        if (plan && plan.dir !== undefined) {
-          const facing = parent.edges.filter((e) => e.d === plan.dir && occ[(e.y + DY[e.d]) * W + e.x + DX[e.d]] === 0);
-          const middle = facing.filter((e) => e.interior);
-          hubEdges = middle.length > 0 ? middle : facing.length > 0 ? facing : null;
-        }
-        if (!hubEdges) hubEdges = this.spreadEdges(parent);
+      if (plan && plan.dir !== undefined && !fromHall) {
+        const facing = parent.edges.filter((e) => e.d === plan.dir && occ[(e.y + DY[e.d]) * W + e.x + DX[e.d]] === 0);
+        const middle = facing.filter((e) => e.interior);
+        hubEdges = middle.length > 0 ? middle : facing.length > 0 ? facing : null;
       }
+      if (!hubEdges && this.radial && !fromHall && parent === this.rooms[0]) hubEdges = this.spreadEdges(parent);
 
       const cands = [];
       for (let t = 0; t < tries && cands.length < CONFIG.candidatesPerParent; t++) {
         const e = fromHall
-          ? rng.pick(straightSides.length > 0 && rng.chance(0.6) ? straightSides : sides)
+          ? rng.pick(straightSides.length > 0 && (rng.chance(0.6) || (plan && plan.alley)) ? straightSides : sides)
           : hubEdges
             ? rng.pick(hubEdges)
             : this.sampleEdge(parent);
@@ -1084,7 +1209,7 @@
           my = end[1] + DY[e.d];
         } else {
           const len = rng.int(lo, hi);
-          const lat = kind === 'spine' ? 0 : rng.int(-lateralMax, lateralMax);
+          const lat = kind === 'spine' || (planned && plan.street) || (plan && plan.alley) ? 0 : rng.int(-lateralMax, lateralMax);
           const perp = (e.d + 1) % 4;
           mx = e.x + DX[e.d] * (len + 1) + DX[perp] * lat;
           my = e.y + DY[e.d] * (len + 1) + DY[perp] * lat;
@@ -1100,7 +1225,7 @@
         const oy = my - m[1];
         if (!this.layoutOk(shape, ox, oy)) continue;
         if (!this.canPlace(shape, ox, oy, 'hall')) continue;
-        if (!this.withinReach(shape, ox, oy, served, this.reachFor(newSpine, hi))) continue;
+        if (!this.withinReach(shape, ox, oy, served, this.reachFor(newSpine || planned, hi))) continue;
         cands.push({ e, ox, oy, mx, my, route, score: this.score(shape, ox, oy) });
       }
       cands.sort((a, b) => a.score - b.score);
@@ -1109,8 +1234,8 @@
         const c = cands[i];
         const room = this.addRoom(shape, c.ox, c.oy); // stamped so the route avoids it
         const company = newSpine ? this.shapes[this.rooms.length] : null; // the next room to place, which goes along this spine
-        const path = c.route
-          ? this.checkRoute(c.route, allowId, room.id + 1, fromHall)
+        let path = c.route
+          ? this.checkRoute(c.route, allowId, room.id + 1, fromHall, planned && plan.street)
           : this.findPath(
               c.e.x + DX[c.e.d],
               c.e.y + DY[c.e.d],
@@ -1118,13 +1243,20 @@
               c.mx - DX[c.e.d],
               c.my - DY[c.e.d],
               allowId,
-              room.id + 1
+              room.id + 1,
+              c.e.d
             );
+        // a wide hallway covers more than its route: the cells it covers, if it fits
+        let cells = path;
+        if (path && this.hw > 1) {
+          cells = this.checkWide(path, c.e.d, c.e.d, allowId, room.id + 1);
+          if (!cells) path = null;
+        }
         // a new spine is laid down first, to see that a room fits along its side; if none does, it is not built
         let hall = null;
         let along = null;
         if (path && newSpine) {
-          hall = this.addHall(path, kind);
+          hall = this.addHall(cells, kind, path.length);
           along = this.findFlush(hall, company, [parent.id, room.id]);
           if (!along) {
             this.removeLastHall();
@@ -1137,7 +1269,7 @@
           if (fromHall) this.used.branching++;
           if (fromHall) {
             // the branch becomes part of the hallway, which now also serves the new room
-            this.extendHall(parent, path);
+            this.extendHall(parent, cells, path.length);
             this.attachToHall(parent, room, {
               x: c.mx,
               y: c.my,
@@ -1150,7 +1282,7 @@
             this.placeFlush(hall, company, along); // the third room of the spine
             this.extraPlaced = 1;
           } else {
-            this.commitHall(path, parent, room, c.e, { x: c.mx, y: c.my, d: OPP[c.e.d] }, kind);
+            this.commitHall(cells, parent, room, c.e, { x: c.mx, y: c.my, d: OPP[c.e.d] }, kind, path.length);
           }
           return room;
         }
@@ -1188,7 +1320,7 @@
         const oy = ny - m[1];
         if (!this.layoutOk(shape, ox, oy)) continue;
         if (!this.canPlace(shape, ox, oy, 'door', hall.id + 1)) continue;
-        if (!this.withinReach(shape, ox, oy, served, this.reachFor(hall.kind === 'spine', hall.cells.length))) continue; // (beside a spine, a room is within the spine's length of its ends)
+        if (!this.withinReach(shape, ox, oy, served, this.reachFor(hall.kind === 'spine' || hall.street === true, hall.len))) continue; // (beside a spine, a room is within the spine's length of its ends)
         valid++;
         const s = this.score(shape, ox, oy);
         if (s < bestScore) {
@@ -1260,6 +1392,7 @@
       const { rng } = this;
       this.extraPlaced = 0;
       if (this.radial) return this.placeNextRadial(shape);
+      if (this.main) return this.placeNextMain(shape);
       const type = this.chooseType();
       const other = type === 'door' ? 'hall' : 'door';
       // A spine needs a room to spare and rooms along its side, so where spines are the only hallways, a hallway
@@ -1411,6 +1544,76 @@
       return 0;
     }
 
+    // ---- Main St. -----------------------------------------------------------
+
+    /**
+     * The next room of a Main St. dungeon. The first room is at one end, and the second is at the far end of the street, a
+     * long straight hallway from it (a third goes along its side, if the street is a spine). After that rooms open straight
+     * onto the street, along either side, or (with Branching on) hang off a branch that forks from it. A branch is part of
+     * the street, so the whole dungeon is one hallway. A room goes anywhere else only as a last resort, so none is lost.
+     */
+    placeNextMain(shape) {
+      const { rng } = this;
+      const first = this.rooms[0];
+      if (this.mainDoors) {
+        // no hallways allowed: the rooms follow one another in a row, kept to a band along the street's line
+        for (let attempt = 0; attempt < 150; attempt++) {
+          this.layoutTol = attempt < 60 ? this.layout.tolerance(attempt) : Infinity;
+          const parent = attempt < 60 && rng.chance(0.7) ? this.rooms[this.rooms.length - 1] : rng.pick(this.rooms);
+          if (this.tryDoor(parent, shape)) return 1;
+        }
+        return 0;
+      }
+      const street = this.halls.find((h) => h.street);
+      if (!street) {
+        const plan = { street: true, spine: true, dir: this.layout.vertical ? 2 : 1, range: [this.streetLen, this.streetLen + 2] };
+        for (let attempt = 0; attempt < 60; attempt++) {
+          const room = this.tryHall(first, shape, CONFIG.placementTries, 0, plan);
+          if (room) {
+            this.halls[0].street = true;
+            return 1 + this.extraPlaced;
+          }
+        }
+        // no room for a street that long: a shorter one, then any hallway from the first room
+        const shorter = { ...plan, range: [Math.max(3, Math.floor(this.streetLen / 2)), this.streetLen] };
+        for (let attempt = 0; attempt < 120; attempt++) {
+          const room = this.tryHall(first, shape, 30, Math.floor(attempt / 4), attempt < 40 ? shorter : { street: true, spine: true });
+          if (room) {
+            this.halls[0].street = true;
+            return 1 + this.extraPlaced;
+          }
+        }
+        return 0;
+      }
+      const flush = () => {
+        const pool = this.attachableHalls().filter((h) => h.conn); // (the street, a spine or with Branching on, and any other hallway that can take rooms)
+        pool.sort((p, q) => (q.street === true) - (p.street === true));
+        for (const hall of pool.slice(0, 3)) {
+          const room = this.tryFlush(hall, shape);
+          if (room) return room;
+        }
+        return null;
+      };
+      const fork = () => (this.types.has('branching') ? this.tryHall(street, shape, CONFIG.placementTries, 0, { alley: true }) : null);
+      for (let attempt = 0; attempt < 80; attempt++) {
+        this.layoutTol = this.layout.tolerance(attempt);
+        const forkFirst = this.types.has('branching') && rng.chance(0.3);
+        const room = forkFirst ? fork() || flush() : flush() || fork();
+        if (room) return 1 + this.extraPlaced;
+      }
+      // Crowded: longer branches, then a hallway from any room
+      this.layoutTol = Infinity;
+      for (let attempt = 0; attempt < 150; attempt++) {
+        const reach = 2 + Math.floor(attempt / 3);
+        const room = flush() || (this.types.has('branching') ? this.tryHall(street, shape, 30, reach) : null) || (attempt >= 60 ? this.tryHall(rng.pick(this.rooms), shape, 30, reach) : null);
+        if (room) return 1 + this.extraPlaced;
+      }
+      if (this.kinds.length === 1 && this.kinds[0] === 'spine') {
+        for (let attempt = 0; attempt < 60; attempt++) if (this.tryDoor(this.pickParent(), shape)) return 1;
+      }
+      return 0;
+    }
+
     // ---- closing a ring --------------------------------------------------------
 
     /** Empty squares between two rooms in a straight line (0 when they touch, a corner counting as touching). */
@@ -1473,10 +1676,12 @@
       }
       pairs.sort((p, q) => p.dist - q.dist);
       for (const { ea, eb } of pairs.slice(0, 30)) {
-        const path = this.findPath(ea.x + DX[ea.d], ea.y + DY[ea.d], ea.d, eb.x + DX[eb.d], eb.y + DY[eb.d], a.id + 1, b.id + 1);
+        const path = this.findPath(ea.x + DX[ea.d], ea.y + DY[ea.d], ea.d, eb.x + DX[eb.d], eb.y + DY[eb.d], a.id + 1, b.id + 1, OPP[eb.d]);
         if (!path) continue;
+        const cells = this.hw > 1 ? this.checkWide(path, ea.d, OPP[eb.d], a.id + 1, b.id + 1) : path;
+        if (!cells) continue;
         this.used.short++;
-        this.commitHall(path, a, b, ea, { x: eb.x, y: eb.y, d: eb.d }, 'short');
+        this.commitHall(cells, a, b, ea, { x: eb.x, y: eb.y, d: eb.d }, 'short', path.length);
         return true;
       }
       return false;
@@ -2009,7 +2214,7 @@
     if (b.layout && b.layout.closes) b.closeLoop();
 
     // (a radial dungeon has no other doorways: every room is reached by a hallway from the hub)
-    const extra = b.radial ? 0 : Math.round((b.rooms.length - 1) * CONFIG.extraConnectionFraction);
+    const extra = b.radial || b.main ? 0 : Math.round((b.rooms.length - 1) * CONFIG.extraConnectionFraction);
     for (let i = 0; i < extra; i++) if (!b.addExtraConnection()) break;
 
     b.placeEntrances(params.entrances);
