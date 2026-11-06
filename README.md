@@ -173,7 +173,9 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
   how many rooms are buried: about 1 in 8 for a typical 14-room dungeon.
 - Rooms are numbered breadth-first starting from E1's room.
 - **Label position** (Display column) chooses where each room's number is drawn. **Inside**
-  puts it on the room's middle square. **Outside** moves it just beyond one of the room's
+  puts it on the square nearest the room's middle that has floor on all eight sides, so in an L or T
+  (where the middle can fall beside a notch) it still never sits against a wall; a room too narrow
+  for any such square gets a smaller number. **Outside** moves it just beyond one of the room's
   walls, in the gap between rooms, and never on top of any room (its own included). Each
   number goes on the nearest free wall, preferring the top and the side facing away from
   the middle of the dungeon, and keeps clear of other numbers, hallways and the arrows

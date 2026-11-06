@@ -10,9 +10,23 @@
   const DM = (globalThis.DM = globalThis.DM || {});
   const { DX, DY } = DM.DIRS;
 
-  /** Height of a room's number, in cells: bigger rooms get bigger numbers, within limits. */
+  /** A number no taller than this fits inside a single cell, so it can sit beside a wall. */
+  const FITS_A_CELL = 0.8;
+
+  /**
+   * Height of a room's number, in cells: bigger rooms get bigger numbers, within limits.
+   * If the room's number cell does not have floor all round it (only a very narrow room has
+   * no such cell), the number is kept small enough to stay inside that one cell.
+   */
   function labelSize(room) {
-    return Math.min(Math.max(Math.min(room.bbox.w, room.bbox.h) * 0.3, 0.6), 1.4);
+    const size = Math.min(Math.max(Math.min(room.bbox.w, room.bbox.h) * 0.3, 0.6), 1.4);
+    if (size <= FITS_A_CELL || !room.cells || !room.labelCell) return size;
+    const floor = new Set(room.cells.map((c) => `${c[0]},${c[1]}`));
+    const [lx, ly] = room.labelCell;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) if (!floor.has(`${lx + dx},${ly + dy}`)) return FITS_A_CELL;
+    }
+    return size;
   }
 
   /*

@@ -68,6 +68,14 @@ function checkDungeon(dun, ctx) {
     if (r.area !== r.cells.length) fail(ctx, `room ${r.id} area mismatch`);
     const [lx, ly] = r.labelCell;
     if (at(lx, ly) !== r.id + 1) fail(ctx, `room ${r.id} label cell is not inside the room`);
+    // the number goes on a cell with floor on all eight sides whenever the room has one (in an L or T the middle can fall
+    // beside a notch), so a full-size number is never drawn over a wall; a room with none gets a smaller number
+    {
+      const floor = new Set(r.cells.map((c) => `${c[0]},${c[1]}`));
+      const surrounded = ([x, y]) => [-1, 0, 1].every((dy) => [-1, 0, 1].every((dx) => floor.has(`${x + dx},${y + dy}`)));
+      if (r.cells.some(surrounded) && !surrounded(r.labelCell)) fail(ctx, `room ${r.id} (${r.kind}): the number is beside a wall although the room has a cell with floor all round`);
+      if (!surrounded(r.labelCell) && DM.labelSize(r) > 0.8) fail(ctx, `room ${r.id} (${r.kind}): a ${DM.labelSize(r).toFixed(2)}-cell number sits against a wall`);
+    }
   }
   const labels = dun.rooms.map((r) => r.label).sort((a, b) => a - b);
   labels.forEach((l, i) => {

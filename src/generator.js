@@ -1360,6 +1360,48 @@
     }
 
     /**
+     * The cell a room's number sits on. It is the cell nearest the middle of the room among those with
+     * floor on all eight sides, so the number (which can be taller than a cell) never lands on a wall,
+     * as it could in an L or T where the middle falls beside a notch. A room with no such cell (a
+     * very narrow one) gets the cell with the most floor round it, and DM.labelSize shrinks its number.
+     * This is separate from roomCenterCell, which entrances and stairs use, so those stay where they were.
+     */
+    roomLabelCell(room) {
+      if (room.labelAt) return room.labelAt;
+      const set = new Set(room.cells.map((c) => `${c[0]},${c[1]}`));
+      const has = (x, y) => set.has(`${x},${y}`);
+      const cx = room.sumX / room.cells.length;
+      const cy = room.sumY / room.cells.length;
+      let best = room.cells[0];
+      let bestKey = null;
+      for (const c of room.cells) {
+        let around = 0; // how many of the 8 neighbours are floor
+        let sides = 0; // how many of the 4 side neighbours are floor
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if ((dx || dy) && has(c[0] + dx, c[1] + dy)) {
+              around++;
+              if (!dx || !dy) sides++;
+            }
+          }
+        }
+        const d = (c[0] + 0.5 - cx) ** 2 + (c[1] + 0.5 - cy) ** 2;
+        const key = [around === 8 ? 0 : 1, -sides, -around, d];
+        let better = !bestKey;
+        for (let i = 0; !better && i < key.length; i++) {
+          if (key[i] !== bestKey[i]) better = key[i] < bestKey[i]; // the first difference decides
+          if (key[i] !== bestKey[i]) break;
+        }
+        if (better) {
+          best = c;
+          bestKey = key;
+        }
+      }
+      room.labelAt = best;
+      return best;
+    }
+
+    /**
      * Entrances when they are NOT restricted to the outer edge. Rooms are picked
      * spread across the whole dungeon. A room that has a wall on the outside of the dungeon
      * gets an ordinary door in that wall; a room buried in the middle gets a
@@ -1448,7 +1490,7 @@
      */
     pickStairsCell(room, doorCells, usedCells) {
       const { rng, W, occ } = this;
-      const center = this.roomCenterCell(room);
+      const center = this.roomLabelCell(room); // the number's cell: stairs keep off it
       const inRoom = (x, y) => occ[y * W + x] === room.id + 1;
       const wallSides = (c) => {
         const sides = [];
@@ -1517,7 +1559,7 @@
       const shift = ([x, y]) => [x - minX, y - minY];
 
       const rooms = this.rooms.map((r) => {
-        const labelCell = this.roomCenterCell(r);
+        const labelCell = this.roomLabelCell(r);
         let bx0 = Infinity;
         let by0 = Infinity;
         let bx1 = -Infinity;
