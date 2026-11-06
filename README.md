@@ -42,7 +42,7 @@ Duckweed's Aeldara is a printed-book look: parchment, ink, and two accents, wine
 | Minimum room size: width and length | 1-30 each (default 1 x 1) | The least a room can measure across the map (width) and up and down it (length): 3 x 8 means every room is at least 3 wide and 8 long. 1 x 1 means no minimum |
 | Room size variance | 0-100 | Standard deviation of room area, as a % of the average |
 | Room shapes | at least one on (default on the page: Rectangle and Chamfered) | Which shapes rooms may take: rectangle, chamfered, L, T, U, H, Z, plus. Switch each on or off; rooms pick at random among the ones that are on |
-| Room spacing | Compact / Normal / Spaced Out (default Compact) | In the Layout column. How far apart rooms are; see below. Compact rooms can share walls and rooms a hallway joins are at most 4 squares apart; Normal rooms are 1-6 apart and never touch; Spaced Out rooms are 2-12 apart and never touch. Spines are the exception to the furthest gap: they keep their own, longer length |
+| Room spacing | Compact / Normal / Spread (default Compact) | In the Layout column. How far apart rooms are; see below. Compact rooms can share walls and rooms a hallway joins are at most 4 squares apart; Normal rooms are 1-6 apart and never touch; Spread rooms are 2-12 apart and never touch. Spines are the exception to the furthest gap: they keep their own, longer length |
 | Label position | Inside / Outside (default Inside) | Where room numbers are drawn: on the room's middle square, or just beyond one of its walls without overlapping any room (see below). A display option: it changes at once, without regenerating |
 | Entrances | 1-10 (default 1) | External entrances into the dungeon |
 | Entrances on outer edge only | On / Off (default On) | On: every entrance is a door in the outer wall. Off: entrances can be in any room (see below) |
@@ -114,11 +114,11 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
   |---|---|---|
   | Compact | 0: rooms can share a wall | 4 |
   | Normal | 1 | 6 |
-  | Spaced Out | 2 | 12 |
+  | Spread | 2 | 12 |
 
   **A door overrides the closest rule.** Two rooms joined by a doorway share a wall (the door is
   in it), in every spacing. Every other pair of rooms keeps the closest gap, so in Normal and
-  Spaced Out rooms only touch where a door joins them. A room is placed against a room it is
+  Spread rooms only touch where a door joins them. A room is placed against a room it is
   joined to by a door, never against one it is not. (A room that touches its parent can still
   have its own gap to every other room.) Compact has no closest gap, so any rooms may touch.
   The furthest rule holds for rooms that a hallway joins: every room a hallway serves is within
@@ -128,9 +128,8 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
   squares, a spine left too little room for the rooms along its sides, and a dungeon of only
   spines and branching fell back to doorways.
 
-  The furthest rule shortens hallways that would be longer: a short or spine hallway is cut to
-  fit (so at Compact a spine is 3-4 squares long, at Normal 4-6, and only at Spaced Out does it
-  reach 8-12), and a curly hallway shrinks its runs and jogs to fit (at Compact it is two jogs of
+  The furthest rule shortens hallways that would be longer: a short hallway is cut to
+  fit (2-4 squares at Compact, up to 6 at Normal), a spine is not (it keeps its own 8-20), and a curly hallway shrinks its runs and jogs to fit (at Compact it is two jogs of
   one or two squares). Spines are always straight. This applies on top of the scaling with room
   size below, so a larger room no longer means a longer hallway beyond the limit.
 - Doorways join rooms that share a wall.
@@ -160,7 +159,7 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
     (about 4 rooms per spine with only Spine on). In a dungeon that is mostly doorways
     there are few hallway connections to go round, so it has fewer spines.
   - **Curly**: a winding passage that jogs sideways two or three times, so it has at
-    least four bends. It runs about 15-20 squares in all at the default room size with Spaced Out
+    least four bends. It runs about 15-20 squares in all at the default room size with Spread
   spacing (shorter at Normal and Compact, where it still keeps its four bends).
   - **Branching**: hallways can fork (a branch is itself a short, spine or curly passage,
     whichever are on), and rooms can hang off the side of **any** hallway, not just a
@@ -185,7 +184,7 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
   spines are not capped.
 - A few extra doorways are added after the rooms are joined, between rooms that share a
   wall, so some dungeons have a circuit. (Only doorways: hallways never make one. Rooms only
-  share a wall where a doorway joined them, so at Normal and Spaced Out there are none to add.)
+  share a wall where a doorway joined them, so at Normal and Spread there are none to add.)
 - Entrances are labelled E1, E2... With **Entrances on outer edge only** On they are
   doors in the outer walls, spread as far apart as possible, with an arrow pointing
   into the dungeon. A wall is on the outside only if a straight line out from its door,
@@ -200,8 +199,9 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
 - Rooms are numbered breadth-first starting from E1's room.
 - **Label position** (Display column) chooses where each room's number is drawn. **Inside**
   puts it on the square nearest the room's middle that has floor on all eight sides, so in an L or T
-  (where the middle can fall beside a notch) it still never sits against a wall; a room too narrow
-  for any such square gets a smaller number. **Outside** moves it just beyond one of the room's
+  (where the middle can fall beside a notch) it still never sits against a wall, centred on that square
+  (a room too narrow for any such square gets the best one it has, and its number spills over the walls).
+  Every number is the same size, 1.25 squares high, whatever the room. **Outside** moves it just beyond one of the room's
   walls, in the gap between rooms, and never on top of any room (its own included). Each
   number goes on the nearest free wall, preferring the top and the side facing away from
   the middle of the dungeon, and keeps clear of other numbers, hallways and the arrows

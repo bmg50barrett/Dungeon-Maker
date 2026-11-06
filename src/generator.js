@@ -19,7 +19,7 @@
  *      and straight so that rooms can line up along them. The chosen connection
  *      type follows the user's setting, flipped with the randomization chance.
  *      How far apart rooms are is set by the spacing (SPACING): Compact lets rooms touch and keeps
- *      rooms a hallway joins within 4 squares; Normal and Spaced Out keep rooms at least 1 or 2
+ *      rooms a hallway joins within 4 squares; Normal and Spread keep rooms at least 1 or 2
  *      squares apart and within 6 or 12 squares of the rooms a hallway joins them to. A doorway
  *      overrides the minimum: the two rooms it joins share a wall, in every spacing.
  *   3. Add a few extra doorways between rooms that share a wall (hallways never loop).
@@ -1489,9 +1489,9 @@
 
     /**
      * The cell a room's number sits on. It is the cell nearest the middle of the room among those with
-     * floor on all eight sides, so the number (which can be taller than a cell) never lands on a wall,
+     * floor on all eight sides, so the number (which is a little taller than a cell) never lands on a wall,
      * as it could in an L or T where the middle falls beside a notch. A room with no such cell (a
-     * very narrow one) gets the cell with the most floor round it, and DM.labelSize shrinks its number.
+     * very narrow one) gets the cell with the most floor round it, and its number spills over the walls.
      * This is separate from roomCenterCell, which entrances and stairs use, so those stay where they were.
      */
     roomLabelCell(room) {

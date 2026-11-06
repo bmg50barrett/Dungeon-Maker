@@ -978,8 +978,14 @@
         ctx.font = `600 ${size}px Georgia, 'Times New Roman', serif`;
         ctx.lineWidth = Math.max(2, size * 0.18);
         ctx.strokeStyle = this.theme.labelHalo;
-        ctx.strokeText(l.text, sx, sy);
-        ctx.fillText(l.text, sx, sy);
+        // centred on the square by the ink of the number itself: the middle of the line of text is not the middle of
+        // the digits (Georgia's figures hang below the line), so the number would sit low or high in the square
+        ctx.textBaseline = 'alphabetic';
+        const ink = ctx.measureText(l.text);
+        const lift = ink.actualBoundingBoxAscent !== undefined ? (ink.actualBoundingBoxAscent - ink.actualBoundingBoxDescent) / 2 : size * 0.32;
+        ctx.strokeText(l.text, sx, sy + lift);
+        ctx.fillText(l.text, sx, sy + lift);
+        ctx.textBaseline = 'middle';
       });
     }
 

@@ -70,12 +70,11 @@ function checkDungeon(dun, ctx) {
     const [lx, ly] = r.labelCell;
     if (at(lx, ly) !== r.id + 1) fail(ctx, `room ${r.id} label cell is not inside the room`);
     // the number goes on a cell with floor on all eight sides whenever the room has one (in an L or T the middle can fall
-    // beside a notch), so a full-size number is never drawn over a wall; a room with none gets a smaller number
+    // beside a notch), so the number is never drawn over a wall; a very narrow room has none, and its number spills over the walls
     {
       const floor = new Set(r.cells.map((c) => `${c[0]},${c[1]}`));
       const surrounded = ([x, y]) => [-1, 0, 1].every((dy) => [-1, 0, 1].every((dx) => floor.has(`${x + dx},${y + dy}`)));
       if (r.cells.some(surrounded) && !surrounded(r.labelCell)) fail(ctx, `room ${r.id} (${r.kind}): the number is beside a wall although the room has a cell with floor all round`);
-      if (!surrounded(r.labelCell) && DM.labelSize(r) > 0.8) fail(ctx, `room ${r.id} (${r.kind}): a ${DM.labelSize(r).toFixed(2)}-cell number sits against a wall`);
     }
   }
   const labels = dun.rooms.map((r) => r.label).sort((a, b) => a - b);
@@ -511,7 +510,7 @@ console.log('== hallway types');
   if (JSON.stringify(inPage) !== JSON.stringify(DM.HALL_TYPES.slice().sort())) fail('hall types', `index.html offers [${inPage}] but the generator has [${DM.HALL_TYPES}]`);
 
   const base = { roomCount: 20, avgRoomSize: 30, sizeVariance: 30, entrances: 2, connectionType: 'hall', connectionRandomness: 0 };
-  // (Spaced Out lets hallways run as long as they are meant to: the tighter spacings cut them short, see room spacing below)
+  // (Spread lets hallways run as long as they are meant to: the tighter spacings cut them short, see room spacing below)
   const roomy = { ...base, spacing: 'spaced' };
   const N = 25;
   // bends along a hallway that is a single path (its cells are stored in order)
@@ -749,6 +748,20 @@ console.log('== hallway doors');
 
 console.log('== room labels');
 {
+  // every number is 1.25 squares high, whatever the room (the page and the pictures both draw it that size)
+  if (DM.LABEL_SIZE !== 1.25) fail('labels', `the label size is ${DM.LABEL_SIZE}, not 1.25`);
+  for (const [w, h] of [[1, 1], [1, 9], [3, 3], [6, 6], [20, 20]]) {
+    const cells = [];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) cells.push([x, y]);
+    if (DM.labelSize({ bbox: { x: 0, y: 0, w, h }, cells, labelCell: [0, 0] }) !== 1.25) fail('labels', `a ${w} x ${h} room does not get a 1.25 number`);
+  }
+  for (let s = 0; s < 20; s++) {
+    for (const r of DM.generateDungeon({ roomCount: 15, avgRoomSize: 30, sizeVariance: 60, entrances: 1, connectionType: 'hall', roomShapes: ['rect', 'L', 'T', 'plus'], seed: `labsize${s}` }).rooms) {
+      if (DM.labelSize(r) !== 1.25) fail('labels', `room ${r.label} has a ${DM.labelSize(r)} number`);
+    }
+  }
+}
+{
   // the page offers exactly the label positions the code knows, and loads labels.js before the renderer that uses it
   const html = require('fs').readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
   const inPage = [...html.matchAll(/name="labelPosition"\s+value="([^"]+)"/g)].map((m) => m[1]);
@@ -806,8 +819,8 @@ console.log('== room labels');
             if (gap(box, c) < 0.09) fail('labels', `room ${room.label}: the number touches room ${other.label}`);
           }
         }
-        // the size follows the room, within the limits
-        if (Math.abs(o.h - DM.labelSize(room)) > 1e-9 || o.h < 0.6 || o.h > 1.4) fail('labels', `room ${room.label}: label height ${o.h}`);
+        // every number is the same size
+        if (Math.abs(o.h - 1.25) > 1e-9) fail('labels', `room ${room.label}: label height ${o.h}, not 1.25`);
         // the line back to the wall is there exactly when the number is set off from it
         const lineLength = Math.hypot(o.lx - o.ax, o.ly - o.ay);
         if (o.leader !== lineLength > 0.45) fail('labels', `room ${room.label}: line back to the wall is ${o.leader ? 'on' : 'off'} at ${lineLength.toFixed(2)} cells`);
@@ -1668,7 +1681,7 @@ console.log('== page layout');
     if (JSON.stringify(radios.map((m) => m[2])) !== JSON.stringify(DM.SPACINGS)) fail('layout', `the page offers spacings [${radios.map((m) => m[2])}], the generator has [${DM.SPACINGS}]`);
     if (radios.some((m) => m[1] !== m[2])) fail('layout', 'a spacing radio has an id that does not match its value');
     if (radios.filter((m) => /\schecked/.test(m[3])).map((m) => m[2]).join() !== DM.DEFAULT_SPACING) fail('layout', `the page should start on ${DM.DEFAULT_SPACING} spacing`);
-    if (!html.includes('<legend>Room spacing</legend>') || !/<label for="spacing-spaced">Spaced Out<\/label>/.test(html) || !/<label for="spacing-compact">Compact<\/label>/.test(html) || !/<label for="spacing-normal">Normal<\/label>/.test(html)) fail('layout', 'the spacing choice should read Compact / Normal / Spaced Out under "Room spacing"');
+    if (!html.includes('<legend>Room spacing</legend>') || !/<label for="spacing-spaced">Spread<\/label>/.test(html) || !/<label for="spacing-compact">Compact<\/label>/.test(html) || !/<label for="spacing-normal">Normal<\/label>/.test(html)) fail('layout', 'the spacing choice should read Compact / Normal / Spread under "Room spacing"');
     if (!html.includes('id="spacingHint"') || !html.includes('id="err-spacing"')) fail('layout', 'the spacing choice needs a hint and an error line');
     const hints = (appJs.match(/const SPACING_HINTS = \{[\s\S]*?\n  \};/) || [''])[0];
     for (const name of DM.SPACINGS) {
