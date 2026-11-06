@@ -3,8 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Duckweed's Dungeon Drafter</title>
+  <title>Duckweed’s Dungeon Drafter</title>
+  <!-- the brand's three typefaces (Google Fonts); the page falls back to Georgia if they cannot be reached -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400;1,700&amp;family=IM+Fell+English:ital@0;1&amp;family=IM+Fell+English+SC&amp;display=swap">
   <link rel="stylesheet" href="styles.css">
+  <!-- sets Parchment or Dark before the page is drawn, so there is no flash of the wrong one -->
+  <script src="src/theme.js"></script>
 </head>
 <body>
   <div class="app">
@@ -217,6 +223,18 @@
             </button>
           </h2>
           <div class="blade-body" id="blade-display-body">
+            <!-- the page around the map: Parchment or Dark. Kept on this device apart from the other settings, and the map keeps its own colors -->
+            <fieldset class="field segmented" id="themeChoice">
+              <legend>Theme</legend>
+              <div class="seg-options">
+                <input type="radio" id="theme-parchment" name="theme" value="parchment" checked>
+                <label for="theme-parchment">Parchment</label>
+                <input type="radio" id="theme-dark" name="theme" value="dark">
+                <label for="theme-dark">Dark</label>
+              </div>
+              <p class="hint">Dark is easier on the eyes in a dim room. The map keeps the colors picked below.</p>
+            </fieldset>
+
             <fieldset class="field segmented">
               <legend>Label position</legend>
               <div class="seg-options">
@@ -245,7 +263,14 @@
 
     <main class="stage">
       <!-- the name of the app, across the top of the map (above it, so it never covers the dungeon) -->
-      <h1 class="map-title">Duckweed's Dungeon Drafter</h1>
+      <header class="map-head">
+        <div class="map-head-name">
+          <h1 class="map-title">Duckweed’s Dungeon Drafter</h1>
+          <span class="map-mark">Duckweed’s Aeldara</span>
+        </div>
+      </header>
+      <!-- the map sits in a double gold frame, like a plate in a printed book -->
+      <div class="map-frame"><div class="map-frame-inner">
       <div class="map-area">
         <canvas id="map" aria-label="Dungeon map"></canvas>
         <div class="toolbar">
@@ -279,8 +304,9 @@
             <li><span class="sw sw-stairs"></span> Stairs entrance (inside)</li>
           </ul>
         </section>
-        <p class="canvas-hint" id="canvasHint">Scroll to zoom &middot; drag to pan &middot; double-click to fit</p>
       </div>
+      </div></div>
+      <p class="canvas-hint" id="canvasHint">Scroll to zoom &middot; drag to pan &middot; double-click to fit</p>
       <!-- only shown when printing: the picture made by the Print button -->
       <img id="printImage" alt="The dungeon map, for printing">
     </main>

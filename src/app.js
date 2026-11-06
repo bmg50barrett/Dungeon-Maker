@@ -446,6 +446,20 @@
   }
   for (const radio of document.querySelectorAll('input[name="labelPosition"]')) radio.addEventListener('change', updateLabelPosition);
 
+  // ---- theme ----------------------------------------------------------------------
+  // Parchment or Dark: the page around the map (src/theme.js sets it before the page is drawn). It is kept
+  // apart from the other settings, so a share link and Reset all leave it alone, and the map keeps its
+  // own colors in either theme (they are picked below), so the PNG and the printout match what is on screen.
+  for (const radio of document.querySelectorAll('input[name="theme"]')) {
+    radio.addEventListener('change', () => {
+      if (radio.checked) DM.saveTheme(DM.applyTheme(radio.value));
+    });
+  }
+  {
+    const shown = DM.applyTheme(DM.savedTheme());
+    for (const radio of document.querySelectorAll('input[name="theme"]')) radio.checked = radio.value === shown;
+  }
+
   // ---- colors ------------------------------------------------------------------
   // One row per category (src/palette.js): its ready-made colors as swatches, then a free picker.
   // Like Label position, this is about drawing: the map and the legend change at once.

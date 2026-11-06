@@ -849,8 +849,7 @@
       ctx.strokeStyle = this.theme.arrow;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(sx - w / 2, y - h / 2, w, h, 5);
-      else ctx.rect(sx - w / 2, y - h / 2, w, h);
+      ctx.rect(sx - w / 2, y - h / 2, w, h); // square corners, like the rest of the page
       ctx.fill();
       ctx.stroke();
       ctx.fillStyle = this.theme.label;
@@ -902,8 +901,7 @@
         const h = fontPx + 6 * ui;
         ctx.fillStyle = this.theme.arrow;
         ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(sx - w / 2, sy - h / 2, w, h, 4 * ui);
-        else ctx.rect(sx - w / 2, sy - h / 2, w, h);
+        ctx.rect(sx - w / 2, sy - h / 2, w, h); // square corners, like the rest of the page
         ctx.fill();
         ctx.fillStyle = '#fff';
         ctx.fillText(st.label, sx, sy + 0.5);

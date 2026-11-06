@@ -2,7 +2,35 @@
 
 Generates dungeon maps on a 5 ft grid and draws them on screen. No build step, no
 dependencies: open `index.html` in a browser. The name sits across the top of the map,
-above the dungeon (so it never covers it), and takes the color of the map's lines and text.
+above the dungeon (so it never covers it), in wine, over a 2pt gold rule.
+
+The page is styled in the house style of Duckweed's Aeldara (see **Look** below). Its three typefaces
+come from Google Fonts, so that is the one thing the page asks the network for; with no connection
+it falls back to Georgia and works the same. Your dungeons are never sent anywhere.
+
+## Look
+
+Duckweed's Aeldara is a printed-book look: parchment, ink, and two accents, wine and gold.
+
+- **Two themes**, chosen under **Theme** in the Display column: **Parchment** (the default) and **Dark**,
+  for a dim room. Every color on the page is a custom property in `styles.css`: Parchment on `:root`
+  (paper `#f4ecd9`, ink `#2a211b`, wine `#6b1f1a`, gold `#b0843a`, tint `#e9dcbf`, tint 2 `#efe4cb`, muted `#5b4a3a`,
+  write-in lines `#a89276`) and Dark under `[data-theme="dark"]` (paper `#1f1814` on a `#1a1410` ground, ink `#efe4cb`,
+  wine `#b5503f`, headings `#d98f80`, tint `#30261f`, tint 2 `#3d2d22`, muted `#c2b29a`, write-in lines `#7d6a55`).
+  The choice is remembered on its own (see Remembered settings). `src/theme.js` sets it before the page is
+  drawn, so there is no flash of the wrong one.
+- **The map does not follow the theme.** It is drawn in the colors picked under Colors, in either theme, so the
+  picture on screen, the PNG and the printout always match. For a dark map, pick the dark swatches
+  (Background **Night**, Rooms **Umber**, Hallways **Soot**, Lines and text **Bone**).
+- **Type**: IM Fell English SC for the title, column headings and the main buttons; Crimson Pro for everything
+  else; IM Fell English italic for hint lines.
+- **Rules of the house**: square corners everywhere, no all caps (small caps instead), no shadows. A column or
+  section heading has a 1pt gold rule under it, the title a 2pt one. The map sits in a double gold frame
+  (a 1.5pt line, then a 0.5pt line 5pt inside it). The segment chosen in a choice and Re-generate are filled wine
+  (rose-wine with dark text in Dark); the random-seed button is a wine outline; a chip that is on shows a gold
+  diamond; color swatches are square with a gold outline on the one chosen. Every input and button is at least
+  44px tall. The brand has no icon set, so the little shape pictures on the chips are hidden: the diamond is
+  the only mark.
 
 ## Inputs
 
@@ -154,10 +182,11 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
   keeps its number inside. This only changes how the map is drawn, so it applies at once
   without regenerating, and the map refits so the outside numbers are not cut off.
 - **Colors** (Display column) has a row for each kind of thing on the map, each with four
-  ready-made colors and a free color picker (the ring of colors on the end; once you use
-  it, it shows your color). The first ready-made color in every row is the default (the
-  colors the map was first drawn in, except Hallways, which starts as Clay; the old Straw is
-  still there as the last choice). The legend on the map follows the colors, and **Reset** puts them all back. The
+  ready-made colors and a free color picker (the dashed square with a plus on the end; once you use
+  it, it shows your color). The ready-made colors are the brand's own. The first one in every row is the
+  default, which is the parchment look: Background Parchment `#f4ecd9`, Rooms Ivory `#fbf7ec`, Hallways Clay
+  `#e2d2ae`, Lines and text Ink `#2a211b`, Grid Faded `#a89276`, Doors Gold `#b0843a`, Entrances Wine `#6b1f1a`.
+  The legend on the map follows the colors, and **Reset** puts them all back. The
   rows:
 
   | Row | What it colors |
@@ -222,9 +251,9 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
     never asks.
 - The inputs are in four columns side by side: **Rooms** (count, sizes, shapes),
   **Hallways** (connection type, randomization, hallway types, doors, entrances),
-  **Generate** (seed, the buttons and the results) and **Display** (label position, the
+  **Generate** (seed, the buttons and the results) and **Display** (theme, label position, the
   grid and room-number switches, and colors). Display only changes how the map is
-  drawn, so it applies at once. Click a
+  drawn (and, for the theme, the page around it), so it applies at once. Click a
   column's title bar to collapse it to a thin strip and give the map more room, and
   click the strip to open it again. Which columns are collapsed is remembered. A
   collapsed column opens by itself if one of its inputs has an error. On a narrow
@@ -239,7 +268,8 @@ The page keeps your settings in this browser and puts them back on your next vis
 every input in the Rooms and Hallways columns (counts, sizes, spacing, shapes, hallway types, doors,
 entrances, the outer-edge switch), the display choices (label position, grid and room-number
 switches) and every color. They are saved as you change them. Which columns are collapsed is
-remembered too, separately.
+remembered too, separately, and so is the theme (Parchment or Dark, under `dungeonMaker.theme`). The
+theme is about the viewer, not the dungeon, so a share link does not hold it and **Reset all** leaves it alone.
 
 - The **seed is not remembered**: it would make every visit open the same dungeon. The
   first dungeon of a visit is built with a new random seed.
@@ -288,7 +318,7 @@ A link made before **Room spacing** existed has no `spacing` key; it leaves the 
 (Compact when the page opens fresh), like any other key a link leaves out.
 
 The display keys (`label`, `grid`, `nums`, `color.<row>`) appear only when they differ from
-the usual look, so what a link leaves out is the usual. (Links made while hallways still started as Straw leave the hallway color out, so they now open with Clay hallways; add `color.hallways=efe5ca` for Straw.) Anything in a link that is not
+the usual look, so what a link leaves out is the usual. (Links made before the brand colors came in leave out the colors the map then started in, so they now open in the parchment look; to bring the old tan map back, add `color.background=e6dbc0&color.hallways=e2c9a8&color.doors=d9a45a&color.entrances=c0392b&color.lines=2a2018&color.grid=78623e`.) Anything in a link that is not
 valid is ignored, key by key, so a damaged link still opens with what is left. Links
 need the page they were made on to still exist: one made from a file on your computer
 only works on your computer.
@@ -357,7 +387,8 @@ Things to know:
 ## Files
 
 ```
-index.html, styles.css   page
+index.html, styles.css   page (styles.css holds the two themes as custom properties)
+src/theme.js             Parchment or Dark: sets `data-theme` on the page, remembers the choice (loaded in the <head>)
 src/rng.js               seedable random numbers
 src/shapes.js            room shapes (rectilinear polyominoes), `DM.SHAPE_KINDS`
 src/generator.js         layout: placement, hallway routing (A*), entrances, output model

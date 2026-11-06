@@ -824,14 +824,18 @@ console.log('== colors');
   const isColor = (c) => typeof c === 'string' && (DM.isHexColor(c) || /^rgba\(\d+, \d+, \d+, [\d.]+\)$/.test(c));
   const base = DM.themeFrom(DM.defaultColors());
 
-  // the colors the map was drawn in before there were pickers are the defaults, except hallways, which now start as Clay (Straw, the old one, is still the last ready-made choice)
+  // the map's default colors are Duckweed's Aeldara's parchment look: cream rooms (#fbf7ec) and clay hallways (#e2d2ae) on a parchment page,
+  // gold doors (#b0843a) and wine entrances (#6b1f1a). The PNG and the printout are drawn from the same theme, so they match.
   const original = {
-    background: '#e6dbc0', gridFaint: 'rgba(120, 98, 62, 0.10)', gridFloor: 'rgba(120, 98, 62, 0.38)', roomFloor: '#fbf7ec', hallFloor: '#e2c9a8',
-    wall: '#2a2018', doorFill: '#d9a45a', doorStroke: '#4a3018', entranceFill: '#e4573d', entranceStroke: '#4a1a10', arrow: '#c0392b',
-    stairsTint: 'rgba(192, 57, 43, 0.10)', label: '#2a2018', labelHalo: 'rgba(251, 247, 236, 0.85)',
+    background: '#f4ecd9', gridFaint: 'rgba(168, 146, 118, 0.10)', gridFloor: 'rgba(168, 146, 118, 0.38)', roomFloor: '#fbf7ec', hallFloor: '#e2d2ae',
+    wall: '#2a211b', doorFill: '#b0843a', doorStroke: '#312510', entranceFill: '#864743', entranceStroke: '#1b0807', arrow: '#6b1f1a',
+    stairsTint: 'rgba(107, 31, 26, 0.10)', label: '#2a211b', labelHalo: 'rgba(251, 247, 236, 0.85)',
   };
-  for (const [key, want] of Object.entries(original)) if (!base[key] || !same(base[key], want)) fail('colors', `default ${key} is ${base[key]}, the map has always used ${want}`);
+  for (const [key, want] of Object.entries(original)) if (!base[key] || !same(base[key], want)) fail('colors', `default ${key} is ${base[key]}, the brand's parchment map uses ${want}`);
   for (const key of Object.keys(base)) if (!(key in original)) fail('colors', `theme has ${key}, which the renderer did not have before`);
+  // the ready-made colors are all the brand's own: paper, ink, wine and gold, and the tints between them
+  const brand = new Set(['#f4ecd9', '#ffffff', '#e9dcbf', '#1f1814', '#fbf7ec', '#efe4cb', '#3d2d22', '#e2d2ae', '#d4c3a3', '#30261f', '#2a211b', '#000000', '#5b4a3a', '#a89276', '#7d6a55', '#c2b29a', '#b0843a', '#80602a', '#6b1f1a', '#b5503f', '#d98f80']);
+  for (const cat of cats) for (const p of cat.presets) if (!brand.has(p.hex)) fail('colors', `${cat.id}/${p.name} is ${p.hex}, which is not one of the brand's colors`);
 
   // the categories the page asks for, each with 3 or 4 ready-made colors and the original first
   const ids = cats.map((c) => c.id);
@@ -1478,7 +1482,7 @@ console.log('== page layout');
   if (!/fillSeed && !randomSeed && check\.params\.seed === null/.test(appJs)) fail('layout', 'only a blank seed should be filled in, never one that was typed');
   if (!/if \(randomSeed \|\| \(fillBlankSeed && \$\('seed'\)\.value\.trim\(\) === ''\)\) \$\('seed'\)\.value = dungeon\.seed/.test(appJs)) fail('layout', 'the seed box should get the seed the dungeon was built from (always for the random button, only if blank otherwise)');
   // the name of the app is across the top of the map, not in the columns, and the map sits under it
-  const NAME = "Duckweed's Dungeon Drafter";
+  const NAME = 'Duckweed’s Dungeon Drafter'; // with the curly apostrophe the brand uses in print
   const titleAt = html.indexOf('<h1');
   if (html.indexOf('<h1', titleAt + 1) !== -1) fail('layout', 'the page has more than one <h1>');
   if (titleAt < stageAt || stageAt < 0) fail('layout', 'the title should be inside the map area (<main class="stage">), not in a column');
@@ -1498,6 +1502,140 @@ console.log('== page layout');
   // one form wraps all four columns, so Enter in any field generates
   const formAt = html.indexOf('<form id="params"');
   if (formAt < 0 || blades.some((m) => m.index < formAt) || html.indexOf('</form>') < blades[blades.length - 1].index) fail('layout', 'the four columns are not all inside the one form');
+  console.log('  done');
+}
+
+console.log('== brand style (Duckweed’s Aeldara)');
+{
+  const fs = require('fs');
+  const path = require('path');
+  const read = (...p) => fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8');
+  const css = read('styles.css');
+  const html = read('index.html');
+  const appJs = read('src', 'app.js');
+  const noComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
+
+  // two themes of custom properties: Parchment on :root (the default), Dark under [data-theme="dark"]
+  const parchmentBlock = noComments.match(/:root,\s*\[data-theme='parchment'\]\s*\{[^}]*\}/);
+  const darkBlock = noComments.match(/\[data-theme='dark'\]\s*\{[^}]*\}/);
+  if (!parchmentBlock || !darkBlock) fail('brand', 'styles.css needs a Parchment block on :root and a [data-theme="dark"] block');
+  const prop = (block, name) => ((block[0].match(new RegExp(`--${name}:\\s*([^;]+);`)) || [])[1] || '').trim().toLowerCase();
+  const PARCHMENT = { paper: '#f4ecd9', ink: '#2a211b', wine: '#6b1f1a', gold: '#b0843a', tint: '#e9dcbf', tint2: '#efe4cb', muted: '#5b4a3a', 'write-in': '#a89276', heading: '#6b1f1a', fill: '#6b1f1a', 'on-fill': '#f4ecd9' };
+  const DARK = { paper: '#1f1814', stock: '#1a1410', ink: '#efe4cb', wine: '#b5503f', gold: '#b0843a', tint: '#30261f', tint2: '#3d2d22', muted: '#c2b29a', heading: '#d98f80', 'write-in': '#7d6a55', fill: '#d98f80', 'on-fill': '#1f1814' };
+  for (const [name, want] of Object.entries(PARCHMENT)) if (parchmentBlock && prop(parchmentBlock, name) !== want) fail('brand', `Parchment --${name} is "${prop(parchmentBlock, name)}", the brand has ${want}`);
+  for (const [name, want] of Object.entries(DARK)) if (darkBlock && prop(darkBlock, name) !== want) fail('brand', `Dark --${name} is "${prop(darkBlock, name)}", the brand has ${want}`);
+  if (parchmentBlock && prop(parchmentBlock, 'stock') !== PARCHMENT.paper) fail('brand', 'the Parchment page ground should be paper');
+  // every color is a custom property: none is written out anywhere else (the map's own swatches take --c-* from the map, and only fall back to custom properties)
+  const outside = noComments.replace(parchmentBlock ? parchmentBlock[0] : '', '').replace(darkBlock ? darkBlock[0] : '', '');
+  const literal = outside.match(/#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(/g) || [];
+  if (literal.length > 0) fail('brand', `styles.css writes colors outside the two themes: ${literal}`);
+  // the page starts in Parchment, and the sheet and the ground are two different colors in Dark only
+  if (!/\[data-theme='dark'\][\s\S]*color-scheme:\s*dark/.test(noComments)) fail('brand', 'the Dark theme should switch the browser controls to dark too');
+
+  // rules of the house: square corners, no all caps, no drop shadows
+  for (const m of noComments.matchAll(/border-radius:\s*([^;]+);/g)) if (m[1].trim() !== '0') fail('brand', `a corner is rounded: border-radius ${m[1].trim()}`);
+  if (!/\*,\s*\*::before,\s*\*::after\s*\{\s*border-radius:\s*0;/.test(noComments)) fail('brand', 'every corner should be square, whatever is added later: styles.css needs a rule that sets border-radius: 0 on everything');
+  if (/text-transform:\s*uppercase/.test(noComments) || /font-variant(-caps)?:\s*all-/.test(noComments)) fail('brand', 'nothing is set in all caps: use small caps');
+  for (const m of noComments.matchAll(/box-shadow:\s*([^;]+);/g)) if (!/^inset\b/.test(m[1].trim())) fail('brand', `a drop shadow: box-shadow ${m[1].trim()}`);
+  if (/drop-shadow\(/.test(noComments)) fail('brand', 'no drop shadows');
+
+  // the type: Google Fonts, engraved small caps for the title, headings and the main buttons, Fell italic for hints, Crimson for the rest
+  const fontsLink = (html.match(/<link rel="stylesheet" href="(https:\/\/fonts\.googleapis\.com\/css2[^"]+)"/) || [])[1] || '';
+  for (const family of ['Crimson+Pro', 'IM+Fell+English:ital@0;1', 'IM+Fell+English+SC']) if (!fontsLink.includes(`family=${family}`)) fail('brand', `the Google Fonts link has no ${family}`);
+  if (!/display=swap/.test(fontsLink)) fail('brand', 'the fonts should swap in, so the page is readable before they arrive');
+  const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const rule = (selector) => ((noComments.match(new RegExp(`(?:^|\\})\\s*${escapeRe(selector)}\\s*\\{([^}]*)\\}`)) || [])[1] || '').replace(/\s+/g, ' ');
+  for (const [name, want] of [['--font-display', "'IM Fell English SC'"], ['--font-fell', "'IM Fell English'"], ['--font-text', "'Crimson Pro'"]]) {
+    if (!new RegExp(`${name}:\\s*${escapeRe(want)},\\s*Georgia, serif`).test(noComments)) fail('brand', `${name} should be ${want} with Georgia and serif behind it`);
+  }
+  for (const sel of ['.map-title', '.blade-toggle', '.colors h3, .export h3, .settings h3', '#generate, #generateRandom', '.toolbar button', '.dialog-buttons button', '.map-mark']) {
+    if (!/font-family:\s*var\(--font-display\)/.test(rule(sel))) fail('brand', `${sel} should be set in the display face (IM Fell English SC)`);
+  }
+  for (const sel of ['.canvas-hint']) if (!/font-family:\s*var\(--font-fell\)/.test(rule(sel)) || !/font-style:\s*italic/.test(rule(sel))) fail('brand', `${sel} should be IM Fell English italic`);
+  if (!/font-family:\s*var\(--font-text\)/.test(noComments.match(/html,\s*body\s*\{[^}]*\}/)[0])) fail('brand', 'everything else should be Crimson Pro');
+
+  // rules and frames: a 2pt gold rule under the title, a 1pt one under headings, a double gold frame (1.5pt, 0.5pt, 5pt apart) round the map
+  const token = (name) => ((noComments.match(new RegExp(`--${name}:\\s*([^;]+);`)) || [])[1] || '').trim();
+  for (const [name, want] of [['stroke-chapter', '2pt'], ['stroke-section', '1pt'], ['stroke-frame-outer', '1.5pt'], ['stroke-frame-inner', '0.5pt'], ['space-frame-inset', '5pt'], ['tap', '44px']]) {
+    if (token(name) !== want) fail('brand', `--${name} is "${token(name)}", the brand has ${want}`);
+  }
+  if (!/border-bottom:\s*var\(--stroke-chapter\) solid var\(--gold\)/.test(rule('.map-head'))) fail('brand', 'the title needs a 2pt gold rule under it');
+  if (!/border-bottom:\s*var\(--stroke-section\) solid var\(--gold\)/.test(rule('.panel .blade-head'))) fail('brand', 'a panel heading needs a 1pt gold rule under it');
+  if (!/border-bottom:\s*var\(--stroke-section\) solid var\(--gold\)/.test(rule('.colors h3, .export h3, .settings h3'))) fail('brand', 'a section heading needs a 1pt gold rule under it');
+  if (!/border:\s*var\(--stroke-frame-outer\) solid var\(--gold\)/.test(rule('.map-frame')) || !/padding:\s*var\(--space-frame-inset\)/.test(rule('.map-frame'))) fail('brand', 'the map needs a 1.5pt gold outer frame, with the inner one 5pt in');
+  if (!/border:\s*var\(--stroke-frame-inner\) solid var\(--gold\)/.test(rule('.map-frame-inner'))) fail('brand', 'the map needs a 0.5pt gold inner frame');
+  if (!/<div class="map-frame"><div class="map-frame-inner">\s*<div class="map-area">\s*<canvas id="map"/.test(html)) fail('brand', 'the map canvas should sit inside the double frame');
+  if (!/<header class="map-head">\s*<div class="map-head-name">\s*<h1 class="map-title">/.test(html)) fail('brand', 'the title should sit in the header that carries the 2pt rule');
+
+  // selections are wine: the segment chosen and Re-generate are filled, the random seed button is an outline, chips on show a gold diamond, swatches are square with a gold outline on the one chosen
+  if (!/background:\s*var\(--fill\)/.test(rule('.seg-options input:checked + label'))) fail('brand', 'the segment chosen should be filled wine');
+  if (!/background:\s*var\(--fill\)/.test(rule('#generate')) || !/color:\s*var\(--on-fill\)/.test(rule('#generate'))) fail('brand', 'Re-generate should be filled wine (rose-wine with dark text in Dark)');
+  if (!/background:\s*transparent/.test(rule('#generateRandom')) || !/border:\s*1px solid var\(--wine\)/.test(rule('#generateRandom'))) fail('brand', 'the random seed button should be a wine outline');
+  if (!/content:\s*'\\25C6'/.test(rule('.chip-body::before'))) fail('brand', 'a chip should carry a diamond');
+  if (!/color:\s*var\(--gold\)/.test(rule('.chip input:checked + .chip-body::before'))) fail('brand', 'the diamond on a chip that is on should be gold');
+  if (!/outline:\s*var\(--stroke-frame-outer\) solid var\(--gold\)|outline:\s*1\.5pt solid var\(--gold\)/.test(noComments.match(/\.swatch input:checked \+ \.dot,\s*\.swatch\.custom\.active \.dot\s*\{[^}]*\}/)[0])) fail('brand', 'the swatch chosen should have a gold outline');
+  if (/\.swatch[^{]*\.dot\s*\{[^}]*border-radius:\s*(?!0)/.test(noComments)) fail('brand', 'swatches should be square');
+  if (/conic-gradient/.test(noComments)) fail('brand', 'wine and gold are the only accents: no rainbow picker swatch');
+
+  // everything pressed or typed in is at least 44px tall
+  if (!/height:\s*var\(--tap\)/.test(rule("input[type='number'], input[type='text']"))) fail('brand', 'inputs should be at least 44px tall');
+  for (const sel of ['.seg-options label', '.chip-body', '.link-btn', '.check', '#generate, #generateRandom', '.export-buttons button', '.legend-toggle', '.dialog-buttons button', '.color-field .swatch', '.toggle-field label.switch']) {
+    if (!/(min-)?height:\s*var\(--tap\)/.test(rule(sel))) fail('brand', `${sel} should be at least 44px tall`);
+  }
+  if (!/min-height:\s*var\(--tap\)/.test(rule('.blade-toggle')) && !/min-height:\s*(5\d|[6-9]\d)px/.test(rule('.blade-toggle'))) fail('brand', 'a column heading should be at least 44px tall');
+  if (!/height:\s*var\(--tap\)/.test(rule('.toolbar button'))) fail('brand', 'the buttons on the map should be at least 44px tall');
+
+  // print: the picture alone, and its page is light whatever the page theme is
+  const printCss = css.slice(css.indexOf('@media print'));
+  for (const hidden of ['.map-head', '.map-frame']) if (!printCss.includes(hidden)) fail('brand', `the print layout does not hide ${hidden}`);
+  if (!/:root\s*\{\s*color-scheme:\s*light/.test(printCss)) fail('brand', 'the printout should be light even when the page is Dark');
+
+  // the theme: a choice in the Display column, set before the page is drawn, kept apart from the other settings
+  const headHtml = html.slice(0, html.indexOf('</head>'));
+  if (!headHtml.includes('src/theme.js') || headHtml.indexOf('src/theme.js') < headHtml.indexOf('styles.css')) fail('brand', 'theme.js should be in the <head>, after the stylesheet, so the page never flashes the wrong theme');
+  const displayColumn = html.slice(html.indexOf('data-blade="display"'), html.indexOf('<main class="stage">'));
+  const themeRadios = [...displayColumn.matchAll(/<input type="radio" id="theme-(\w+)" name="theme" value="(\w+)"([^>]*)>/g)];
+  if (JSON.stringify(themeRadios.map((m) => m[2])) !== JSON.stringify(['parchment', 'dark'])) fail('brand', `the Display column offers themes [${themeRadios.map((m) => m[2])}], not Parchment and Dark`);
+  if (themeRadios.filter((m) => /\schecked/.test(m[3])).map((m) => m[2]).join() !== 'parchment') fail('brand', 'the page should start in Parchment');
+  if (themeRadios.some((m) => m[1] !== m[2])) fail('brand', 'a theme radio has an id that does not match its value');
+  if (!/DM\.saveTheme\(DM\.applyTheme\(radio\.value\)\)/.test(appJs)) fail('brand', 'app.js does not apply and keep the theme chosen');
+  const resetAt = appJs.indexOf("$('resetSettings').addEventListener");
+  if (/theme/i.test(appJs.slice(resetAt, appJs.indexOf('\n  });', resetAt)))) fail('brand', 'Reset all should leave the theme alone, like the collapsed columns');
+  const settingsFn = (appJs.match(/function settingsText\(\) \{[\s\S]*?\n  \}/) || [''])[0];
+  if (!settingsFn || /theme/i.test(settingsFn) || /theme/i.test(read('src', 'share.js'))) fail('brand', 'the theme belongs to the viewer: it must not be in the kept settings or a share link');
+  if (read('mcp', 'lib', 'dm.js').includes("'theme'")) fail('brand', 'theme.js is for the page; the MCP server should not load it');
+
+  // theme.js itself (a stand-in for the page's document and storage)
+  {
+    const had = { document: globalThis.document, localStorage: globalThis.localStorage };
+    delete globalThis.document;
+    delete globalThis.localStorage;
+    require('../src/theme.js'); // with no page, loading it changes nothing
+    const store = new Map();
+    const attrs = {};
+    globalThis.document = { documentElement: { setAttribute: (k, v) => (attrs[k] = v) } };
+    globalThis.localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)) };
+    if (JSON.stringify(DM.THEMES) !== JSON.stringify(['parchment', 'dark']) || DM.DEFAULT_THEME !== 'parchment') fail('brand', `themes are [${DM.THEMES}], default ${DM.DEFAULT_THEME}`);
+    if (DM.savedTheme() !== 'parchment') fail('brand', 'with nothing kept, the page should be Parchment');
+    if (DM.applyTheme('dark') !== 'dark' || attrs['data-theme'] !== 'dark') fail('brand', 'applying Dark should set data-theme="dark" on <html>');
+    if (DM.applyTheme('sepia') !== 'parchment' || attrs['data-theme'] !== 'parchment') fail('brand', 'an unknown theme should fall back to Parchment');
+    DM.saveTheme('dark');
+    if (store.get(DM.THEME_KEY) !== 'dark' || DM.savedTheme() !== 'dark') fail('brand', 'the theme chosen should be kept and come back');
+    DM.saveTheme('sepia');
+    if (store.get(DM.THEME_KEY) !== 'dark') fail('brand', 'an unknown theme should not be kept');
+    for (const junk of ['', 'DARK', '{"a":1}', 'null']) {
+      store.set(DM.THEME_KEY, junk);
+      if (DM.savedTheme() !== 'parchment') fail('brand', `"${junk}" kept as the theme should mean Parchment`);
+    }
+    globalThis.localStorage = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); } };
+    if (DM.savedTheme() !== 'parchment') fail('brand', 'blocked storage should mean Parchment');
+    DM.saveTheme('dark'); // must not throw
+    if (DM.THEME_KEY === 'dungeonMaker.settings' || DM.THEME_KEY === 'dungeonMaker.collapsedColumns') fail('brand', 'the theme needs a storage key of its own');
+    for (const k of ['document', 'localStorage']) {
+      if (had[k] === undefined) delete globalThis[k];
+      else globalThis[k] = had[k];
+    }
+  }
   console.log('  done');
 }
 
