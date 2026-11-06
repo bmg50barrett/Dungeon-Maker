@@ -383,7 +383,7 @@
   function editState(d) {
     const cells = d.halls.flatMap((h) => h.cells.map(([x, y]) => key(x, y))).sort();
     const doors = d.connections.flatMap((c) => c.openings.map((o) => `${o.x},${o.y},${o.d},${o.style}`)).sort();
-    const numbers = d.rooms.map((r) => r.label).join(',');
+    const numbers = d.rooms.map((r) => `${r.label}${r.name ? `:${r.name}` : ''}`).join(',');
     const entrances = d.entrances.map((e) => `${e.kind},${e.x},${e.y},${e.d}`).join(';');
     return `${cells.join(';')}|${doors.join(';')}|${numbers}|${entrances}`;
   }

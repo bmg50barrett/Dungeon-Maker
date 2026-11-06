@@ -349,6 +349,25 @@ console.log('== editing hallways');
   if (!blocked || !/(not an outer wall|shut in)/.test(blocked.message)) fail('entrance', `a door onto a hallway should be refused: ${blocked && blocked.message}`);
   run([{ type: 'delete_hallway', hall: 1 }]);
 
+  // room names: shown in the description and in a key under the picture, kept when renumbered, cleared by empty text
+  const named = tools.edit_dungeon.run({ id: item.id, edits: [{ type: 'name_room', room: 1, name: '  Foyer ' }, { type: 'name_room', room: 2, name: 'Dining   Room' }], picture: true });
+  if (!/room 1 is now named "Foyer"/.test(named.text) || !/Room 1 \(Foyer\):/.test(named.text) || !/Room 2 \(Dining Room\):/.test(named.text)) fail('name', `naming rooms: ${named.text.split('\n').slice(0, 3).join(' | ')}`);
+  if (!store.isEdited(item)) fail('name', 'naming a room should count as an edit');
+  const plain = tools.draw_map.run({ id: item.id, legend: false }).png;
+  const keyed = tools.draw_map.run({ id: item.id }).png;
+  const unnamed = store.add(fixture());
+  if (pngSize(keyed).h <= pngSize(tools.draw_map.run({ id: unnamed.id }).png).h) fail('name', 'named rooms should add a key and make the legend taller');
+  if (!isPng(plain)) fail('name', 'no picture');
+  run([{ type: 'renumber_room', room: 1, number: 2 }]);
+  if (d.rooms[0].name !== 'Foyer' || d.rooms[0].label !== 2) fail('name', 'a room should keep its name when renumbered');
+  run([{ type: 'renumber_room', room: 1, number: 2 }]);
+  run([{ type: 'name_room', room: 1, name: '' }, { type: 'name_room', room: 2, name: '' }]);
+  if (d.rooms.some((r) => r.name !== undefined) || DM.editState(d) !== pristine) fail('name', 'empty names should remove the names');
+  for (const [edit, re] of [[{ type: 'name_room', room: 9, name: 'x' }, /no room 9/], [{ type: 'name_room', room: 1 }, /"name"/], [{ type: 'name_room', room: 1, name: 'x'.repeat(61) }, /at most 60/]]) {
+    const err = toolError(() => run([edit]));
+    if (!err || !re.test(err.message)) fail('name', `${JSON.stringify(edit)} should fail mentioning ${re}: ${err && err.message}`);
+  }
+
   // what cannot be done
   for (const [edit, re, why] of [
     [{ type: 'draw_hallway', points: [[1, 1], [2, 1]] }, /nothing to add/, 'a hallway drawn over a room'],

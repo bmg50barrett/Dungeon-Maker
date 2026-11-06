@@ -28,6 +28,7 @@ const APP_DEFAULTS = {
 };
 
 const MAX_EDITS = 50;
+const MAX_NAME = 60; // longest room name, in characters
 const MAX_POINTS = 200;
 const MAX_STROKE = 5000; // squares one hallway stroke may cover, as in the page
 
@@ -231,6 +232,7 @@ function createTools({ store = new Store() } = {}) {
       '- "add_entrance": add a way in from outside. Give "x", "y" (a room square) and "side" (N, E, S or W): a door in that outer wall of the room. The wall must face open ground with a clear line out of the map (no other room or hallway in the way). Or give "kind": "stairs" to put stairs on the room floor at that square, climbing toward that side.\n' +
       '- "remove_entrance": remove an entrance. Give "entrance", its number (2 for E2). At least one entrance must remain, and entrances are numbered E1, E2, ... again afterwards. To move an entrance, add the new one first, then remove the old one.\n' +
       '- "renumber_room": change a room\'s number. Give "room" (its number on the map now) and "number" (the number it should have). Numbers always stay 1 to N, so the room that had that number takes the old one of this room (they swap). Later renumber_room edits in the same call see the numbers as the earlier ones left them.\n' +
+      '- "name_room": give a room a name. Give "room" (its number on the map) and "name", e.g. "Foyer". The map still shows numbers; a key under the picture lists "number - name" for every named room, and the description shows the name beside the number. An empty name removes it. A room keeps its name if it is renumbered.\n' +
       'Coordinates in one call are all read against the map as it was before the call. If a hallway reaches past the top or left edge, the map grows and every coordinate moves; the answer says so and gives the new description.',
     inputSchema: {
       type: 'object',
@@ -243,7 +245,8 @@ function createTools({ store = new Store() } = {}) {
           items: {
             type: 'object',
             properties: {
-              type: { type: 'string', enum: ['door', 'draw_hallway', 'delete_hallway', 'add_entrance', 'remove_entrance', 'renumber_room'] },
+              type: { type: 'string', enum: ['door', 'draw_hallway', 'delete_hallway', 'add_entrance', 'remove_entrance', 'renumber_room', 'name_room'] },
+              name: { type: 'string', description: `name_room: the room's name (up to ${MAX_NAME} characters); empty text removes it` },
               hall: { type: 'integer', description: 'delete_hallway: the hallway\'s number (3 for H3), to delete all of it' },
               kind: { type: 'string', enum: ['door', 'stairs'], description: 'add_entrance: a door in an outer wall (default) or stairs on the floor' },
               entrance: { type: 'integer', description: 'remove_entrance: the entrance\'s number (2 for E2)' },
@@ -442,6 +445,21 @@ function applyEdit(d, edit, shift, snap) {
       if (!res.ok) throw new ToolError(`cannot remove E${n}: ${res.reason}`);
       return `removed E${n} (from room ${label(res.entrance.room)}). Entrances are numbered E1, E2, ... again.`;
     }
+    case 'name_room': {
+      const num = needInt(edit.room, 'room');
+      const r = d.rooms.find((x) => x.label === num);
+      if (!r) throw new ToolError(`there is no room ${num}. Rooms are numbered 1 to ${d.rooms.length}, as printed on the map.`);
+      if (typeof edit.name !== 'string') throw new ToolError('"name" must be text (an empty one removes the name).');
+      // eslint-disable-next-line no-control-regex
+      const name = edit.name.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (name.length > MAX_NAME) throw new ToolError(`a room name can be at most ${MAX_NAME} characters (this one is ${name.length}).`);
+      if (name === '') {
+        delete r.name;
+        return `room ${num} no longer has a name.`;
+      }
+      r.name = name;
+      return `room ${num} is now named "${name}".`;
+    }
     case 'renumber_room': {
       const from = needInt(edit.room, 'room');
       const to = needInt(edit.number, 'number');
@@ -458,7 +476,7 @@ function applyEdit(d, edit, shift, snap) {
       return `room ${from} is now room ${to}, and the room that was ${to} is now ${from}.`;
     }
     default:
-      throw new ToolError(`"type" must be one of: door, draw_hallway, delete_hallway, add_entrance, remove_entrance, renumber_room.`);
+      throw new ToolError(`"type" must be one of: door, draw_hallway, delete_hallway, add_entrance, remove_entrance, renumber_room, name_room.`);
   }
 }
 

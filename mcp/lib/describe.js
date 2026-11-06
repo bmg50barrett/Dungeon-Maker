@@ -90,7 +90,7 @@ function describeDungeon(d, { id, edited } = {}) {
   lines.push('', 'ROOMS');
   for (const r of [...d.rooms].sort((a, b) => a.label - b.label)) {
     const shape = SHAPES[r.kind] || r.kind;
-    lines.push(`Room ${r.label}: ${shape}, ${r.bbox.w * ft}×${r.bbox.h * ft} ft overall (${r.bbox.w}×${r.bbox.h} squares), ${count(r.area, 'square')} of floor (${r.area * ft * ft} sq ft), in the ${whereOnMap(d, r)} of the map.`);
+    lines.push(`Room ${r.label}${r.name ? ` (${r.name})` : ''}: ${shape}, ${r.bbox.w * ft}×${r.bbox.h * ft} ft overall (${r.bbox.w}×${r.bbox.h} squares), ${count(r.area, 'square')} of floor (${r.area * ft * ft} sq ft), in the ${whereOnMap(d, r)} of the map.`);
     for (const e of d.entrances.filter((x) => x.room === r.id)) lines.push(`  - entrance ${e.label} (${e.kind === 'stairs' ? 'stairs' : `door in its ${SIDES[e.d]} wall`})`);
     const mine = exits.get(r.id).sort((a, b) => a.wall - b.wall || a.y - b.y || a.x - b.x);
     for (const x of mine) {

@@ -1181,7 +1181,23 @@
       const padTop = 18 * ui;
       const captionH = 24 * ui;
       const padBetween = 12 * ui;
-      const height = Math.ceil(padTop + captionH + padBetween + (row + 1) * rowH + 18 * ui);
+      // the names of the rooms that have one, as a table: "1 - Foyer", reading down the columns
+      const named = d.rooms.filter((r) => typeof r.name === 'string' && r.name.trim() !== '').sort((a, b) => a.label - b.label);
+      const maxText = W - 2 * margin;
+      const fit = (text) => {
+        if (scratch.measureText(text).width <= maxText) return text;
+        let t = text;
+        while (t.length > 1 && scratch.measureText(`${t}…`).width > maxText) t = t.slice(0, -1);
+        return `${t}…`;
+      };
+      const entries = named.map((r) => fit(`${r.label} - ${r.name.trim()}`));
+      const colGap = 36 * ui;
+      const colW = entries.reduce((m, t) => Math.max(m, scratch.measureText(t).width), 0);
+      const cols = Math.max(1, Math.min(entries.length, Math.floor((maxText + colGap) / (colW + colGap))));
+      const keyRows = Math.ceil(entries.length / cols);
+      const keyHeader = 30 * ui;
+      const keyH = entries.length > 0 ? 14 * ui + keyHeader + keyRows * rowH : 0;
+      const height = Math.ceil(padTop + captionH + padBetween + (row + 1) * rowH + keyH + 18 * ui);
 
       // a scale bar as long as a round number of cells that comes to at least about 100 px
       let cells = 1;
@@ -1229,6 +1245,27 @@
           this._drawSwatch(ctx, it.kind, it.x, y - swH / 2, swW, swH, ui);
           ctx.fillStyle = T.label;
           ctx.fillText(it.text, it.x + swW + gap, y);
+        }
+
+        if (entries.length > 0) {
+          const keyTop = top + padTop + captionH + padBetween + (row + 1) * rowH + 14 * ui;
+          ctx.globalAlpha = 0.35;
+          ctx.strokeStyle = T.wall;
+          ctx.lineWidth = ui;
+          ctx.beginPath();
+          ctx.moveTo(margin, keyTop - 7 * ui);
+          ctx.lineTo(W - margin, keyTop - 7 * ui);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = T.label;
+          ctx.font = `700 ${font}`;
+          ctx.fillText('Rooms', margin, keyTop + keyHeader / 2 - 2 * ui);
+          ctx.font = font;
+          entries.forEach((text, i) => {
+            const col = Math.floor(i / keyRows);
+            const r = i % keyRows;
+            ctx.fillText(text, margin + col * (colW + colGap), keyTop + keyHeader + r * rowH + rowH / 2);
+          });
         }
         ctx.restore();
       };

@@ -331,6 +331,95 @@
     $('legendSecret').hidden = n.secret === 0;
   }
 
+  // ---- room names ---------------------------------------------------------------------
+  // Each room may be given a name (room.name on the dungeon on the page). The Room names button on the map opens a
+  // panel over it with a box for each room; the panel scrolls inside itself, so a dungeon of dozens of rooms is no
+  // trouble. Names are not drawn on the map: the picture and the printout list them in a key, and the data has them.
+  // Like edits, a share link does not.
+
+  const MAX_ROOM_NAME = 60;
+  const namePanelOpen = () => !$('roomPanel').hidden;
+
+  function updateRoomNamesCount() {
+    const rooms = DM.current ? DM.current.rooms : [];
+    const n = rooms.filter((r) => r.name).length;
+    $('roomNamesCount').textContent = rooms.length === 0 ? '' : n === 0 ? `${rooms.length} rooms, none named` : `${n} of ${rooms.length} rooms named`;
+  }
+
+  /** One row (the room's number, then a text box) for each room, in number order, for the dungeon on show. */
+  function showRoomNames(dungeon) {
+    const list = $('roomNameList');
+    list.textContent = '';
+    if (!dungeon) {
+      const none = document.createElement('p');
+      none.className = 'room-name-empty';
+      none.textContent = NO_DUNGEON;
+      list.append(none);
+      updateRoomNamesCount();
+      return;
+    }
+    const inputs = [];
+    for (const room of [...dungeon.rooms].sort((a, b) => a.label - b.label)) {
+      const row = document.createElement('div');
+      row.className = 'room-name-row';
+      const label = document.createElement('label');
+      label.htmlFor = `roomName${room.id}`;
+      label.textContent = room.label;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.id = `roomName${room.id}`;
+      input.maxLength = MAX_ROOM_NAME;
+      input.value = room.name || '';
+      input.placeholder = 'Unnamed';
+      input.autocomplete = 'off';
+      input.setAttribute('aria-label', `Name of room ${room.label}`);
+      input.addEventListener('input', () => {
+        const name = input.value.replace(/\s+/g, ' ').trim();
+        if (name) room.name = name;
+        else delete room.name;
+        updateRoomNamesCount();
+      });
+      // Enter goes on to the next room's box
+      input.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const next = inputs[inputs.indexOf(input) + 1];
+        if (next) next.focus();
+      });
+      inputs.push(input);
+      row.append(label, input);
+      list.append(row);
+    }
+    updateRoomNamesCount();
+  }
+
+  /** Show or hide the panel. Opening it puts the cursor in the first room's box. */
+  function setRoomNamesOpen(open) {
+    $('roomPanel').hidden = !open;
+    $('roomNamesButton').setAttribute('aria-pressed', String(open));
+    if (open) {
+      showRoomNames(DM.current);
+      const first = $('roomNameList').querySelector('input');
+      if (first) first.focus();
+    }
+  }
+
+  $('roomNamesButton').addEventListener('click', () => setRoomNamesOpen(!namePanelOpen()));
+  $('closeRoomNames').addEventListener('click', () => {
+    setRoomNamesOpen(false);
+    $('roomNamesButton').focus();
+  });
+  $('roomPanel').addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    setRoomNamesOpen(false);
+    $('roomNamesButton').focus();
+  });
+  $('clearRoomNames').addEventListener('click', () => {
+    if (!DM.current) return;
+    for (const room of DM.current.rooms) delete room.name;
+    showRoomNames(DM.current);
+  });
+
   const MAP_HINT = 'Scroll to zoom · drag to pan · double-click to fit';
   const TOOL_HINTS = {
     door: 'Edit mode · click a door to change it',
@@ -407,6 +496,7 @@
         renderer.setDungeon(dungeon);
         updateDoorLegend();
         showSummary(dungeon, ms);
+        if (namePanelOpen()) showRoomNames(dungeon);
         setExportStatus('');
         // the random button always shows the seed it picked; a blank box is filled
         // (unless something was typed into it while the dungeon was being built)
@@ -577,8 +667,14 @@
     $('legendList').hidden = !open;
   });
 
-  $('showGrid').addEventListener('change', (e) => renderer.setOption('showGrid', e.target.checked));
-  $('showLabels').addEventListener('change', (e) => renderer.setOption('showLabels', e.target.checked));
+  /** The On or Off beside a display switch. */
+  const showSwitchState = (id) => ($(`${id}State`).textContent = $(id).checked ? 'On' : 'Off');
+  for (const id of ['showGrid', 'showLabels']) {
+    $(id).addEventListener('change', (e) => {
+      renderer.setOption(id, e.target.checked);
+      showSwitchState(id);
+    });
+  }
   $('zoomIn').addEventListener('click', () => renderer.zoomBy(1.4));
   $('zoomOut').addEventListener('click', () => renderer.zoomBy(1 / 1.4));
   $('fit').addEventListener('click', () => renderer.fit());
@@ -683,7 +779,7 @@
     field.hidden = copied;
     if (!copied) field.focus();
     // a link holds the settings, not the edits: the dungeon it rebuilds has the doors the generator made
-    const copiedText = editsMade() ? 'Link copied. It brings back this dungeon without your edits to its doors and hallways: save the picture or the data to keep those.' : 'Link copied. Opening it brings back this dungeon.';
+    const copiedText = editsMade() ? 'Link copied. It brings back this dungeon without your edits to its doors and hallways, or the room names you typed: save the picture or the data to keep those.' : 'Link copied. Opening it brings back this dungeon.';
     setExportStatus(copied ? copiedText : 'Copy the link from the box above.');
   }
 
@@ -763,6 +859,8 @@
     renderer.setOption('showGrid', $('showGrid').checked);
     $('showLabels').checked = display.showLabels !== false;
     renderer.setOption('showLabels', $('showLabels').checked);
+    showSwitchState('showGrid');
+    showSwitchState('showLabels');
     Object.assign(colors, DM.defaultColors(), display.colors);
     for (const row of colorRows.values()) showColor(row);
     applyColors();

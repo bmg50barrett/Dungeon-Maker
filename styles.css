@@ -626,6 +626,39 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
 }
 .toolbar .edit-toggle[aria-pressed='true']:hover { background: var(--fill); }
 .toolbar button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* the room names panel: a card over the left of the map, in the legend's style (a gold rule above and below). However many rooms there
+   are, the panel keeps to the height of the map and its list scrolls inside it, in as many columns as fit */
+.toolbar .names-toggle[aria-pressed='true'] { color: var(--on-fill); background: var(--fill); border-color: var(--fill); }
+.toolbar .names-toggle[aria-pressed='true']:hover { background: var(--fill); }
+.room-panel {
+  position: absolute;
+  z-index: 3;
+  top: 14px;
+  bottom: 14px;
+  left: 14px;
+  width: min(640px, calc(100% - 28px));
+  display: flex;
+  flex-direction: column;
+  padding: 0 14px 10px;
+  color: var(--ink);
+  background: var(--card);
+  border-top: 1.2pt solid var(--gold);
+  border-bottom: 1.2pt solid var(--gold);
+}
+.room-panel[hidden] { display: none; }
+.room-panel-head { flex: none; display: flex; align-items: center; gap: 12px; padding: 8px 0 8px; margin-bottom: 8px; border-bottom: var(--stroke-section) solid var(--gold); }
+.room-panel-head h2 { margin: 0; font-family: var(--font-display); font-size: 19px; font-weight: 400; color: var(--heading); }
+.room-panel-count { flex: 1; font-size: 14.5px; color: var(--muted); }
+.room-panel-close { width: var(--tap); height: var(--tap); font-size: 24px; line-height: 1; color: var(--heading); background: transparent; border: 1px solid var(--wine); cursor: pointer; }
+.room-panel-close:hover { background: var(--tint); }
+.room-panel-close:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.room-panel .hint { flex: none; }
+.room-name-list { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); align-content: start; gap: 6px 18px; padding: 2px 6px 6px 0; }
+.room-name-row { display: grid; grid-template-columns: 2.2em 1fr; gap: 8px; align-items: center; }
+.room-name-row label { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; color: var(--heading); }
+.room-name-row input { min-width: 0; min-height: 36px; font-size: 15px; }
+.room-name-empty { grid-column: 1 / -1; color: var(--muted); }
+
 /* the tool picked */
 .edit-tools button { font-size: 15px; }
 .edit-tools button[aria-pressed='true'] { color: var(--on-fill); background: var(--fill); border-color: var(--fill); }
@@ -722,7 +755,7 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
   :root { color-scheme: light; }
   html, body { height: auto; background: none; }
   .app { display: block; height: auto; }
-  .panel, .map-head, .map-title, .map-frame, .map-area, .toolbar, .legend, .canvas-hint, #map { display: none !important; }
+  .panel, .map-head, .map-title, .map-frame, .map-area, .toolbar, .legend, .room-panel, .canvas-hint, #map { display: none !important; }
   .stage { display: block; padding: 0; background: none; }
   #printImage:not([src]) { display: none; }
   #printImage[src] { display: block; width: 100%; height: auto; max-height: 100vh; object-fit: contain; }

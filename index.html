@@ -219,6 +219,7 @@
 
             <section id="summary" class="summary" aria-live="polite"></section>
 
+
             <!-- get the dungeon out of the app: a link, a picture, the data, or paper -->
             <section class="export">
               <h3>Share &amp; export</h3>
@@ -272,10 +273,23 @@
               <p class="hint" id="labelPositionHint">Room numbers sit in the middle of each room</p>
             </fieldset>
 
-            <section class="options">
-              <label class="check"><input type="checkbox" id="showGrid" checked> Show 5 ft grid</label>
-              <label class="check"><input type="checkbox" id="showLabels" checked> Show room numbers</label>
-            </section>
+            <div class="field toggle-field">
+              <label class="switch" for="showGrid">
+                <span class="switch-title">Show 5 ft grid</span>
+                <input type="checkbox" id="showGrid" role="switch" checked>
+                <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+                <span class="switch-state" id="showGridState" aria-hidden="true">On</span>
+              </label>
+            </div>
+
+            <div class="field toggle-field">
+              <label class="switch" for="showLabels">
+                <span class="switch-title">Show room numbers</span>
+                <input type="checkbox" id="showLabels" role="switch" checked>
+                <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+                <span class="switch-state" id="showLabelsState" aria-hidden="true">On</span>
+              </label>
+            </div>
 
             <!-- one row per colour category, built by app.js from DM.COLOR_CATEGORIES (src/palette.js) -->
             <section class="colors">
@@ -302,6 +316,7 @@
         <div class="toolbar">
           <div class="toolbar-row">
             <button type="button" id="editMode" class="edit-toggle" aria-pressed="false" title="Edit the doors and hallways">Edit</button>
+            <button type="button" id="roomNamesButton" class="names-toggle" aria-pressed="false" aria-controls="roomPanel" title="Give the rooms names, for the key under the picture">Room names</button>
             <button type="button" id="zoomIn" title="Zoom in" aria-label="Zoom in">+</button>
             <button type="button" id="zoomOut" title="Zoom out" aria-label="Zoom out">&minus;</button>
             <button type="button" id="fit" title="Fit dungeon to screen" aria-label="Fit to screen">Fit</button>
@@ -313,6 +328,18 @@
             <button type="button" data-tool="erase" aria-pressed="false" title="Click a stretch of hallway to delete it">Delete hallway</button>
           </div>
         </div>
+        <!-- the room names: a panel over the left of the map with one box for each room, however many there are (it scrolls inside itself). Rebuilt by app.js for each dungeon -->
+        <section class="room-panel" id="roomPanel" role="dialog" aria-label="Room names" hidden>
+          <header class="room-panel-head">
+            <h2>Room names</h2>
+            <span class="room-panel-count" id="roomNamesCount"></span>
+            <button type="button" class="link-btn" id="clearRoomNames" title="Remove every room name">Clear all</button>
+            <button type="button" id="closeRoomNames" class="room-panel-close" aria-label="Close the room names" title="Close (Esc)">&times;</button>
+          </header>
+          <div class="room-name-list" id="roomNameList"></div>
+          <p class="hint">Names are listed as &ldquo;1 &ndash; Foyer&rdquo; in a key under the picture and printout, not on the map. Like edits, they are not in a share link.</p>
+        </section>
+
         <!-- on the map itself, not in a column, so it stays in view when the columns are collapsed -->
         <section class="legend" id="legend">
           <button type="button" class="legend-toggle" id="legendToggle" aria-expanded="true" aria-controls="legendList" title="Hide the legend">
@@ -342,7 +369,7 @@
   <dialog id="discardDialog" aria-labelledby="discardTitle" aria-describedby="discardText">
     <form method="dialog">
       <h2 id="discardTitle">Lose your edits?</h2>
-      <p id="discardText">Re-generating the dungeon will lose all edits you made to its doors and hallways. To keep them, save the picture or the data first.</p>
+      <p id="discardText">Re-generating the dungeon will lose all edits you made to its doors and hallways, and any room names you typed. To keep them, save the picture or the data first.</p>
       <div class="dialog-buttons">
         <button type="submit" value="cancel" autofocus>Keep editing</button>
         <button type="submit" value="discard" id="discardConfirm" class="danger">Re-generate anyway</button>

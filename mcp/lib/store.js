@@ -28,6 +28,7 @@ function whatIsWrong(d) {
   for (const [i, r] of d.rooms.entries()) {
     if (!r || r.id !== i) return `room ${i} does not have id ${i}`;
     if (!Array.isArray(r.cells) || r.cells.length === 0 || !r.bbox || !Array.isArray(r.labelCell) || !isInt(r.label)) return `room ${i} is missing its squares, size or number`;
+    if (r.name !== undefined && typeof r.name !== 'string') return `room ${i} has a name that is not text`;
     roomIds.add(r.id);
   }
   for (const [i, h] of d.halls.entries()) {
