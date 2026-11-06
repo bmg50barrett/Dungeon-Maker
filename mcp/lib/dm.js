@@ -64,6 +64,7 @@ function screenCanvas() {
  * @param {'inside'|'outside'} [look.labelPosition='inside']  room numbers on the rooms or outside their walls
  * @param {boolean} [look.showGrid=true]
  * @param {boolean} [look.showLabels=true]      room numbers
+ * @param {boolean} [look.showCoordinates=false] x and y square numbers along the top and left edges
  * @param {object} [look.colors]                { categoryId: '#rrggbb' }, see DM.COLOR_CATEGORIES
  * @returns {Buffer} PNG
  */
@@ -74,6 +75,7 @@ function renderPng(dungeon, look = {}) {
   renderer.options.labelPosition = look.labelPosition === 'outside' ? 'outside' : 'inside';
   renderer.options.showGrid = look.showGrid !== false;
   renderer.options.showLabels = look.showLabels !== false;
+  renderer.options.showCoordinates = look.showCoordinates === true;
   renderer.setDungeon(dungeon);
   const canvas = renderer.exportImage({ legend: look.legend !== false, caption: dm.exportCaption(dungeon) });
   return canvas.toBuffer('image/png');

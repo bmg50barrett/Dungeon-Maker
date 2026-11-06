@@ -68,6 +68,7 @@ const LOOK = {
   labelPosition: { type: 'string', enum: ['inside', 'outside'], description: 'Room numbers on the rooms (default) or just outside their walls.' },
   showGrid: { type: 'boolean', description: 'Draw the 5 ft grid (default true).' },
   showRoomNumbers: { type: 'boolean', description: 'Draw the room numbers (default true).' },
+  showCoordinates: { type: 'boolean', description: 'Number the squares along the top (x) and left (y) edges of the map, the same x and y that edit_dungeon takes (default false). Use it to read off where a door or hallway should go.' },
   colors: {
     type: 'object',
     description: 'Colours as #rrggbb. Any of: background, rooms, hallways, lines, grid, doors, entrances. The rest keep the usual parchment colours.',
@@ -100,7 +101,7 @@ function readLook(args) {
     if (!['inside', 'outside'].includes(args.labelPosition)) throw new ToolError('"labelPosition" must be "inside" or "outside".');
     look.labelPosition = args.labelPosition;
   }
-  for (const [from, to] of [['showGrid', 'showGrid'], ['showRoomNumbers', 'showLabels']]) {
+  for (const [from, to] of [['showGrid', 'showGrid'], ['showRoomNumbers', 'showLabels'], ['showCoordinates', 'showCoordinates']]) {
     if (args[from] === undefined) continue;
     if (typeof args[from] !== 'boolean') throw new ToolError(`"${from}" must be true or false.`);
     look[to] = args[from];

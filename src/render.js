@@ -191,6 +191,12 @@
         bounds.x1 = Math.max(bounds.x1, o.x + o.w / 2);
         bounds.y1 = Math.max(bounds.y1, o.y + o.h / 2);
       }
+      if (this.options.showCoordinates) {
+        // a strip along the top and left edges for the square numbers
+        const ui = Math.max(1, scale / 24);
+        bounds.x0 = Math.min(bounds.x0, -(34 * ui) / scale);
+        bounds.y0 = Math.min(bounds.y0, -(22 * ui) / scale);
+      }
       for (const e of d.entrances) {
         if (e.kind === 'stairs') continue; // inside the dungeon: no arrow sticking out
         const { x, y } = entranceLabelPos(e, u);
@@ -685,6 +691,7 @@
       this._drawSecretMarks(model.secrets);
       this._drawEntranceLabels();
       this._drawStairBadges(model.stairs);
+      if (this.options.showCoordinates) this._drawCoordinates();
       if (edit && this.editTool === 'door' && this._hover) this._drawDoorTip(this._hover);
       if (edit && this.editTool === 'erase' && this._hoverStretch && this._hoverCell) {
         this._drawTip((this._hoverCell[0] + 0.5) * s + view.tx, this._hoverCell[1] * s + view.ty - 14, 'Click to delete this stretch');
@@ -1006,6 +1013,50 @@
         ctx.strokeText(l.text, sx, sy);
         ctx.fillText(l.text, sx, sy);
       }
+    }
+
+    /**
+     * Square numbers along the top (x) and left (y) edges of the map, the same x and y the editing
+     * tools take. Every square when there is room, otherwise every 2nd, 5th or 10th; a longer tick
+     * marks each multiple of five.
+     */
+    _drawCoordinates() {
+      const { ctx, view, dungeon } = this;
+      const s = view.scale;
+      const ui = Math.max(1, s / 24);
+      const size = 11 * ui;
+      ctx.save();
+      ctx.font = `${size}px system-ui, sans-serif`;
+      ctx.fillStyle = this.theme.label;
+      ctx.strokeStyle = this.theme.label;
+      ctx.lineWidth = Math.max(1, ui * 0.8);
+      const need = ctx.measureText('000').width * 1.2;
+      const step = [1, 2, 5, 10, 20].find((n) => n * s >= need) || 50;
+      const left = view.tx;
+      const top = view.ty;
+      ctx.textBaseline = 'alphabetic';
+      ctx.textAlign = 'center';
+      for (let x = 0; x < dungeon.width; x++) {
+        if (x % step !== 0) continue;
+        const sx = left + (x + 0.5) * s;
+        ctx.fillText(String(x), sx, top - 6 * ui);
+        ctx.beginPath();
+        ctx.moveTo(sx, top - 3 * ui);
+        ctx.lineTo(sx, top);
+        ctx.stroke();
+      }
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      for (let y = 0; y < dungeon.height; y++) {
+        if (y % step !== 0) continue;
+        const sy = top + (y + 0.5) * s;
+        ctx.fillText(String(y), left - 7 * ui, sy);
+        ctx.beginPath();
+        ctx.moveTo(left - 3 * ui, sy);
+        ctx.lineTo(left, sy);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
 
     _drawScaleBar() {

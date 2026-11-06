@@ -336,7 +336,7 @@ console.log('== the picture');
   const bare = draw({ legend: false });
   if (!isPng(full) || !isPng(bare)) fail('picture', 'draw_map did not make PNG files');
   if (pngSize(bare).h >= pngSize(full).h) fail('picture', 'the legend should make the picture taller');
-  for (const [name, args] of [['no grid', { showGrid: false }], ['no numbers', { showRoomNumbers: false }], ['outside numbers', { labelPosition: 'outside' }], ['colours', { colors: { rooms: '#ffffff', doors: '#00aa00' } }]]) {
+  for (const [name, args] of [['no grid', { showGrid: false }], ['no numbers', { showRoomNumbers: false }], ['coordinates', { showCoordinates: true }], ['outside numbers', { labelPosition: 'outside' }], ['colours', { colors: { rooms: '#ffffff', doors: '#00aa00' } }]]) {
     if (draw(args).equals(full)) fail('picture', `${name} looks the same as the usual picture`);
   }
   if (!draw({}).equals(full)) fail('picture', 'the same picture twice should be the same bytes');
