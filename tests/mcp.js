@@ -308,6 +308,47 @@ console.log('== editing hallways');
   run([{ type: 'delete_hallway', x: 4, y: 1 }]);
   if (DM.editState(d) !== pristine || store.isEdited(item)) fail('hall', 'drawing and deleting everything should leave the dungeon as it was');
 
+  // deleting whole hallways by their H numbers, read against the map before the call
+  run([{ type: 'draw_hallway', points: [[3, 1], [5, 1]] }]);
+  run([{ type: 'draw_hallway', points: [[1, 3], [1, 5]] }]);
+  if (d.halls.length !== 2 || d.height !== 6) fail('hall', 'two hallways expected before deleting by number');
+  const both = run([{ type: 'delete_hallway', hall: 1 }, { type: 'delete_hallway', hall: 2 }]);
+  if (!/2 of 2 edits made/.test(both.text) || !/deleted hallway H1: 3 squares/.test(both.text) || !/deleted hallway H2: 3 squares/.test(both.text)) fail('hall', `deleting by number: ${both.text.split('\n').slice(0, 4).join(' | ')}`);
+  if (d.halls.length !== 0 || DM.editState(d) !== pristine) fail('hall', 'deleting both hallways by number should restore the dungeon');
+  for (const [edit, re] of [[{ type: 'delete_hallway', hall: 1 }, /no hallway H1/], [{ type: 'delete_hallway', hall: 'x' }, /"hall"/]]) {
+    const err = toolError(() => run([edit]));
+    if (!err || !re.test(err.message)) fail('hall', `${JSON.stringify(edit)} should fail mentioning ${re}: ${err && err.message}`);
+  }
+  run([{ type: 'draw_hallway', points: [[3, 1], [5, 1]] }]);
+  const again = run([{ type: 'delete_hallway', hall: 1 }, { type: 'delete_hallway', hall: 1 }]);
+  if (!/1 of 2 edits made/.test(again.text) || !/already gone/.test(again.text)) fail('hall', `deleting the same hallway twice: ${again.text.split('\n').slice(0, 3).join(' | ')}`);
+
+  // entrances: add a door or stairs, remove one, numbers E1.. stay in order
+  const added = run([{ type: 'add_entrance', x: 1, y: 0, side: 'N' }]);
+  if (!/added E2: a door in the north wall of room 1 at \(1,0\)/.test(added.text) || d.entrances.length !== 2 || d.stats.entrances !== 2) fail('entrance', `adding a door: ${added.text.split('\n').slice(0, 2).join(' | ')}`);
+  if (!store.isEdited(item)) fail('entrance', 'adding an entrance should count as an edit');
+  const stairs = run([{ type: 'add_entrance', x: 7, y: 1, side: 'E', kind: 'stairs' }]);
+  if (!/added E3: stairs in room 2/.test(stairs.text) || d.stats.stairsEntrances !== 1) fail('entrance', `adding stairs: ${stairs.text.split('\n').slice(0, 2).join(' | ')}`);
+  const gone2 = run([{ type: 'remove_entrance', entrance: 3 }, { type: 'remove_entrance', entrance: 2 }]);
+  if (!/2 of 2 edits made/.test(gone2.text) || d.entrances.length !== 1 || d.stats.entrances !== 1) fail('entrance', `removing: ${gone2.text.split('\n').slice(0, 3).join(' | ')}`);
+  for (const [edit, re, why] of [
+    [{ type: 'add_entrance', x: 1, y: 0, side: 'N', kind: 'window' }, /kind/, 'an unknown kind'],
+    [{ type: 'add_entrance', x: 0, y: 1, side: 'W' }, /already an entrance/, 'a second entrance on the same edge'],
+    [{ type: 'add_entrance', x: 6, y: 1, side: 'W' }, /shut in/, 'a wall facing another room'],
+    [{ type: 'add_entrance', x: 4, y: 1, side: 'N' }, /not a room square/, 'a square that is not a room'],
+    [{ type: 'remove_entrance', entrance: 5 }, /no such entrance/, 'an entrance that is not there'],
+    [{ type: 'remove_entrance', entrance: 1 }, /at least one entrance/, 'the last entrance'],
+  ]) {
+    const err = toolError(() => run([edit]));
+    if (!err || !re.test(err.message)) fail('entrance', `${why} should fail mentioning ${re}: ${err && err.message}`);
+  }
+  if (DM.editState(d) !== pristine) fail('entrance', 'adding and removing entrances, and the failed edits, should leave the dungeon as it was');
+  // a hallway in the way of a wall's line out shuts a door in, so a new door there is refused
+  run([{ type: 'draw_hallway', points: [[1, 3], [1, 5]] }]);
+  const blocked = toolError(() => run([{ type: 'add_entrance', x: 1, y: 2, side: 'S' }]));
+  if (!blocked || !/(not an outer wall|shut in)/.test(blocked.message)) fail('entrance', `a door onto a hallway should be refused: ${blocked && blocked.message}`);
+  run([{ type: 'delete_hallway', hall: 1 }]);
+
   // what cannot be done
   for (const [edit, re, why] of [
     [{ type: 'draw_hallway', points: [[1, 1], [2, 1]] }, /nothing to add/, 'a hallway drawn over a room'],

@@ -227,7 +227,9 @@ function createTools({ store = new Store() } = {}) {
       '- "door": change one door. Give "x", "y" and "side" (N, E, S or W) as written next to the door in the description, e.g. "(12,7) east" is x 12, y 7, side E, and "state": door, locked, secret (drawn as solid wall with an S) or open (an archway with no door). Entrance doors cannot be changed.\n' +
       '- "draw_hallway": draw a hallway. Give "points", a list of [x, y] squares to pass through; the squares between them are filled in (straight runs along rows and columns are best; a diagonal comes out as a staircase). ' +
       'Squares that touch a hallway join it, so starting at one makes a branch; a hallway may be a dead end. Where it ends against a room\'s wall it opens into that room (a door or an archway, following the dungeon\'s Hallway doors setting). Rooms cannot be drawn over. The map grows to fit.\n' +
-      '- "delete_hallway": delete one stretch of hallway (up to the next junction, side door or dead end) and the doors on it. Give "x" and "y" of any square of it.\n' +
+      '- "delete_hallway": delete hallway and the doors on it. Either give "hall", a hallway\'s number from the description (3 for H3), to delete all of that hallway, or give "x" and "y" of any square to delete just one stretch of it (up to the next junction, side door or dead end). Hall numbers in one call are those before the call, even though hallways are numbered again afterwards.\n' +
+      '- "add_entrance": add a way in from outside. Give "x", "y" (a room square) and "side" (N, E, S or W): a door in that outer wall of the room. The wall must face open ground with a clear line out of the map (no other room or hallway in the way). Or give "kind": "stairs" to put stairs on the room floor at that square, climbing toward that side.\n' +
+      '- "remove_entrance": remove an entrance. Give "entrance", its number (2 for E2). At least one entrance must remain, and entrances are numbered E1, E2, ... again afterwards. To move an entrance, add the new one first, then remove the old one.\n' +
       '- "renumber_room": change a room\'s number. Give "room" (its number on the map now) and "number" (the number it should have). Numbers always stay 1 to N, so the room that had that number takes the old one of this room (they swap). Later renumber_room edits in the same call see the numbers as the earlier ones left them.\n' +
       'Coordinates in one call are all read against the map as it was before the call. If a hallway reaches past the top or left edge, the map grows and every coordinate moves; the answer says so and gives the new description.',
     inputSchema: {
@@ -241,12 +243,15 @@ function createTools({ store = new Store() } = {}) {
           items: {
             type: 'object',
             properties: {
-              type: { type: 'string', enum: ['door', 'draw_hallway', 'delete_hallway', 'renumber_room'] },
+              type: { type: 'string', enum: ['door', 'draw_hallway', 'delete_hallway', 'add_entrance', 'remove_entrance', 'renumber_room'] },
+              hall: { type: 'integer', description: 'delete_hallway: the hallway\'s number (3 for H3), to delete all of it' },
+              kind: { type: 'string', enum: ['door', 'stairs'], description: 'add_entrance: a door in an outer wall (default) or stairs on the floor' },
+              entrance: { type: 'integer', description: 'remove_entrance: the entrance\'s number (2 for E2)' },
               room: { type: 'integer', description: 'renumber_room: the room\'s current number on the map' },
               number: { type: 'integer', description: 'renumber_room: the number it should have (1 to the number of rooms)' },
-              x: { type: 'integer', description: 'door, delete_hallway: the square\'s x (east-west, from the left edge)' },
-              y: { type: 'integer', description: 'door, delete_hallway: the square\'s y (north-south, from the top edge)' },
-              side: { type: 'string', description: 'door: which side of that square the door is on: N, E, S or W' },
+              x: { type: 'integer', description: 'door, add_entrance, delete_hallway (a stretch): the square\'s x (east-west, from the left edge)' },
+              y: { type: 'integer', description: 'door, add_entrance, delete_hallway (a stretch): the square\'s y (north-south, from the top edge)' },
+              side: { type: 'string', description: 'door, add_entrance: which side of that square the door is on: N, E, S or W' },
               state: { type: 'string', enum: ['door', 'locked', 'secret', 'open'], description: 'door: what it becomes' },
               points: { type: 'array', items: { type: 'array', items: { type: 'integer' }, minItems: 2, maxItems: 2 }, description: 'draw_hallway: [x, y] squares to pass through, in order' },
             },
@@ -267,13 +272,14 @@ function createTools({ store = new Store() } = {}) {
       const item = store.get(args.id);
       const d = item.dungeon;
       const shift = { x: 0, y: 0 }; // how far the map has moved so far in this call
+      const snap = { hallCells: d.halls.map((h) => h.cells[0]) }; // a square of each hallway, to find it again by its H number
       const report = [];
       let done = 0;
       let hallwaysChanged = false;
       args.edits.forEach((edit, i) => {
         try {
           if (!isObject(edit)) throw new ToolError('an edit must be an object with a "type".');
-          report.push(`${i + 1}. ${applyEdit(d, edit, shift)}`);
+          report.push(`${i + 1}. ${applyEdit(d, edit, shift, snap)}`);
           done++;
           if (edit.type === 'draw_hallway' || edit.type === 'delete_hallway') hallwaysChanged = true;
         } catch (err) {
@@ -356,7 +362,7 @@ function findOpening(d, x, y, dir) {
 }
 
 /** Make one edit; returns a line saying what was done, or throws a ToolError. `shift` follows how far the map moves. */
-function applyEdit(d, edit, shift) {
+function applyEdit(d, edit, shift, snap) {
   const dm = load();
   const label = (roomId) => d.rooms[roomId].label;
   switch (edit.type) {
@@ -396,6 +402,19 @@ function applyEdit(d, edit, shift) {
       return `hallway drawn: ${plan.floor.length} new squares${opened.length ? `; opened ${opened.join(', ')}` : '; it opens into no room'}.`;
     }
     case 'delete_hallway': {
+      if (edit.hall !== undefined) {
+        // whole hallway, by the H number it had before this call
+        const n = needInt(edit.hall, 'hall');
+        const at = snap && snap.hallCells[n - 1];
+        if (!at) throw new ToolError(`there is no hallway H${n}.`);
+        const now = d.halls.find((h) => h.cells.some(([cx, cy]) => cx === at[0] + shift.x && cy === at[1] + shift.y));
+        if (!now) throw new ToolError(`hallway H${n} is already gone.`);
+        const size = now.cells.length;
+        const res = dm.deleteHall(d, now.id);
+        shift.x += res.dx;
+        shift.y += res.dy;
+        return `deleted hallway H${n}: ${size} squares, with the doors on it.`;
+      }
       const x = needInt(edit.x, 'x');
       const y = needInt(edit.y, 'y');
       const res = dm.deleteHallStretch(d, x + shift.x, y + shift.y);
@@ -403,6 +422,25 @@ function applyEdit(d, edit, shift) {
       shift.x += res.dx;
       shift.y += res.dy;
       return `deleted the stretch of hallway at (${x},${y}): ${res.removed.length} squares, with the doors on them.`;
+    }
+    case 'add_entrance': {
+      const x = needInt(edit.x, 'x');
+      const y = needInt(edit.y, 'y');
+      const dir = readSide(edit.side);
+      const kind = edit.kind === undefined ? 'door' : edit.kind;
+      if (kind !== 'door' && kind !== 'stairs') throw new ToolError('"kind" must be "door" or "stairs".');
+      const res = dm.addEntrance(d, kind, x + shift.x, y + shift.y, dir);
+      if (!res.ok) throw new ToolError(`no entrance at (${x},${y}) ${SIDES[dir]}: ${res.reason}`);
+      const e = res.entrance;
+      return kind === 'stairs'
+        ? `added ${e.label}: stairs in room ${label(e.room)} at (${x},${y}), climbing toward its ${SIDES[dir]} wall.`
+        : `added ${e.label}: a door in the ${SIDES[dir]} wall of room ${label(e.room)} at (${x},${y}).`;
+    }
+    case 'remove_entrance': {
+      const n = needInt(edit.entrance, 'entrance');
+      const res = dm.removeEntrance(d, n - 1);
+      if (!res.ok) throw new ToolError(`cannot remove E${n}: ${res.reason}`);
+      return `removed E${n} (from room ${label(res.entrance.room)}). Entrances are numbered E1, E2, ... again.`;
     }
     case 'renumber_room': {
       const from = needInt(edit.room, 'room');
@@ -420,7 +458,7 @@ function applyEdit(d, edit, shift) {
       return `room ${from} is now room ${to}, and the room that was ${to} is now ${from}.`;
     }
     default:
-      throw new ToolError(`"type" must be one of: door, draw_hallway, delete_hallway, renumber_room.`);
+      throw new ToolError(`"type" must be one of: door, draw_hallway, delete_hallway, add_entrance, remove_entrance, renumber_room.`);
   }
 }
 

@@ -14,6 +14,8 @@
  *     open archway, by the dungeon's Hallway doors setting, as for a generated hallway.
  *   - hallStretchAt / deleteHallStretch  the stretch of hallway under a square: from one junction
  *     (or a side door) to the next, or to a dead end.
+ *   - deleteHall  a whole hallway, by its id.
+ *   - addEntrance / removeEntrance  ways in from outside (a door in an outer wall, or stairs on a floor).
  *   - editState  one text for everything Edit mode can change, to tell whether anything was.
  *
  * A hallway drawn here may serve fewer than two rooms (a dead end serves one, a loose piece none),
@@ -289,6 +291,62 @@
     return { ok: true, removed, ...rebuild(d, squares, hallOpenings(d)) };
   }
 
+  /** Delete the whole hallway with this id (every square of it, with its doors into rooms). Returns { ok, removed, dx, dy }. */
+  function deleteHall(d, hallId) {
+    const hall = d.halls.find((h) => h.id === hallId);
+    if (!hall) return { ok: false, reason: 'There is no such hallway.' };
+    const squares = hallSquares(d);
+    for (const [x, y] of hall.cells) squares.delete(key(x, y));
+    return { ok: true, removed: hall.cells.map(([x, y]) => [x, y]), ...rebuild(d, squares, hallOpenings(d)) };
+  }
+
+  /** Number the entrances E1, E2, ... in their order, and bring the entrance counts in `stats` up to date. */
+  function renumberEntrances(d) {
+    d.entrances.forEach((e, i) => {
+      e.id = i;
+      e.label = `E${i + 1}`;
+    });
+    d.stats.entrances = d.entrances.length;
+    d.stats.stairsEntrances = d.entrances.filter((e) => e.kind === 'stairs').length;
+  }
+
+  /**
+   * Add an entrance. A door ('door') is on the outside of the wall of room square (x, y), on side dir
+   * (0 = N ... 3 = W): the square beyond it must be empty and a straight line out from it must leave the
+   * map without meeting a room or hallway (as for a generated entrance). Stairs ('stairs') are on the
+   * room floor at (x, y), climbing toward side dir. Returns { ok, entrance } or { ok: false, reason }.
+   */
+  function addEntrance(d, kind, x, y, dir) {
+    const rooms = roomSquares(d);
+    const halls = hallSquares(d);
+    const room = rooms.get(key(x, y));
+    if (room === undefined) return { ok: false, reason: `(${x},${y}) is not a room square.` };
+    if (kind === 'stairs') {
+      if (d.entrances.some((e) => e.kind === 'stairs' && e.x === x && e.y === y)) return { ok: false, reason: `there are already stairs at (${x},${y}).` };
+    } else {
+      const nx = x + DX[dir];
+      const ny = y + DY[dir];
+      if (rooms.has(key(nx, ny)) || halls.has(key(nx, ny))) return { ok: false, reason: 'that side of the room is not an outer wall: there is a room or hallway beside it.' };
+      for (let cx = nx, cy = ny; cx >= 0 && cy >= 0 && cx < d.width && cy < d.height; cx += DX[dir], cy += DY[dir]) {
+        if (rooms.has(key(cx, cy)) || halls.has(key(cx, cy))) return { ok: false, reason: 'that wall is shut in: a line straight out from it meets another room or hallway before it leaves the map.' };
+      }
+      if (d.entrances.some((e) => e.kind !== 'stairs' && e.x === x && e.y === y && e.d === dir)) return { ok: false, reason: 'there is already an entrance there.' };
+    }
+    const entrance = { id: d.entrances.length, label: '', kind: kind === 'stairs' ? 'stairs' : 'door', room, x, y, d: dir };
+    d.entrances.push(entrance);
+    renumberEntrances(d);
+    return { ok: true, entrance };
+  }
+
+  /** Remove the entrance at index `i` of d.entrances (the dungeon keeps at least one). Returns { ok, entrance } or { ok: false, reason }. */
+  function removeEntrance(d, i) {
+    if (!d.entrances[i]) return { ok: false, reason: 'there is no such entrance.' };
+    if (d.entrances.length === 1) return { ok: false, reason: 'a dungeon needs at least one entrance: add another first.' };
+    const [entrance] = d.entrances.splice(i, 1);
+    renumberEntrances(d);
+    return { ok: true, entrance };
+  }
+
   /**
    * The squares from a (left out) to b, each next to the one before (a straight run, or as straight as
    * squares allow). A stroke is the squares between the points it was given: the page gets a point per
@@ -326,7 +384,8 @@
     const cells = d.halls.flatMap((h) => h.cells.map(([x, y]) => key(x, y))).sort();
     const doors = d.connections.flatMap((c) => c.openings.map((o) => `${o.x},${o.y},${o.d},${o.style}`)).sort();
     const numbers = d.rooms.map((r) => r.label).join(',');
-    return `${cells.join(';')}|${doors.join(';')}|${numbers}`;
+    const entrances = d.entrances.map((e) => `${e.kind},${e.x},${e.y},${e.d}`).join(';');
+    return `${cells.join(';')}|${doors.join(';')}|${numbers}|${entrances}`;
   }
 
   DM.MAX_SIDE = MAX_SIDE;
@@ -335,5 +394,8 @@
   DM.addHallway = addHallway;
   DM.hallStretchAt = hallStretchAt;
   DM.deleteHallStretch = deleteHallStretch;
+  DM.deleteHall = deleteHall;
+  DM.addEntrance = addEntrance;
+  DM.removeEntrance = removeEntrance;
   DM.editState = editState;
 })();
