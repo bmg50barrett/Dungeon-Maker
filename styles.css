@@ -115,6 +115,13 @@ body {
 }
 .blade:last-child { border-right: 0; }
 .blade[data-blade="display"] { width: 268px; } /* little in it, so it takes less of the map's room */
+/* opening and closing a column slides it (the map grows or shrinks beside it) and fades its title in the new place */
+.blade { overflow: hidden; transition: width 0.22s ease; }
+.blade-body { min-width: 300px; transition: opacity 0.2s ease 0.05s, visibility 0s; }
+.blade[data-blade="display"] .blade-body { min-width: 268px; }
+@keyframes bladeTitleA { from { opacity: 0; } to { opacity: 1; } }
+@keyframes bladeTitleB { from { opacity: 0; } to { opacity: 1; } }
+.blade.collapsed .blade-toggle { animation-name: bladeTitleB; } /* a different name, so the fade starts again at each change */
 
 /* a column's heading: engraved small caps with a 1pt gold rule under it */
 .panel .blade-head {
@@ -136,6 +143,7 @@ body {
   background: none;
   border: 0;
   cursor: pointer;
+  animation: bladeTitleA 0.25s ease;
 }
 .blade-toggle:hover { color: var(--ink); }
 .blade-toggle svg { flex: none; width: 14px; height: 14px; color: var(--muted); }
@@ -153,7 +161,8 @@ body {
 
 /* collapsed: a thin strip with the title running down it; click it to open the column again */
 .blade.collapsed { width: 48px; }
-.blade.collapsed .blade-body { display: none; }
+/* the body is not removed but kept at its full width and clipped by the narrowing column, so the slide never reflows the text */
+.blade.collapsed .blade-body { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.15s ease, visibility 0s 0.22s; }
 .blade.collapsed .blade-head { flex: 1; min-height: 0; margin: 0; border-bottom: 0; }
 .blade.collapsed .blade-toggle {
   flex-direction: column;
@@ -679,7 +688,8 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .switch .track, .switch .thumb, .chip-body { transition: none; }
+  .switch .track, .switch .thumb, .chip-body, .blade, .blade-body, .blade.collapsed .blade-body { transition: none; }
+  .blade-toggle, .blade.collapsed .blade-toggle { animation: none; }
 }
 
 @media (max-width: 760px) {
@@ -692,7 +702,11 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
   /* on a narrow screen the columns stack, and collapse like an accordion */
   .blades { display: block; overflow: visible; }
   .blade, .blade.collapsed, .blade[data-blade] { width: auto; border-right: 0; border-bottom: 1px solid var(--tint); }
-  .blade-body { overflow: visible; }
+  .blade { overflow: visible; transition: none; }
+  .blade-body { overflow: visible; min-width: 0; }
+  .blade[data-blade] .blade-body { min-width: 0; }
+  /* stacked, a closed column simply drops out (only its title fades), as there is no width to slide */
+  .blade.collapsed .blade-body { display: none; }
   .blade-toggle svg { transform: rotate(90deg); }
   .blade.collapsed .blade-head { flex: none; margin: 0 16px; border-bottom: var(--stroke-section) solid var(--gold); }
   .blade.collapsed .blade-toggle { flex-direction: row; justify-content: space-between; height: auto; padding: 8px 0 6px; font-size: 24px; }
