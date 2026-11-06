@@ -318,14 +318,15 @@
   }
 
   /**
-   * Every hallway square and every opening (with its state) in one text, the same for the same dungeon
+   * Every hallway square, every opening (with its state) and the room numbers in one text, the same for the same dungeon
    * whatever order the hallways are in: two dungeons are alike, as far as Edit mode goes, exactly when
    * their texts are.
    */
   function editState(d) {
     const cells = d.halls.flatMap((h) => h.cells.map(([x, y]) => key(x, y))).sort();
     const doors = d.connections.flatMap((c) => c.openings.map((o) => `${o.x},${o.y},${o.d},${o.style}`)).sort();
-    return `${cells.join(';')}|${doors.join(';')}`;
+    const numbers = d.rooms.map((r) => r.label).join(',');
+    return `${cells.join(';')}|${doors.join(';')}|${numbers}`;
   }
 
   DM.MAX_SIDE = MAX_SIDE;

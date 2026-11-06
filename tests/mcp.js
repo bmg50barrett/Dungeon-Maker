@@ -322,6 +322,20 @@ console.log('== editing hallways');
     if (!err || !re.test(err.message)) fail('hall', `${why} should fail mentioning ${re}: ${err && err.message}`);
   }
   if (DM.editState(d) !== pristine) fail('hall', 'edits that failed changed the dungeon');
+
+  // renumbering: two rooms swap numbers, numbers stay 1..N, and it counts as an edit
+  const before = d.rooms.map((r) => r.label);
+  const swap = run([{ type: 'renumber_room', room: 1, number: 2 }]);
+  const after = d.rooms.map((r) => r.label);
+  if (!/1 of 1 edits made/.test(swap.text) || after[before.indexOf(1)] !== 2 || after[before.indexOf(2)] !== 1) fail('renumber', `swap: ${swap.text.split('\n').slice(0, 2).join(' | ')}`);
+  if (!store.isEdited(item)) fail('renumber', 'renumbering should count as an edit');
+  if (!/Room 1:/.test(swap.text)) fail('renumber', 'the description should list the new numbers');
+  run([{ type: 'renumber_room', room: 1, number: 2 }]);
+  if (DM.editState(d) !== pristine) fail('renumber', 'swapping back should restore the dungeon');
+  for (const [edit, re] of [[{ type: 'renumber_room', room: 0, number: 1 }, /from 1 to/], [{ type: 'renumber_room', room: 1, number: 99 }, /from 1 to/], [{ type: 'renumber_room', room: 1 }, /number/]]) {
+    const err = toolError(() => run([edit]));
+    if (!err || !re.test(err.message)) fail('renumber', `${JSON.stringify(edit)} should fail mentioning ${re}: ${err && err.message}`);
+  }
   done();
   console.log('  done');
 }

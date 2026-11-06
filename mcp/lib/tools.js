@@ -228,6 +228,7 @@ function createTools({ store = new Store() } = {}) {
       '- "draw_hallway": draw a hallway. Give "points", a list of [x, y] squares to pass through; the squares between them are filled in (straight runs along rows and columns are best; a diagonal comes out as a staircase). ' +
       'Squares that touch a hallway join it, so starting at one makes a branch; a hallway may be a dead end. Where it ends against a room\'s wall it opens into that room (a door or an archway, following the dungeon\'s Hallway doors setting). Rooms cannot be drawn over. The map grows to fit.\n' +
       '- "delete_hallway": delete one stretch of hallway (up to the next junction, side door or dead end) and the doors on it. Give "x" and "y" of any square of it.\n' +
+      '- "renumber_room": change a room\'s number. Give "room" (its number on the map now) and "number" (the number it should have). Numbers always stay 1 to N, so the room that had that number takes the old one of this room (they swap). Later renumber_room edits in the same call see the numbers as the earlier ones left them.\n' +
       'Coordinates in one call are all read against the map as it was before the call. If a hallway reaches past the top or left edge, the map grows and every coordinate moves; the answer says so and gives the new description.',
     inputSchema: {
       type: 'object',
@@ -240,7 +241,9 @@ function createTools({ store = new Store() } = {}) {
           items: {
             type: 'object',
             properties: {
-              type: { type: 'string', enum: ['door', 'draw_hallway', 'delete_hallway'] },
+              type: { type: 'string', enum: ['door', 'draw_hallway', 'delete_hallway', 'renumber_room'] },
+              room: { type: 'integer', description: 'renumber_room: the room\'s current number on the map' },
+              number: { type: 'integer', description: 'renumber_room: the number it should have (1 to the number of rooms)' },
               x: { type: 'integer', description: 'door, delete_hallway: the square\'s x (east-west, from the left edge)' },
               y: { type: 'integer', description: 'door, delete_hallway: the square\'s y (north-south, from the top edge)' },
               side: { type: 'string', description: 'door: which side of that square the door is on: N, E, S or W' },
@@ -401,8 +404,23 @@ function applyEdit(d, edit, shift) {
       shift.y += res.dy;
       return `deleted the stretch of hallway at (${x},${y}): ${res.removed.length} squares, with the doors on them.`;
     }
+    case 'renumber_room': {
+      const from = needInt(edit.room, 'room');
+      const to = needInt(edit.number, 'number');
+      const n = d.rooms.length;
+      for (const [v, what] of [[from, 'room'], [to, 'number']]) {
+        if (v < 1 || v > n) throw new ToolError(`"${what}" must be a room number from 1 to ${n}, as printed on the map (got ${v}).`);
+      }
+      const a = d.rooms.find((r) => r.label === from);
+      const b = d.rooms.find((r) => r.label === to);
+      if (a === b) return `room ${from} already has number ${to}.`;
+      // rooms keep numbers 1..N with no repeats, so the room that had the number takes the other's
+      a.label = to;
+      b.label = from;
+      return `room ${from} is now room ${to}, and the room that was ${to} is now ${from}.`;
+    }
     default:
-      throw new ToolError(`"type" must be one of: door, draw_hallway, delete_hallway.`);
+      throw new ToolError(`"type" must be one of: door, draw_hallway, delete_hallway, renumber_room.`);
   }
 }
 
