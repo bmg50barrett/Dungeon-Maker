@@ -71,6 +71,7 @@
     params.hallTypes = hallBoxes().filter((box) => box.checked).map((box) => box.value);
     params.hallDoors = document.querySelector('input[name="hallDoors"]:checked').value;
     params.spacing = document.querySelector('input[name="spacing"]:checked').value;
+    params.layout = document.querySelector('input[name="layout"]:checked').value;
     params.seed = $('seed').value;
     return params;
   }
@@ -99,6 +100,7 @@
     showGroupError('hallTypes', errors.hallTypes || '');
     showGroupError('hallDoors', errors.hallDoors || '');
     showGroupError('spacing', errors.spacing || '');
+    showGroupError('layout', errors.layout || '');
     openBladesWithErrors();
   }
 
@@ -130,10 +132,24 @@
   }
 
   const SPACING_HINTS = {
-    compact: 'Rooms can touch · rooms a hallway joins are up to 4 squares apart',
-    normal: 'Rooms 1–6 squares apart · except rooms joined by a door, which touch',
-    spaced: 'Rooms 2–12 squares apart · except rooms joined by a door, which touch',
+    compact: 'Rooms can touch · rooms a hallway joins are up to 4 squares apart · spines run longer',
+    normal: 'Rooms 1–6 squares apart · except rooms joined by a door, which touch · spines run longer',
+    spaced: 'Rooms 2–12 squares apart · except rooms joined by a door, which touch · spines run longer',
   };
+
+  const LAYOUT_HINTS = {
+    random: 'Rooms grow outward in any direction',
+    cathedral: 'A long nave crossed by a transept, like a church floor plan',
+    ring: 'Rooms circle an empty courtyard and close into a loop',
+    cavern: 'Rounded and irregular like a cave, with more winding passages',
+    square: 'Packed into a square footprint',
+    long: 'A tall, narrow dungeon, longer up and down than across',
+    wide: 'A wide, shallow dungeon, longer across than up and down',
+  };
+
+  function updateLayoutHint() {
+    $('layoutHint').textContent = LAYOUT_HINTS[document.querySelector('input[name="layout"]:checked').value];
+  }
 
   function updateSpacingHint() {
     $('spacingHint').textContent = SPACING_HINTS[document.querySelector('input[name="spacing"]:checked').value];
@@ -208,6 +224,7 @@
 
     updateRandomnessHint();
     updateSpacingHint();
+    updateLayoutHint();
   }
 
   function updateRandomnessHint() {
@@ -427,6 +444,7 @@
 
   for (const radio of document.querySelectorAll('input[name="hallDoors"]')) radio.addEventListener('change', updateDoorsHint);
   for (const radio of document.querySelectorAll('input[name="spacing"]')) radio.addEventListener('change', updateSpacingHint);
+  for (const radio of document.querySelectorAll('input[name="layout"]')) radio.addEventListener('change', updateLayoutHint);
   for (const box of hallBoxes()) box.addEventListener('change', updateHallTypesHint);
   $('hallTypesAll').addEventListener('click', () => {
     for (const box of hallBoxes()) box.checked = true;
@@ -726,6 +744,7 @@
     if (form.connectionType !== undefined) setRadio('connectionType', form.connectionType);
     if (form.hallDoors !== undefined) setRadio('hallDoors', form.hallDoors);
     if (form.spacing !== undefined) setRadio('spacing', form.spacing);
+    if (form.layout !== undefined) setRadio('layout', form.layout);
     if (form.edgeEntrancesOnly !== undefined) $('edgeEntrancesOnly').checked = form.edgeEntrancesOnly;
     if (form.roomShapes !== undefined) for (const box of shapeBoxes()) box.checked = form.roomShapes.includes(box.value);
     if (form.hallTypes !== undefined) for (const box of hallBoxes()) box.checked = form.hallTypes.includes(box.value);

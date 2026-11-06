@@ -36,12 +36,13 @@ Duckweed's Aeldara is a printed-book look: parchment, ink, and two accents, wine
 
 | Input | Range | Meaning |
 |---|---|---|
+| Overall layout | Random / Cathedral / Ring / Cavern / Square / Long / Wide (default Random) | The shape the dungeon as a whole leans towards; see below |
 | Room count | 1-99 | Number of rooms |
 | Average room size | 1-999 | Mean room area, in grid squares (1 square = 5 ft x 5 ft) |
 | Minimum room size: width and length | 1-30 each (default 1 x 1) | The least a room can measure across the map (width) and up and down it (length): 3 x 8 means every room is at least 3 wide and 8 long. 1 x 1 means no minimum |
 | Room size variance | 0-100 | Standard deviation of room area, as a % of the average |
 | Room shapes | at least one on (default on the page: Rectangle and Chamfered) | Which shapes rooms may take: rectangle, chamfered, L, T, U, H, Z, plus. Switch each on or off; rooms pick at random among the ones that are on |
-| Room spacing | Compact / Normal / Spaced Out (default Compact) | How far apart rooms are; see below. Compact rooms can share walls and rooms a hallway joins are at most 4 squares apart; Normal rooms are 1-6 apart and never touch; Spaced Out rooms are 2-12 apart and never touch |
+| Room spacing | Compact / Normal / Spaced Out (default Compact) | In the Layout column. How far apart rooms are; see below. Compact rooms can share walls and rooms a hallway joins are at most 4 squares apart; Normal rooms are 1-6 apart and never touch; Spaced Out rooms are 2-12 apart and never touch. Spines are the exception to the furthest gap: they keep their own, longer length |
 | Label position | Inside / Outside (default Inside) | Where room numbers are drawn: on the room's middle square, or just beyond one of its walls without overlapping any room (see below). A display option: it changes at once, without regenerating |
 | Entrances | 1-10 (default 1) | External entrances into the dungeon |
 | Entrances on outer edge only | On / Off (default On) | On: every entrance is a door in the outer wall. Off: entrances can be in any room (see below) |
@@ -85,7 +86,27 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
   for a small room, that room is a plain rectangle and the summary says how many were.
   Rectangles are the one shape that fits any size, so with only a large shape on, a
   dungeon of tiny rooms is mostly rectangles.
-- **Room spacing** (Rooms column) sets how far apart rooms are. A *gap* is the number of
+- **Overall layout** (Layout column, ahead of Rooms) leans the whole dungeon towards a familiar
+  shape. It is a *bias*, not a rule: the generator prefers places inside the shape, and gives ground a
+  little at a time when it cannot find room, so a layout never costs a dungeon any of its rooms. How big
+  the shape is follows from the room count, the room size and the Room spacing, so it fits what you ask
+  for. The first room goes at the middle of the shape (on the circle, for a ring), and the rest grow
+  out from it as usual.
+
+  | Layout | The shape |
+  |---|---|
+  | Random | No shape: rooms grow outward in any direction (the way the generator always worked, and the same dungeons as before for a given seed) |
+  | Cathedral | A Latin cross: a long nave up and down the map crossed by a shorter transept nearer the top, the rooms in a line along both |
+  | Ring | The rooms are put in order round a circle with an empty middle, a courtyard. When the last room comes round near enough to the first, one more connection joins them, a doorway where they share a wall or else a short hallway (so a ring is the one place hallways run in a circle). It closes in most dungeons, not all: if the ends do not come close enough, it is left open like a C. With Short hallways switched off it closes by a doorway or not at all |
+  | Cavern | A few round chambers of different sizes around a middle one, meeting in narrow necks, like the outline of a cave. Curly hallways are picked twice as often as usual (if Curly is on) |
+  | Square | Packed into a square: as broad as it is long, and fuller than Random |
+  | Long | Tall and narrow: two to three times as long up and down the map as across |
+  | Wide | Wide and shallow: two to three times as long across the map as up and down |
+
+  Everything else works the same: Room spacing, hallway types, doors and entrances are all kept to.
+  A tiny dungeon (a few rooms) is too small to show much of a shape. Choosing a layout changes the dungeon
+  for a given seed; Random does not.
+- **Room spacing** (Layout column) sets how far apart rooms are. A *gap* is the number of
   empty squares between two rooms, in a straight line: rooms that touch are 0 apart, and a
   room at another's corner counts as touching.
 
@@ -101,7 +122,11 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
   joined to by a door, never against one it is not. (A room that touches its parent can still
   have its own gap to every other room.) Compact has no closest gap, so any rooms may touch.
   The furthest rule holds for rooms that a hallway joins: every room a hallway serves is within
-  it of another room that hallway serves.
+  it of another room that hallway serves. **A spine is the exception**: it is a long straight
+  passage by nature (8-20 squares at the default room size), so the rooms at its ends are as far
+  apart as the spine is long, whatever the spacing. (Its closest gap still applies.) Held to 4 or 6
+  squares, a spine left too little room for the rooms along its sides, and a dungeon of only
+  spines and branching fell back to doorways.
 
   The furthest rule shortens hallways that would be longer: a short or spine hallway is cut to
   fit (so at Compact a spine is 3-4 squares long, at Normal 4-6, and only at Spaced Out does it
@@ -123,8 +148,8 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
   (short 40, spine 40 and curly 20 parts in 100, shared out again when one is off):
   - **Short**: a short passage, which can end a few squares off to one side (2-8 squares
     long at the default room size, cut to fit the Room spacing: at most 4 at Compact, 6 at Normal).
-  - **Spine**: a long straight passage (8-20 squares, but never more than the Room spacing allows:
-    12 at Spaced Out, 6 at Normal, 4 at Compact) with rooms lined up along its
+  - **Spine**: a long straight passage (8-20 squares at the default room size, whatever the Room
+    spacing; a crowded dungeon may stretch one by up to half as long again) with rooms lined up along its
     sides, so it serves several rooms. **Every spine serves at least 3 rooms**, whatever else
     is on, Branching included: the two rooms it joins and at least one more along its side.
     A spine is built together with its third room, and if no room fits along a candidate
@@ -144,7 +169,7 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
 
   Hallways never loop: they only ever lead to rooms that are not connected yet, so if
   every connection is a hallway there is exactly one route between any two rooms. (There
-  is no Loops type to switch on.)
+  is no Loops type to switch on.) The one exception is the closing connection of a **Ring** layout.
 
   Doorways are not a hallway type: they are chosen with **Connections**. With every
   connection a doorway (Doorways at 0%, or Hallways at 100%) no hallway is built, so the
@@ -156,7 +181,8 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
   straight one); at 3 squares it is 1-3, and from about 270 squares up it stays at 6-24 (3x). The
   scale follows the room's side (the square root of its area) and stops at 0.3x and 3x.
   Each straight run of a curly hallway scales the same way (2-4 squares at the default).
-  The figures are before **Room spacing** caps them (4, 6 or 12 squares between rooms).
+  The figures for short hallways are before **Room spacing** caps them (4, 6 or 12 squares between rooms);
+  spines are not capped.
 - A few extra doorways are added after the rooms are joined, between rooms that share a
   wall, so some dungeons have a circuit. (Only doorways: hallways never make one. Rooms only
   share a wall where a doorway joined them, so at Normal and Spaced Out there are none to add.)
@@ -251,7 +277,7 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
     is not an edit, so four clicks on a door, or drawing a hallway and deleting it, and the box does not
     appear. Changing the inputs or the colors, or the Display choices, never builds a new dungeon, so it
     never asks.
-- The inputs are in four columns side by side: **Rooms** (count, sizes, shapes),
+- The inputs are in five columns side by side: **Layout** (the overall layout and room spacing), **Rooms** (count, sizes, shapes),
   **Hallways** (connection type, randomization, hallway types, doors, entrances),
   **Generate** (seed, the buttons and the results) and **Display** (theme, label position, the
   grid and room-number switches, and colors). Display only changes how the map is
@@ -267,7 +293,7 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
 ## Remembered settings
 
 The page keeps your settings in this browser and puts them back on your next visit:
-every input in the Rooms and Hallways columns (counts, sizes, spacing, shapes, hallway types, doors,
+every input in the Layout, Rooms and Hallways columns (the layout, spacing, counts, sizes, shapes, hallway types, doors,
 entrances, the outer-edge switch), the display choices (label position, grid and room-number
 switches) and every color. They are saved as you change them. Which columns are collapsed is
 remembered too, separately, and so is the theme (Parchment or Dark, under `dungeonMaker.theme`). The
@@ -313,11 +339,12 @@ At the bottom of the Generate column. All of it is made in the page: nothing is 
 A link looks like
 
 ```
-#v=1&rooms=12&size=30&minw=1&minl=1&var=30&ent=2&rand=14&conn=hall&edge=1&shapes=rect,L,T&halls=short,spine&doors=less&spacing=compact&seed=679300265&label=outside&grid=0&nums=0&color.rooms=aabbcc
+#v=1&rooms=12&size=30&minw=1&minl=1&var=30&ent=2&rand=14&conn=hall&edge=1&shapes=rect,L,T&halls=short,spine&doors=less&spacing=compact&layout=ring&seed=679300265&label=outside&grid=0&nums=0&color.rooms=aabbcc
 ```
 
-A link made before **Room spacing** existed has no `spacing` key; it leaves the page's choice as it is
-(Compact when the page opens fresh), like any other key a link leaves out.
+A link made before **Room spacing** existed has no `spacing` key, and one from before the **Overall layout**
+has no `layout` key; they leave the page's choice as it is (Compact and Random when the page opens fresh),
+like any other key a link leaves out. Every link made now names both.
 
 The display keys (`label`, `grid`, `nums`, `color.<row>`) appear only when they differ from
 the usual look, so what a link leaves out is the usual. (Links made before the brand colors came in leave out the colors the map then started in, so they now open in the parchment look; to bring the old tan map back, add `color.background=e6dbc0&color.hallways=e2c9a8&color.doors=d9a45a&color.entrances=c0392b&color.lines=2a2018&color.grid=78623e`.) Anything in a link that is not
@@ -393,6 +420,7 @@ index.html, styles.css   page (styles.css holds the two themes as custom propert
 src/theme.js             Parchment or Dark: sets `data-theme` on the page, remembers the choice (loaded in the <head>)
 src/rng.js               seedable random numbers
 src/shapes.js            room shapes (rectilinear polyominoes), `DM.SHAPE_KINDS`
+src/layout.js            the overall layouts and the shape each leans towards: `DM.LAYOUTS`, `DM.makeLayout`
 src/generator.js         layout: placement, hallway routing (A*), entrances, output model
 src/labels.js            where room numbers go (inside, or outside the walls): `DM.placeOutsideLabels`
 src/palette.js           map colors: the ready-made choices per category, `DM.themeFrom`
@@ -430,7 +458,12 @@ hallway counts as its own kind and as `branching`, and so does a room hung off a
 side (unless Branching is off: rooms along a spine are then just part of the spine).
 
 `params.spacing` is the room spacing (`'compact'`, the default when it is left out, `'normal'` or
-`'spaced'`); `DM.SPACING_GAPS` holds each one's closest and furthest gap.
+`'spaced'`); `DM.SPACING_GAPS` holds each one's closest and furthest gap. `params.layout` is the overall
+layout (one of `DM.LAYOUTS`: `'random'`, the default when it is left out, `'cathedral'`, `'ring'`, `'cavern'`,
+`'square'`, `'long'` or `'wide'`). Each layout other than random is a footprint (`DM.makeLayout`) that candidate
+places are scored against and, early on, kept inside; it draws its numbers from a stream of its own, so
+random dungeons come out as they always did. A ring's closing connection is the one hallway between rooms
+that are already joined.
 
 An opening's `style` is `'door'` or `'open'` (an archway) as the generator makes it; Edit mode can also
 make it `'locked'` or `'secret'` (`DM.DOOR_STYLES`, in the order the clicks go round, with
@@ -468,7 +501,7 @@ often a room joins an existing hallway instead of starting a new one
 tightly the dungeon packs together, and so on.
 
 How far apart rooms are is the `SPACING` table (`DM.SPACING_GAPS`): the closest and furthest gap
-for each Room spacing choice. It caps the hallway distances below, whatever the room size.
+for each Room spacing choice. It caps the distances of every hallway but a spine, whatever the room size.
 
 The hallway distances there (`hallLength`, `spineLength`, `curlySegment`, `hallLateral`,
 `maxHallPath`, `pathMargin`) are for rooms of `hallScaleSize` (30) squares and are

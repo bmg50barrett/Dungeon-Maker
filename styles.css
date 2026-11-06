@@ -103,7 +103,7 @@ body {
   border-right: 1px solid var(--tint);
 }
 
-/* the four columns sit side by side and are each as tall as the window */
+/* the five columns sit side by side and are each as tall as the window */
 .blades { display: flex; flex: 1; min-height: 0; overflow-x: auto; }
 .blade {
   display: flex;
@@ -114,11 +114,11 @@ body {
   border-right: 1px solid var(--tint);
 }
 .blade:last-child { border-right: 0; }
-.blade[data-blade="display"] { width: 268px; } /* little in it, so it takes less of the map's room */
+.blade[data-blade="display"], .blade[data-blade="layout"] { width: 268px; } /* little in them, so they take less of the map's room */
 /* opening and closing a column slides it (the map grows or shrinks beside it) and fades its title in the new place */
 .blade { overflow: hidden; transition: width 0.22s ease; }
 .blade-body { min-width: 300px; transition: opacity 0.2s ease 0.05s, visibility 0s; }
-.blade[data-blade="display"] .blade-body { min-width: 268px; }
+.blade[data-blade="display"] .blade-body, .blade[data-blade="layout"] .blade-body { min-width: 268px; }
 @keyframes bladeTitleA { from { opacity: 0; } to { opacity: 1; } }
 @keyframes bladeTitleB { from { opacity: 0; } to { opacity: 1; } }
 .blade.collapsed .blade-toggle { animation-name: bladeTitleB; } /* a different name, so the fade starts again at each change */

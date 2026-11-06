@@ -13,6 +13,7 @@
  */
 require('../src/rng.js');
 require('../src/shapes.js');
+require('../src/layout.js');
 require('../src/generator.js');
 require('../src/edit.js');
 require('../src/labels.js');
@@ -194,9 +195,12 @@ function checkDungeon(dun, ctx) {
     }
     for (const c of dun.connections) {
       if (c.type !== 'hall') continue;
+      // a spine is not held to the spacing's greatest gap: its own length is how far apart its rooms may be
+      const hall = dun.halls[c.hall];
+      const most = hall.kind === 'spine' ? Math.max(gaps.max, hall.cells.length) : gaps.max;
       for (const r of c.rooms) {
-        // every room a hallway serves has another one it serves within the greatest gap
-        if (!c.rooms.some((q) => q !== r && gapBetween(r, q, gaps.max) <= gaps.max)) fail(ctx, `connection ${c.id}: room ${r} is more than ${gaps.max} from every room it is joined to (${dun.params.spacing})`);
+        // every room a hallway serves has another one it serves within that distance
+        if (!c.rooms.some((q) => q !== r && gapBetween(r, q, most) <= most)) fail(ctx, `connection ${c.id}: room ${r} is more than ${most} from every room it is joined to (${dun.params.spacing})`);
       }
     }
   }
@@ -970,7 +974,18 @@ console.log('== share and export');
   for (const name of DM.SPACINGS) {
     const withSpacing = DM.decodeShare(`#v=1&rooms=7&spacing=${name}&seed=castle`);
     if (withSpacing.form.spacing !== name || Object.keys(withSpacing.form).length !== 3) fail('share', `a link with spacing=${name} gave ${JSON.stringify(withSpacing.form)}`);
-    if (!DM.encodeShare({ params: { ...DM.generateDungeon({ ...samples[0], spacing: name }).params } }).includes(`&spacing=${name}&seed=`)) fail('share', `a link for ${name} spacing should say so, just before the seed`);
+    if (!DM.encodeShare({ params: { ...DM.generateDungeon({ ...samples[0], spacing: name }).params } }).includes(`&spacing=${name}&layout=random&seed=`)) fail('share', `a link for ${name} spacing should say so, then the layout, just before the seed`);
+  }
+
+  // the same for the overall layout: a link from before it leaves it out, every link made now names it, and nonsense is dropped
+  if ('layout' in pinned.form) fail('share', 'a link from before the overall layout should not set it');
+  for (const name of DM.LAYOUTS) {
+    const withLayout = DM.decodeShare(`#v=1&rooms=7&layout=${name}&seed=castle`);
+    if (withLayout.form.layout !== name || Object.keys(withLayout.form).length !== 3) fail('share', `a link with layout=${name} gave ${JSON.stringify(withLayout.form)}`);
+    if (!DM.encodeShare({ params: { ...DM.generateDungeon({ ...samples[0], layout: name }).params } }).includes(`&layout=${name}&seed=`)) fail('share', `a link for the ${name} layout should say so, just before the seed`);
+  }
+  for (const bad of ['roomy', 'Ring', '', 'ring,long', '0']) {
+    if ('layout' in DM.decodeShare(`#v=1&rooms=7&layout=${bad}&seed=castle`).form) fail('share', `layout=${bad} should be dropped`);
   }
 
   // nonsense is dropped, key by key, and never throws
@@ -1249,7 +1264,8 @@ console.log('== room spacing');
           for (const c of dun.connections) {
             const g = roomGap(dun.rooms[c.rooms[0]], dun.rooms[c.rooms[1]]);
             if (c.type === 'door' && g !== 0) fail('spacing', `${spacing}: a door joins rooms that are ${g} apart`);
-            if (c.type === 'hall') row.widest = Math.max(row.widest, g);
+            // (a spine is not held to the spacing's greatest gap, so only the other hallways count here)
+            if (c.type === 'hall' && dun.halls[c.hall].kind !== 'spine') row.widest = Math.max(row.widest, g);
           }
         }
       }
@@ -1274,7 +1290,7 @@ console.log('== room spacing');
     return n;
   };
   for (const spacing of DM.SPACINGS) {
-    const { max } = DM.SPACING_GAPS[spacing];
+    const { min } = DM.SPACING_GAPS[spacing];
     let spines = 0;
     let curlies = 0;
     let fewest = Infinity;
@@ -1296,13 +1312,32 @@ console.log('== room spacing');
             fewest = Math.min(fewest, bends(h.cells));
           }
         }
-        // a spine is a long straight line, but never longer than the spacing lets two rooms be apart
-        for (const h of dun.halls) if (h.kind === 'spine' && hallTypes.length === 1 && h.cells.length > max + 0) fail('spacing', `${spacing}: a spine of ${h.cells.length} squares, over ${max}`);
+        // a spine is a long straight line that ignores the spacing's greatest gap: 8 to 20 squares for rooms of 30
+        // squares (up to half as long again when the dungeon is crowded), and never under the spacing's least gap
+        if (hallTypes.length === 1 && hallTypes[0] === 'spine') {
+          for (const h of dun.halls) {
+            if (h.kind === 'spine' && (h.cells.length > 30 || h.cells.length < Math.max(8, min))) fail('spacing', `${spacing}: a spine of ${h.cells.length} squares, outside 8 to 30`);
+          }
+        }
       }
     }
     console.log(`  ${spacing.padEnd(7)} ${spines} spines (longest ${longest.spine}), ${curlies} curly hallways with at least ${fewest} bends, longest short hallway ${longest.short}`);
     if (spines === 0 || curlies === 0) fail('spacing', `${spacing}: spines or curly hallways are never built`);
     if (fewest < 4) fail('spacing', `${spacing}: a curly hallway has only ${fewest} bends`);
+  }
+
+  // spines and branching only, hallways always: a doorway is the very last resort, and spines are long enough that it is
+  // almost never needed, whatever the spacing (spines used to be cut down to the spacing's greatest gap, which sent most
+  // Normal dungeons to the doorway fallback)
+  for (const spacing of DM.SPACINGS) {
+    let withDoors = 0;
+    const N2 = 60;
+    for (let s = 0; s < N2; s++) {
+      const dun = DM.generateDungeon({ ...base, roomCount: 12, spacing, connectionType: 'hall', connectionRandomness: 0, hallTypes: ['spine', 'branching'], seed: `spine-only-${spacing}-${s}` });
+      if (dun.connections.some((c) => c.type === 'door')) withDoors++;
+    }
+    console.log(`  ${spacing.padEnd(7)} spines and branching only, 0% doorways: ${withDoors} of ${N2} dungeons have a doorway`);
+    if (withDoors > N2 * 0.1) fail('spacing', `${spacing}: ${withDoors} of ${N2} spine-only dungeons fell back to a doorway`);
   }
 
   // doorways only, with every hallway type off: no hallway anywhere, and the rooms they join touch, whatever the spacing
@@ -1341,6 +1376,178 @@ console.log('== room spacing');
     }
   }
   console.log('  done');
+}
+
+console.log('== overall layout');
+{
+  // The layout is a lean towards a shape, so it is judged on how a batch of dungeons come out, and every one of them
+  // still has to be a good dungeon (checkDungeon holds each to all the rules: rooms, hallways, spacing).
+  const base = { roomCount: 12, avgRoomSize: 30, sizeVariance: 30, entrances: 2, connectionType: 'hall', connectionRandomness: 14 };
+  const LAYOUT_NAMES = ['random', 'cathedral', 'ring', 'cavern', 'square', 'long', 'wide'];
+  if (JSON.stringify(DM.LAYOUTS) !== JSON.stringify(LAYOUT_NAMES)) fail('layout', `the layouts are ${DM.LAYOUTS}`);
+  if (DM.DEFAULT_LAYOUT !== 'random') fail('layout', 'the default layout is not random');
+
+  // settings: random when left out, and anything else is refused
+  if (DM.validateParams({ ...base }).params.layout !== 'random') fail('layout', 'leaving the layout out should mean random');
+  for (const name of LAYOUT_NAMES) if (DM.validateParams({ ...base, layout: name }).params.layout !== name) fail('layout', `${name} was not accepted`);
+  for (const bad of ['roomy', 'Ring', '', 0, 'ring,long', [], true]) {
+    if (DM.validateParams({ ...base, layout: bad }).errors.layout === undefined) fail('layout', `layout ${JSON.stringify(bad)} should be refused`);
+  }
+  if (DM.validateParams({ ...base, layout: null }).params.layout !== 'random') fail('layout', 'a null layout should mean random');
+
+  // random is no layout at all: the same dungeon as with the setting left out; and every layout repeats and makes a difference
+  const same = (a, b) => JSON.stringify([a.rooms, a.halls, a.connections]) === JSON.stringify([b.rooms, b.halls, b.connections]);
+  for (let s = 0; s < 6; s++) {
+    if (!same(DM.generateDungeon({ ...base, seed: `lay${s}` }), DM.generateDungeon({ ...base, layout: 'random', seed: `lay${s}` }))) fail('layout', 'random is not the same as no layout');
+  }
+  for (const name of LAYOUT_NAMES.slice(1)) {
+    const a = JSON.stringify(DM.generateDungeon({ ...base, layout: name, seed: 'lay-det' }).rooms);
+    if (a !== JSON.stringify(DM.generateDungeon({ ...base, layout: name, seed: 'lay-det' }).rooms)) fail('layout', `${name} is not repeatable`);
+    if (a === JSON.stringify(DM.generateDungeon({ ...base, layout: 'random', seed: 'lay-det' }).rooms)) fail('layout', `${name} made no difference to the dungeon`);
+  }
+
+  // every layout, every spacing, from one room up to a big dungeon: all the rooms placed, and every rule kept
+  for (const name of LAYOUT_NAMES) {
+    for (const spacing of DM.SPACINGS) {
+      for (const [roomCount, avgRoomSize] of [[1, 30], [2, 30], [3, 30], [5, 4], [12, 30], [25, 60], [60, 12]]) {
+        for (let s = 0; s < 6; s++) {
+          const dun = DM.generateDungeon({ ...base, roomCount, avgRoomSize, spacing, layout: name, seed: `lay-${name}${s}` });
+          checkDungeon(dun, `${name} ${spacing} ${roomCount} rooms #${s}`);
+          if (dun.params.layout !== name) fail('layout', 'the dungeon does not record its layout');
+          if (dun.warnings.length > 0) fail('layout', `${name} ${spacing} ${roomCount} rooms: ${dun.warnings.join(' ')}`);
+        }
+      }
+    }
+    // doorways only, spines only, and the others on their own: the settings with the fewest ways to place a room
+    for (const extra of [{ connectionType: 'door', connectionRandomness: 0 }, { hallTypes: ['spine'], connectionRandomness: 0 }, { hallTypes: ['curly'] }, { hallTypes: ['short'] }]) {
+      for (let s = 0; s < 4; s++) checkDungeon(DM.generateDungeon({ ...base, roomCount: 16, ...extra, layout: name, seed: `lay-x-${name}${s}` }), `${name} ${JSON.stringify(extra)} #${s}`);
+    }
+  }
+
+  // the shapes: measured over a batch for each spacing
+  const N = 30;
+  const centre = (r) => [r.bbox.x + r.bbox.w / 2, r.bbox.y + r.bbox.h / 2];
+  const batch = (layout, spacing, count = 12) => Array.from({ length: N }, (_, s) => DM.generateDungeon({ ...base, roomCount: count, spacing, layout, seed: `shape-${layout}${s}` }));
+  const share = (list, test) => list.filter(test).length / list.length;
+  const aspect = (d) => d.height / d.width;
+  // how far from round the ring of rooms is: the spread of their distances from the middle of them all, over the average
+  const raggedness = (d) => {
+    const mids = d.rooms.map(centre);
+    const cx = mids.reduce((n, p) => n + p[0], 0) / mids.length;
+    const cy = mids.reduce((n, p) => n + p[1], 0) / mids.length;
+    const rs = mids.map((p) => Math.hypot(p[0] - cx, p[1] - cy));
+    const mean = rs.reduce((n, v) => n + v, 0) / rs.length;
+    return Math.sqrt(rs.reduce((n, v) => n + (v - mean) * (v - mean), 0) / rs.length) / mean;
+  };
+  // the share of rooms on the cross through the first room (a column or a row of its width)
+  const onCross = (d) => {
+    const [x0, y0] = centre(d.rooms[0]);
+    const side = Math.sqrt(d.rooms.reduce((n, r) => n + r.area, 0) / d.rooms.length);
+    return d.rooms.filter((r) => Math.abs(centre(r)[0] - x0) < 0.9 * side || Math.abs(centre(r)[1] - y0) < 0.9 * side).length / d.rooms.length;
+  };
+  // whether the connections go round in a circle somewhere
+  const hasLoop = (d) => {
+    const root = d.rooms.map((_, i) => i);
+    const find = (x) => (root[x] === x ? x : (root[x] = find(root[x])));
+    for (const c of d.connections) {
+      for (let i = 1; i < c.rooms.length; i++) {
+        const a = find(c.rooms[0]);
+        const b = find(c.rooms[i]);
+        if (a === b) return true;
+        root[a] = b;
+      }
+    }
+    return false;
+  };
+  const rows = [];
+  for (const spacing of DM.SPACINGS) {
+    const random = batch('random', spacing);
+    const randomRound = share(random, (d) => raggedness(d) < 0.3);
+    const randomCross = random.reduce((n, d) => n + onCross(d), 0) / N;
+    const randomLong = share(random, (d) => aspect(d) >= 1.6);
+    const found = { long: batch('long', spacing), wide: batch('wide', spacing), ring: batch('ring', spacing), cathedral: batch('cathedral', spacing) };
+    // long and wide: a good deal more of one than the other, the right way round
+    const longShare = share(found.long, (d) => aspect(d) >= 1.6);
+    const wideShare = share(found.wide, (d) => aspect(d) <= 0.625);
+    const ringShare = share(found.ring, (d) => raggedness(d) < 0.3);
+    const ringLoops = share(found.ring, hasLoop);
+    const crossShare = found.cathedral.reduce((n, d) => n + onCross(d), 0) / N;
+    const crossTall = found.cathedral.reduce((n, d) => n + aspect(d), 0) / N;
+    rows.push(`${spacing}: long ${longShare.toFixed(2)}, wide ${wideShare.toFixed(2)}, ring round ${ringShare.toFixed(2)} closed ${ringLoops.toFixed(2)} (random round ${randomRound.toFixed(2)}), cathedral on the cross ${crossShare.toFixed(2)} (random ${randomCross.toFixed(2)}) tall ${crossTall.toFixed(2)}`);
+    if (longShare < 0.9) fail('layout', `${spacing}: only ${longShare} of long dungeons are long`);
+    if (wideShare < 0.9) fail('layout', `${spacing}: only ${wideShare} of wide dungeons are wide`);
+    if (randomLong > 0.3) fail('layout', `${spacing}: random dungeons are long as often as ${randomLong}`);
+    if (ringShare < 0.9 || randomRound > 0.1) fail('layout', `${spacing}: ring dungeons are round ${ringShare} of the time, random ones ${randomRound}`);
+    if (ringLoops < 0.6) fail('layout', `${spacing}: only ${ringLoops} of rings close into a loop`);
+    if (crossShare < 0.8 || crossShare - randomCross < 0.2) fail('layout', `${spacing}: cathedral rooms are on the cross ${crossShare} of the time, random ones ${randomCross}`);
+    if (crossTall < 1.25) fail('layout', `${spacing}: cathedrals are only ${crossTall} times as long as they are broad`);
+  }
+  console.log(`  ${rows.join('\n  ')}`);
+
+  // square: nearer to as broad as it is long than random is (random dungeons are rounded blobs and often nearly square too, so this
+  // takes a bigger batch), and packed more tightly into its box
+  for (const spacing of DM.SPACINGS) {
+    const measure = (layout) => {
+      let off = 0;
+      let fill = 0;
+      for (let s = 0; s < 80; s++) {
+        const d = DM.generateDungeon({ ...base, spacing, layout, seed: `sq-${layout}${s}` });
+        off += Math.abs(Math.log(aspect(d))) / 80;
+        fill += d.rooms.reduce((n, r) => n + r.area, 0) / (d.width * d.height) / 80;
+      }
+      return { off, fill };
+    };
+    const sq = measure('square');
+    const rnd = measure('random');
+    console.log(`  ${spacing}: square is ${sq.off.toFixed(3)} off square and ${sq.fill.toFixed(2)} full, random ${rnd.off.toFixed(3)} and ${rnd.fill.toFixed(2)}`);
+    if (sq.off > 0.8 * rnd.off) fail('layout', `${spacing}: square dungeons are ${sq.off} off square, random ones ${rnd.off}`);
+    if (sq.fill < rnd.fill + 0.02) fail('layout', `${spacing}: square dungeons are ${sq.fill} full, random ones ${rnd.fill}`);
+  }
+
+  // a ring is the one place hallways run in a circle, and its closing hallway is a short one: with Short switched off it closes by doorway or not at all
+  for (let s = 0; s < 20; s++) {
+    const dun = DM.generateDungeon({ ...base, roomCount: 14, layout: 'ring', hallTypes: ['spine'], connectionRandomness: 0, seed: `ring-nohall${s}` });
+    checkDungeon(dun, `ring, spines only #${s}`);
+    for (const h of dun.halls) if (h.kind !== 'spine') fail('layout', 'a closing hallway of a kind that is switched off');
+  }
+  // only a ring runs its hallways in a circle: with every other layout the hallways alone join the rooms as a tree
+  for (const name of ['cathedral', 'cavern', 'square', 'long', 'wide']) {
+    for (let s = 0; s < 10; s++) {
+      const dun = DM.generateDungeon({ ...base, layout: name, seed: `noloop-${name}${s}` });
+      if (dun.stats.hallLinks > dun.rooms.length - 1) fail('layout', `${name}: hallways made a loop`);
+    }
+  }
+  // winding passages: a cavern picks curly hallways more often than usual
+  const curlies = (name) => {
+    let n = 0;
+    for (let s = 0; s < 40; s++) n += DM.generateDungeon({ ...base, hallTypes: ['short', 'spine', 'curly', 'branching'], layout: name, seed: `wind${s}` }).stats.hallTypeCounts.curly || 0;
+    return n;
+  };
+  const cavernCurly = curlies('cavern');
+  const squareCurly = curlies('square');
+  console.log(`  curly hallways in 40 dungeons: cavern ${cavernCurly}, square ${squareCurly}`);
+  if (cavernCurly <= squareCurly) fail('layout', `a cavern should have more curly hallways than a square one (${cavernCurly} against ${squareCurly})`);
+
+  // the shapes themselves (layout.js on its own): the start is inside, far away is not, and each is the shape it says
+  let n = 0.3;
+  const info = { rooms: 12, area: 360, side: 5.5, gap: 2, spacing: 'compact', random: () => (n = (n * 9301 + 0.49297) % 1) };
+  if (DM.makeLayout('random', info) !== null) fail('layout', 'random should have no shape');
+  for (const name of LAYOUT_NAMES.slice(1)) {
+    const lay = DM.makeLayout(name, info);
+    if (!lay) {
+      fail('layout', `${name} has no shape`);
+      continue;
+    }
+    if (lay.outside(lay.start.x, lay.start.y, 0) !== 0) fail('layout', `${name}: the first room starts outside the shape`);
+    if (!(lay.outside(5000, 5000, 3) > 1000)) fail('layout', `${name}: far away is not outside the shape`);
+    if (!(lay.tolerance(0) > 0 && lay.tolerance(10) <= lay.tolerance(30) && lay.tolerance(60) === Infinity)) fail('layout', `${name}: tolerance does not open up to anything`);
+    if (!(lay.score(lay.start.x, lay.start.y, null, 0) < lay.score(lay.start.x + 400, lay.start.y, null, 0))) fail('layout', `${name}: a far-off place scores better than the start`);
+  }
+  const ring = DM.makeLayout('ring', info);
+  if (!ring.closes || !(ring.outside(0, 0, 0) > 5)) fail('layout', 'a ring should close and have an empty middle');
+  const cross = DM.makeLayout('cathedral', info);
+  if (cross.outside(0, 0) !== 0 || cross.outside(30, 30) === 0) fail('layout', 'the cross should include its crossing and not its corners');
+  if (!(DM.makeLayout('cavern', info).winding > 1)) fail('layout', 'a cavern should favour winding hallways');
 }
 
 console.log('== hallway scaling');
@@ -1430,9 +1637,9 @@ console.log('== page layout');
   for (const f of ['roomCount', 'avgRoomSize', 'minRoomWidth', 'minRoomLength', 'sizeVariance', 'entrances', 'connectionRandomness']) used.add(`err-${f}`).add(f);
   for (const id of used) if (!ids.includes(id)) fail('layout', `app.js looks up #${id}, which is not on the page`);
 
-  // the inputs are split into four collapsible columns: rooms, hallways (with entrances), seed / generation / results, then display
+  // the inputs are split into five collapsible columns: layout (with room spacing), rooms, hallways (with entrances), seed / generation / results, then display
   const blades = [...html.matchAll(/<section class="blade" id="blade-([a-z]+)" data-blade="([a-z]+)"/g)];
-  if (JSON.stringify(blades.map((m) => m[2])) !== JSON.stringify(['rooms', 'hallways', 'generate', 'display'])) fail('layout', `columns are [${blades.map((m) => m[2])}]`);
+  if (JSON.stringify(blades.map((m) => m[2])) !== JSON.stringify(['layout', 'rooms', 'hallways', 'generate', 'display'])) fail('layout', `columns are [${blades.map((m) => m[2])}]`);
   for (const [, id, name] of blades) {
     if (id !== name) fail('layout', `column ${name} has id blade-${id}`);
     if (!html.includes(`aria-controls="blade-${name}-body"`) || !html.includes(`id="blade-${name}-body"`)) fail('layout', `the toggle of column ${name} does not control its body`);
@@ -1446,7 +1653,8 @@ console.log('== page layout');
     return col;
   };
   const expected = {
-    rooms: ['id="roomCount"', 'id="avgRoomSize"', 'id="minRoomWidth"', 'id="minRoomLength"', 'id="sizeVariance"', 'name="spacing"', 'name="roomShape"'],
+    layout: ['name="layout"', 'name="spacing"'],
+    rooms: ['id="roomCount"', 'id="avgRoomSize"', 'id="minRoomWidth"', 'id="minRoomLength"', 'id="sizeVariance"', 'name="roomShape"'],
     hallways: ['name="connectionType"', 'id="connectionRandomness"', 'name="hallType"', 'name="hallDoors"', 'id="entrances"', 'id="edgeEntrancesOnly"'],
     generate: ['id="seed"', 'id="generate"', 'id="generateRandom"', 'id="summary"'],
     display: ['name="labelPosition"', 'id="showGrid"', 'id="showLabels"', 'id="colorPickers"', 'id="resetColors"'],
@@ -1472,6 +1680,25 @@ console.log('== page layout');
     if (!/if \(form\.spacing !== undefined\) setRadio\('spacing', form\.spacing\)/.test(appJs)) fail('layout', 'opening a link or restoring settings does not set the spacing');
     if (!/showGroupError\('spacing'/.test(appJs)) fail('layout', 'a spacing error would not be shown');
     if (!/\.seg-three\s*\{[^}]*repeat\(3, 1fr\)/.test(fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8'))) fail('layout', 'styles.css has no three-way segmented control');
+  }
+  // overall layout: a choice of exactly the layouts the generator knows, random on first, each with a hint, in the Layout column ahead of Rooms
+  {
+    const radios = [...html.matchAll(/<input type="radio" name="layout" value="([a-z]+)"([^>]*)>/g)];
+    if (JSON.stringify(radios.map((m) => m[1])) !== JSON.stringify(DM.LAYOUTS)) fail('layout', `the page offers layouts [${radios.map((m) => m[1])}], the generator has [${DM.LAYOUTS}]`);
+    if (radios.filter((m) => /\schecked/.test(m[2])).map((m) => m[1]).join() !== DM.DEFAULT_LAYOUT) fail('layout', `the page should start on the ${DM.DEFAULT_LAYOUT} layout`);
+    for (const name of DM.LAYOUTS) {
+      if (!new RegExp(`value="${name}"[^>]*><span class="chip-body">${name[0].toUpperCase()}${name.slice(1)}</span>`).test(html)) fail('layout', `the ${name} layout has no chip with its name`);
+    }
+    if (!html.includes('<legend>Overall layout</legend>') || !html.includes('id="layoutHint"') || !html.includes('id="err-layout"')) fail('layout', 'the layout choice needs a legend, a hint and an error line');
+    const hints = (appJs.match(/const LAYOUT_HINTS = \{[\s\S]*?\n  \};/) || [''])[0];
+    for (const name of DM.LAYOUTS) if (!new RegExp(`${name}: '[^']{10,}'`).test(hints)) fail('layout', `the ${name} layout has no hint`);
+    if (html.indexOf('name="layout"') > html.indexOf('name="spacing"')) fail('layout', 'the layout choice should come before room spacing');
+    if (!/params\.layout = document\.querySelector\('input\[name="layout"\]:checked'\)\.value/.test(appJs)) fail('layout', 'app.js does not read the layout');
+    if (!/if \(form\.layout !== undefined\) setRadio\('layout', form\.layout\)/.test(appJs)) fail('layout', 'opening a link or restoring settings does not set the layout');
+    if (!/showGroupError\('layout'/.test(appJs)) fail('layout', 'a layout error would not be shown');
+    if (!/updateLayoutHint\(\);/.test(appJs)) fail('layout', 'the layout hint is never updated');
+    // src/layout.js is loaded before the generator, which uses it
+    if (!(html.indexOf('src/layout.js') > 0 && html.indexOf('src/layout.js') < html.indexOf('src/generator.js'))) fail('layout', 'the page does not load layout.js before generator.js');
   }
   // the legend is on the map, not in a column, so it stays in view when the columns are collapsed
   const legendAt = html.indexOf('id="legend"');
@@ -1509,7 +1736,7 @@ console.log('== page layout');
   if (!/@media print[\s\S]*\.map-title/.test(stageCss)) fail('layout', 'the title is not hidden when printing (the printed page is the picture alone)');
   // one form wraps all four columns, so Enter in any field generates
   const formAt = html.indexOf('<form id="params"');
-  if (formAt < 0 || blades.some((m) => m.index < formAt) || html.indexOf('</form>') < blades[blades.length - 1].index) fail('layout', 'the four columns are not all inside the one form');
+  if (formAt < 0 || blades.some((m) => m.index < formAt) || html.indexOf('</form>') < blades[blades.length - 1].index) fail('layout', 'the five columns are not all inside the one form');
   console.log('  done');
 }
 

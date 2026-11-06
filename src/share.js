@@ -48,6 +48,7 @@
     if (Array.isArray(params.hallTypes)) parts.push(pair('halls', params.hallTypes.join(',')));
     if (params.hallDoors) parts.push(pair('doors', params.hallDoors));
     if (params.spacing) parts.push(pair('spacing', params.spacing));
+    if (params.layout) parts.push(pair('layout', params.layout));
     if (params.seed !== undefined && params.seed !== null && String(params.seed) !== '') parts.push(pair('seed', params.seed));
 
     // how it is drawn: only what is not the usual
@@ -91,6 +92,7 @@
     if (q.get('conn') !== null) accept('connectionType', q.get('conn'));
     if (q.get('doors') !== null) accept('hallDoors', q.get('doors'));
     if (q.get('spacing') !== null) accept('spacing', q.get('spacing'));
+    if (q.get('layout') !== null) accept('layout', q.get('layout'));
     if (q.get('shapes') !== null) accept('roomShapes', q.get('shapes').split(',').filter(Boolean));
     if (q.get('halls') !== null) accept('hallTypes', q.get('halls').split(',').filter(Boolean));
     if (q.get('edge') === '1' || q.get('edge') === '0') form.edgeEntrancesOnly = q.get('edge') === '1';

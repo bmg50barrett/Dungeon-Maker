@@ -267,6 +267,13 @@
     } else {
       errors.spacing = `Room spacing must be one of: ${SPACINGS.join(', ')}.`;
     }
+    // The overall shape the dungeon leans towards: random / cathedral / ring / cavern / square / long / wide (default: random).
+    const layout = raw.layout === undefined || raw.layout === null ? DM.DEFAULT_LAYOUT : raw.layout;
+    if (DM.LAYOUTS.includes(layout)) {
+      params.layout = layout;
+    } else {
+      errors.layout = `Layout must be one of: ${DM.LAYOUTS.join(', ')}.`;
+    }
     params.seed = raw.seed === undefined || raw.seed === null || String(raw.seed).trim() === '' ? null : String(raw.seed).trim();
     return { ok: Object.keys(errors).length === 0, errors, params };
   }
@@ -418,7 +425,21 @@
       this.used = { short: 0, spine: 0, curly: 0, branching: 0 };
       // room for the rooms themselves plus the hallways between them (and the gaps, which add up over the dungeon)
       const spread = shapes.length > 1 ? Math.ceil(Math.sqrt(shapes.length)) * this.gap.max * 2 : 0;
-      const side = Math.max(Math.ceil(Math.sqrt(sumArea * 4)) * 2 + 80 + 2 * this.hall.spine[1] + spread, maxDim * 4 + 40);
+      // the overall layout the dungeon leans towards (none for random), drawn from its own stream of numbers so that
+      // switching it on never changes how the rooms themselves come out
+      const typical = (this.gap.min + this.gap.max) / 2;
+      const layoutRng = new DM.Rng(`${params.seed}:layout`);
+      this.layout = DM.makeLayout(params.layout, {
+        rooms: shapes.length,
+        area: sumArea,
+        side: Math.sqrt(baseRoomArea(params)),
+        gap: Math.min(typical, 6),
+        spacing: params.spacing,
+        random: () => layoutRng.next(),
+      });
+      this.layoutTol = Infinity; // how far beyond the layout's shape a room may go just now (opens up as attempts run out)
+      const base = Math.max(Math.ceil(Math.sqrt(sumArea * 4)) * 2 + 80 + 2 * this.hall.spine[1] + spread, maxDim * 4 + 40);
+      const side = this.layout ? Math.ceil(base * 1.5) : base; // (a shape that is long or has arms reaches further from the middle)
       this.W = side;
       this.H = side;
       // 0 = empty, +n = room with index n-1, -n = hall with index n-1
@@ -641,10 +662,11 @@
 
     /**
      * Is `shape`, stamped at (ox, oy), within the greatest gap of at least one of the rooms `ids`?
-     * (Fewer than `gap.max` empty squares in a straight line between them: Chebyshev distance.)
+     * (Fewer than `maxGap` empty squares in a straight line between them: Chebyshev distance.
+     * `maxGap` is the spacing's greatest gap unless a spine, which is longer, is being built.)
      */
-    withinReach(shape, ox, oy, ids) {
-      const reach = this.gap.max + 1; // Chebyshev distance of the nearest cells
+    withinReach(shape, ox, oy, ids, maxGap = this.gap.max) {
+      const reach = maxGap + 1; // Chebyshev distance of the nearest cells
       const x0 = ox;
       const y0 = oy;
       const x1 = ox + shape.w - 1;
@@ -668,26 +690,52 @@
     }
 
     /**
-     * How long a short or spine hallway may be, in cells, when this spacing lets rooms be no further
-     * apart than `gap.max`. The natural lengths are cut down to fit, and never below the least gap.
+     * How long a short hallway may be, in cells, when this spacing lets rooms be no further apart
+     * than `gap.max`: the natural length is cut down to fit, and never below the least gap.
+     * A spine is not held to the spacing's greatest gap. It is a long straight passage by nature,
+     * so it keeps its own length range (and the spacing's least gap still applies).
      * `extra` stretches the top of the range (to reach further when the dungeon is crowded).
      */
-    lengthRange(kind, extra = 0) {
-      const natural = kind === 'spine' ? this.hall.spine : this.hall.length;
-      const top = this.gap.max;
+    lengthRange(kind, extra = 0, isBranch = false) {
       const bottom = Math.max(1, this.gap.min);
+      if (kind === 'spine' && !isBranch) {
+        const [lo, hi] = this.hall.spine;
+        const top = hi + Math.min(extra, Math.ceil(hi / 2)); // (already long: a crowded dungeon stretches it by half at most)
+        return [Math.max(lo, bottom), Math.max(top, lo, bottom)];
+      }
+      // (a branch off a hallway takes a spine's length range cut down to the spacing, like any other hallway)
+      const natural = kind === 'spine' ? this.hall.spine : this.hall.length;
       let lo = natural[0];
-      let hi = Math.min(natural[1] + extra, top);
-      if (lo > hi) lo = kind === 'spine' ? Math.ceil(top * 0.6) : hi; // a spine is still a long one, for what fits
+      const hi = Math.min(natural[1] + extra, this.gap.max);
+      if (lo > hi) lo = kind === 'spine' ? Math.ceil(this.gap.max * 0.6) : hi;
       lo = Math.max(lo, bottom);
-      hi = Math.max(hi, lo);
-      return [lo, hi];
+      return [lo, Math.max(hi, lo)];
     }
 
-    /** Lower is better. Prefers placements near the centre of mass (compact dungeons). */
+    /** The greatest gap, in squares, between rooms joined by a hallway of this kind: a spine's own length range, otherwise the spacing's. */
+    reachFor(isSpine, spineTop = 0) {
+      return isSpine ? Math.max(this.gap.max, spineTop) : this.gap.max;
+    }
+
+    /** Is a room of this shape at (ox, oy) close enough to the overall layout's shape, on this attempt? (Always, with no layout.) */
+    layoutOk(shape, ox, oy) {
+      if (!this.layout || this.layoutTol === Infinity) return true;
+      if (this.layout.outside(ox + shape.w / 2 - this.W / 2, oy + shape.h / 2 - this.H / 2, this.rooms.length) > this.layoutTol) return false;
+      // the last room of a ring has to come round close enough to the first to be joined to it
+      if (this.layout.closes && this.rooms.length === this.shapes.length - 1 && this.rooms.length > 3) return this.withinReach(shape, ox, oy, [0]);
+      return true;
+    }
+
+    /** Lower is better. Prefers placements near the centre of mass (compact dungeons), or the layout's shape if there is one. */
     score(shape, ox, oy) {
       const cx = ox + shape.w / 2;
       const cy = oy + shape.h / 2;
+      if (this.layout) {
+        // drawn towards the layout's shape instead of the middle of the dungeon so far
+        const last = this.rooms.length > 0 ? this.rooms[this.rooms.length - 1] : null;
+        const lastAt = last ? { x: last.ox + last.shape.w / 2 - this.W / 2, y: last.oy + last.shape.h / 2 - this.H / 2 } : null;
+        return this.layout.score(cx - this.W / 2, cy - this.H / 2, lastAt, this.rooms.length) * (1 + this.rng.next() * CONFIG.scoreNoise);
+      }
       const mx = this.sumX / this.cellCount;
       const my = this.sumY / this.cellCount;
       const d2 = (cx - mx) * (cx - mx) + (cy - my) * (cy - my);
@@ -896,7 +944,8 @@
     pickKind(allowSpine = true) {
       const kinds = allowSpine ? this.kinds : this.kinds.filter((k) => k !== 'spine');
       if (kinds.length === 0) return null;
-      return kinds[this.rng.weightedIndex(kinds.map((k) => CONFIG.hallKindWeights[k]))];
+      const winding = this.layout ? this.layout.winding : 1; // (a cavern's passages wind more)
+      return kinds[this.rng.weightedIndex(kinds.map((k) => CONFIG.hallKindWeights[k] * (k === 'curly' ? winding : 1)))];
     }
 
     hallStyle() {
@@ -920,6 +969,8 @@
 
     pickParent() {
       const { rng, rooms } = this;
+      // a ring is built one room after another round the circle, so each hangs off the one before
+      if (this.layout && this.layout.closes && rooms.length > 1 && rng.chance(0.85)) return rooms[rooms.length - 1];
       if (rooms.length > 1 && rng.chance(CONFIG.chainChance)) return rooms[rooms.length - 1];
       const weights = rooms.map((r) => 1 / Math.pow(1 + r.degree, 1.5));
       return rooms[rng.weightedIndex(weights)];
@@ -941,6 +992,7 @@
         const m = shape.cells[openIdx[Math.floor(rng.next() * openIdx.length)]];
         const ox = nx - m[0];
         const oy = ny - m[1];
+        if (!this.layoutOk(shape, ox, oy)) continue;
         if (!this.canPlace(shape, ox, oy, 'door', 0, parent.id + 1)) continue; // (a doorway may touch its own room whatever the spacing)
         valid++;
         const s = this.score(shape, ox, oy);
@@ -982,7 +1034,7 @@
         if (sides.length === 0) return null;
         straightSides = sides.filter((s) => s.straight);
       }
-      const [lo, hi] = this.lengthRange(kind, extra);
+      const [lo, hi] = this.lengthRange(kind, extra, fromHall);
       const lateralMax = Math.min(this.hall.lateral, this.gap.max + 1); // (a room off to the side is still within the greatest gap)
       const served = fromHall ? parent.conn.rooms : [parent.id]; // the rooms the new one has to be near enough to
       const newSpine = kind === 'spine' && !fromHall; // a hallway that starts as a spine (a branch of that length off another hallway does not)
@@ -1021,8 +1073,9 @@
         const m = shape.cells[openIdx[Math.floor(rng.next() * openIdx.length)]];
         const ox = mx - m[0];
         const oy = my - m[1];
+        if (!this.layoutOk(shape, ox, oy)) continue;
         if (!this.canPlace(shape, ox, oy, 'hall')) continue;
-        if (!this.withinReach(shape, ox, oy, served)) continue;
+        if (!this.withinReach(shape, ox, oy, served, this.reachFor(newSpine, hi))) continue;
         cands.push({ e, ox, oy, mx, my, route, score: this.score(shape, ox, oy) });
       }
       cands.sort((a, b) => a.score - b.score);
@@ -1108,8 +1161,9 @@
         const m = shape.cells[openIdx[Math.floor(rng.next() * openIdx.length)]];
         const ox = nx - m[0];
         const oy = ny - m[1];
+        if (!this.layoutOk(shape, ox, oy)) continue;
         if (!this.canPlace(shape, ox, oy, 'door', hall.id + 1)) continue;
-        if (!this.withinReach(shape, ox, oy, served)) continue;
+        if (!this.withinReach(shape, ox, oy, served, this.reachFor(hall.kind === 'spine', hall.cells.length))) continue; // (beside a spine, a room is within the spine's length of its ends)
         valid++;
         const s = this.score(shape, ox, oy);
         if (s < bestScore) {
@@ -1170,8 +1224,9 @@
     }
 
     placeFirst(shape) {
-      const ox = Math.floor((this.W - shape.w) / 2);
-      const oy = Math.floor((this.H - shape.h) / 2);
+      const start = this.layout ? this.layout.start : { x: 0, y: 0 };
+      const ox = Math.floor((this.W - shape.w) / 2 + start.x);
+      const oy = Math.floor((this.H - shape.h) / 2 + start.y);
       return this.addRoom(shape, ox, oy);
     }
 
@@ -1186,6 +1241,7 @@
       const spinesOnly = type === 'hall' && this.kinds.length === 1 && this.kinds[0] === 'spine';
 
       for (let attempt = 0; attempt < 60; attempt++) {
+        if (this.layout) this.layoutTol = this.layout.tolerance(attempt);
         const parent = this.pickParent();
         // Try the chosen type with many different parents before giving in and
         // using the other type, so the randomization setting is respected.
@@ -1201,6 +1257,7 @@
         if (room) return 1 + this.extraPlaced;
       }
       // Crowded: reach out further with longer hallways from any room.
+      this.layoutTol = Infinity;
       for (let attempt = 0; attempt < 150; attempt++) {
         const parent = rng.pick(this.rooms);
         // (a room along the side of a hallway that can take it is the one way left to place the last room of a
@@ -1214,6 +1271,77 @@
         }
       }
       return 0;
+    }
+
+    // ---- closing a ring --------------------------------------------------------
+
+    /** Empty squares between two rooms in a straight line (0 when they touch, a corner counting as touching). */
+    roomGap(a, b) {
+      let best = Infinity;
+      for (const [x, y] of a.perim) {
+        for (const [p, q] of b.perim) best = Math.min(best, Math.max(Math.abs(x - p), Math.abs(y - q)));
+      }
+      return best - 1;
+    }
+
+    /**
+     * Join up a ring: the two rooms that are furthest round the circle from each other (by way of the
+     * connections) but near enough to be joined get a connection of their own, a doorway where they share a
+     * wall or else a short hallway, so the circle is closed. It is the one place a hallway links rooms that are
+     * already joined. Does nothing if no such pair is near enough, or if the settings allow no way to do it.
+     */
+    closeLoop() {
+      const { rooms } = this;
+      const n = rooms.length;
+      if (n < 4) return false;
+      // how many connections apart every pair of rooms is
+      const next = rooms.map(() => []);
+      for (const c of this.connections) for (const p of c.rooms) for (const q of c.rooms) if (p !== q) next[p].push(q);
+      const apart = rooms.map((_, from) => {
+        const d = new Array(n).fill(-1);
+        d[from] = 0;
+        for (let queue = [from], i = 0; i < queue.length; i++) {
+          for (const to of next[queue[i]]) if (d[to] < 0) ((d[to] = d[queue[i]] + 1), queue.push(to));
+        }
+        return d;
+      });
+      const canHall = hallwaysPossible(this.params) && this.types.has('short');
+      const pairs = [];
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+          if (this.pairs.has(this.pairKey(i, j)) || apart[i][j] < Math.max(3, Math.floor(n / 3))) continue;
+          const gap = this.roomGap(rooms[i], rooms[j]);
+          if (gap === 0 || (canHall && gap <= this.gap.max)) pairs.push({ a: rooms[i], b: rooms[j], gap, score: gap * 100 - apart[i][j] });
+        }
+      }
+      pairs.sort((p, q) => p.score - q.score);
+      for (const { a, b, gap } of pairs.slice(0, 6)) {
+        if (gap === 0 && this.connectByDoor(a, b)) return true;
+        if (canHall && gap <= this.gap.max && this.connectByHall(a, b)) return true;
+      }
+      return false;
+    }
+
+    /** A short hallway between two rooms that are not touching, along the shortest route found between their walls. */
+    connectByHall(a, b) {
+      const { W, occ } = this;
+      const open = (room) => room.edges.filter((e) => occ[(e.y + DY[e.d]) * W + e.x + DX[e.d]] === 0);
+      const pairs = [];
+      for (const ea of open(a)) {
+        for (const eb of open(b)) {
+          const dist = Math.abs(ea.x + DX[ea.d] - (eb.x + DX[eb.d])) + Math.abs(ea.y + DY[ea.d] - (eb.y + DY[eb.d]));
+          pairs.push({ ea, eb, dist });
+        }
+      }
+      pairs.sort((p, q) => p.dist - q.dist);
+      for (const { ea, eb } of pairs.slice(0, 30)) {
+        const path = this.findPath(ea.x + DX[ea.d], ea.y + DY[ea.d], ea.d, eb.x + DX[eb.d], eb.y + DY[eb.d], a.id + 1, b.id + 1);
+        if (!path) continue;
+        this.used.short++;
+        this.commitHall(path, a, b, ea, { x: eb.x, y: eb.y, d: eb.d }, 'short');
+        return true;
+      }
+      return false;
     }
 
     // ---- extra connections (doorways) ---------------------------------------
@@ -1730,6 +1858,8 @@
       const them = stray === 1 ? 'is a plain rectangle' : 'are plain rectangles';
       b.warnings.push(`${stray} of ${b.rooms.length} rooms ${them}: none of the room shapes that are switched on fit.`);
     }
+
+    if (b.layout && b.layout.closes) b.closeLoop();
 
     const extra = Math.round((b.rooms.length - 1) * CONFIG.extraConnectionFraction);
     for (let i = 0; i < extra; i++) if (!b.addExtraConnection()) break;

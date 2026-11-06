@@ -17,6 +17,7 @@ const APP_DEFAULTS = {
   minRoomLength: 1,
   sizeVariance: 30,
   spacing: 'compact',
+  layout: 'random',
   roomShapes: ['rect', 'chamfer'],
   connectionType: 'hall',
   connectionRandomness: 14,
@@ -41,6 +42,7 @@ const SETTINGS = {
   minRoomLength: int(1, 30, 'Least a room measures up and down the map (north-south), in squares (default 1: no minimum).'),
   sizeVariance: int(0, 100, 'How much room sizes vary, as a percentage of the average (default 30).'),
   spacing: { type: 'string', enum: ['compact', 'normal', 'spaced'], description: 'How far apart rooms are: compact (rooms may touch; default), normal or spaced.' },
+  layout: { type: 'string', enum: ['random', 'cathedral', 'ring', 'cavern', 'square', 'long', 'wide'], description: 'The overall shape the dungeon leans towards: random (default, no shape), cathedral (a long nave crossed by a transept), ring (rooms circling an empty middle, closed into a loop), cavern (a few round chambers), square, long (taller than wide) or wide (wider than tall).' },
   roomShapes: {
     type: 'array',
     items: { type: 'string', enum: ['rect', 'chamfer', 'L', 'T', 'U', 'H', 'Z', 'plus'] },

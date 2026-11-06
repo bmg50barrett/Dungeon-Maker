@@ -15,10 +15,50 @@
 <body>
   <div class="app">
     <aside class="panel">
-      <!-- One form, laid out as four columns ("blades") that can each be collapsed to a thin strip. -->
+      <!-- One form, laid out as five columns ("blades") that can each be collapsed to a thin strip. -->
       <form id="params" class="blades" novalidate autocomplete="off">
 
-        <!-- column 1: rooms -->
+        <!-- column 1: the overall shape of the dungeon and how far apart its rooms are -->
+        <section class="blade" id="blade-layout" data-blade="layout">
+          <h2 class="blade-head">
+            <button type="button" class="blade-toggle" aria-expanded="true" aria-controls="blade-layout-body" title="Collapse Layout">
+              <span class="blade-title">Layout</span>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </h2>
+          <div class="blade-body" id="blade-layout-body">
+            <fieldset class="field chip-group" id="layout">
+              <legend>Overall layout</legend>
+              <div class="chips">
+                <label class="chip" title="No shape in mind: rooms grow outward in any direction"><input type="radio" name="layout" value="random" checked><span class="chip-body">Random</span></label>
+                <label class="chip" title="A long nave crossed by a transept, like the floor plan of a church"><input type="radio" name="layout" value="cathedral"><span class="chip-body">Cathedral</span></label>
+                <label class="chip" title="Rooms circle a central courtyard and close into a loop"><input type="radio" name="layout" value="ring"><span class="chip-body">Ring</span></label>
+                <label class="chip" title="Rounded and irregular, like a natural cave, with more winding passages"><input type="radio" name="layout" value="cavern"><span class="chip-body">Cavern</span></label>
+                <label class="chip" title="Packed into a square footprint"><input type="radio" name="layout" value="square"><span class="chip-body">Square</span></label>
+                <label class="chip" title="A tall, narrow dungeon: longer up and down the map than across"><input type="radio" name="layout" value="long"><span class="chip-body">Long</span></label>
+                <label class="chip" title="A wide, shallow dungeon: longer across the map than up and down"><input type="radio" name="layout" value="wide"><span class="chip-body">Wide</span></label>
+              </div>
+              <p class="hint" id="layoutHint">Rooms grow outward in any direction</p>
+              <p class="error" id="err-layout" role="alert"></p>
+            </fieldset>
+
+            <fieldset class="field segmented" id="spacing">
+              <legend>Room spacing</legend>
+              <div class="seg-options seg-three">
+                <input type="radio" id="spacing-compact" name="spacing" value="compact" checked>
+                <label for="spacing-compact">Compact</label>
+                <input type="radio" id="spacing-normal" name="spacing" value="normal">
+                <label for="spacing-normal">Normal</label>
+                <input type="radio" id="spacing-spaced" name="spacing" value="spaced">
+                <label for="spacing-spaced">Spaced Out</label>
+              </div>
+              <p class="hint" id="spacingHint">Rooms can touch · rooms a hallway joins are up to 4 squares apart · spines run longer</p>
+              <p class="error" id="err-spacing" role="alert"></p>
+            </fieldset>
+          </div>
+        </section>
+
+        <!-- column 2: rooms -->
         <section class="blade" id="blade-rooms" data-blade="rooms">
           <h2 class="blade-head">
             <button type="button" class="blade-toggle" aria-expanded="true" aria-controls="blade-rooms-body" title="Collapse Rooms">
@@ -66,19 +106,6 @@
               <p class="error" id="err-sizeVariance" role="alert"></p>
             </div>
 
-            <fieldset class="field segmented" id="spacing">
-              <legend>Room spacing</legend>
-              <div class="seg-options seg-three">
-                <input type="radio" id="spacing-compact" name="spacing" value="compact" checked>
-                <label for="spacing-compact">Compact</label>
-                <input type="radio" id="spacing-normal" name="spacing" value="normal">
-                <label for="spacing-normal">Normal</label>
-                <input type="radio" id="spacing-spaced" name="spacing" value="spaced">
-                <label for="spacing-spaced">Spaced Out</label>
-              </div>
-              <p class="hint" id="spacingHint">Rooms can touch · rooms a hallway joins are up to 4 squares apart</p>
-              <p class="error" id="err-spacing" role="alert"></p>
-            </fieldset>
 
             <fieldset class="field chip-group" id="roomShapes">
               <legend>Room shapes <button type="button" class="link-btn" id="shapesAll">All</button></legend>
@@ -98,7 +125,7 @@
           </div>
         </section>
 
-        <!-- column 2: hallways -->
+        <!-- column 3: hallways -->
         <section class="blade" id="blade-hallways" data-blade="hallways">
           <h2 class="blade-head">
             <button type="button" class="blade-toggle" aria-expanded="true" aria-controls="blade-hallways-body" title="Collapse Hallways">
@@ -172,7 +199,7 @@
           </div>
         </section>
 
-        <!-- column 3: seed, generate, results (summary) -->
+        <!-- column 4: seed, generate, results (summary) -->
         <section class="blade" id="blade-generate" data-blade="generate">
           <h2 class="blade-head">
             <button type="button" class="blade-toggle" aria-expanded="true" aria-controls="blade-generate-body" title="Collapse Generate">
@@ -214,7 +241,7 @@
           </div>
         </section>
 
-        <!-- column 4: how the map is drawn, not how it is built: these change at once, without generating again -->
+        <!-- column 5: how the map is drawn, not how it is built: these change at once, without generating again -->
         <section class="blade" id="blade-display" data-blade="display">
           <h2 class="blade-head">
             <button type="button" class="blade-toggle" aria-expanded="true" aria-controls="blade-display-body" title="Collapse Display">
@@ -325,6 +352,7 @@
 
   <script src="src/rng.js"></script>
   <script src="src/shapes.js"></script>
+  <script src="src/layout.js"></script>
   <script src="src/generator.js"></script>
   <script src="src/edit.js"></script>
   <script src="src/labels.js"></script>
