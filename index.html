@@ -249,6 +249,7 @@
       <div class="map-area">
         <canvas id="map" aria-label="Dungeon map"></canvas>
         <div class="toolbar">
+          <button type="button" id="editMode" class="edit-toggle" aria-pressed="false" title="Edit the doors: each click on a door changes it (door, locked, secret, no door)">Edit</button>
           <button type="button" id="zoomIn" title="Zoom in" aria-label="Zoom in">+</button>
           <button type="button" id="zoomOut" title="Zoom out" aria-label="Zoom out">&minus;</button>
           <button type="button" id="fit" title="Fit dungeon to screen" aria-label="Fit to screen">Fit</button>
@@ -264,16 +265,30 @@
             <li><span class="sw sw-hall"></span> Hallway</li>
             <li><span class="sw sw-wall"></span> Wall</li>
             <li><span class="sw sw-door"></span> Door</li>
+            <li id="legendLocked" hidden><span class="sw sw-locked"></span> Locked door</li>
+            <li id="legendSecret" hidden><span class="sw sw-secret">S</span> Secret door</li>
             <li><span class="sw sw-entrance"></span> Entrance (E1, E2&hellip;)</li>
             <li><span class="sw sw-stairs"></span> Stairs entrance (inside)</li>
           </ul>
         </section>
-        <p class="canvas-hint">Scroll to zoom &middot; drag to pan &middot; double-click to fit</p>
+        <p class="canvas-hint" id="canvasHint">Scroll to zoom &middot; drag to pan &middot; double-click to fit</p>
       </div>
       <!-- only shown when printing: the picture made by the Print button -->
       <img id="printImage" alt="The dungeon map, for printing">
     </main>
   </div>
+
+  <!-- asked before anything that builds a new dungeon while doors have been edited (outside the main form: a form cannot hold a form) -->
+  <dialog id="discardDialog" aria-labelledby="discardTitle" aria-describedby="discardText">
+    <form method="dialog">
+      <h2 id="discardTitle">Lose your edits?</h2>
+      <p id="discardText">Re-generating the dungeon will lose all edits you made to its doors. To keep them, save the picture or the data first.</p>
+      <div class="dialog-buttons">
+        <button type="submit" value="cancel" autofocus>Keep editing</button>
+        <button type="submit" value="discard" id="discardConfirm" class="danger">Re-generate anyway</button>
+      </div>
+    </form>
+  </dialog>
 
   <script src="src/rng.js"></script>
   <script src="src/shapes.js"></script>

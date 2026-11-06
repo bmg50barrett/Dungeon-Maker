@@ -1472,7 +1472,7 @@ console.log('== page layout');
   // a blank seed box is filled in with the seed used by Re-generate dungeon; the random button always shows its new seed (the page cannot be run here, so this reads the source)
   const submitHandler = (appJs.match(/\$\('params'\)\.addEventListener\('submit',[\s\S]*?\n  \}\);/) || [''])[0];
   if (!/generate\(\{\s*fillSeed:\s*true\s*\}\)/.test(submitHandler)) fail('layout', 'Re-generate dungeon (the form submit) should fill a blank seed box');
-  if (!/\$\('generateRandom'\)\.addEventListener\('click', \(\) => generate\(\{ randomSeed: true \}\)\)/.test(appJs)) fail('layout', 'Generate with random seed should ask for a random seed');
+  if (!/\$\('generateRandom'\)\.addEventListener\('click', \(\) => ifEditsDiscarded\(\(\) => generate\(\{ randomSeed: true \}\)\)\)/.test(appJs)) fail('layout', 'Generate with random seed should ask for a random seed (after the edits warning)');
   if (!/if \(!openLink\(\)\) \{\s*restoreSettings\(\);\s*generate\(\);\s*\}/.test(appJs)) fail('layout', 'the first dungeon (page opening) should not fill the seed box, and kept settings come after a link');
   if (!/fillSeed && !randomSeed && check\.params\.seed === null/.test(appJs)) fail('layout', 'only a blank seed should be filled in, never one that was typed');
   if (!/if \(randomSeed \|\| \(fillBlankSeed && \$\('seed'\)\.value\.trim\(\) === ''\)\) \$\('seed'\)\.value = dungeon\.seed/.test(appJs)) fail('layout', 'the seed box should get the seed the dungeon was built from (always for the random button, only if blank otherwise)');
@@ -1497,6 +1497,232 @@ console.log('== page layout');
   // one form wraps all four columns, so Enter in any field generates
   const formAt = html.indexOf('<form id="params"');
   if (formAt < 0 || blades.some((m) => m.index < formAt) || html.indexOf('</form>') < blades[blades.length - 1].index) fail('layout', 'the four columns are not all inside the one form');
+  console.log('  done');
+}
+
+console.log('== edit mode');
+{
+  const fs = require('fs');
+  const path = require('path');
+  const read = (...p) => fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8');
+
+  // the cycle of states
+  if (DM.DOOR_STYLES.join() !== 'door,locked,secret,open') fail('edit', `the door states are [${DM.DOOR_STYLES}], not door / locked / secret / none in that order`);
+  for (const s of DM.DOOR_STYLES) {
+    let at = s;
+    const seen = [];
+    for (let i = 0; i < DM.DOOR_STYLES.length; i++) {
+      at = DM.nextDoorStyle(at);
+      seen.push(at);
+    }
+    if (at !== s || new Set(seen).size !== DM.DOOR_STYLES.length) fail('edit', `cycling from ${s} does not visit every state once and come back: ${seen}`);
+    if (!DM.DOOR_LABELS[s]) fail('edit', `door state ${s} has no name`);
+  }
+  if (DM.nextDoorStyle('door') !== 'locked' || DM.nextDoorStyle('locked') !== 'secret' || DM.nextDoorStyle('secret') !== 'open' || DM.nextDoorStyle('open') !== 'door') fail('edit', 'the cycle is not door → locked → secret → none → door');
+  if (DM.nextDoorStyle('nonsense') !== 'door' || DM.nextDoorStyle(undefined) !== 'door') fail('edit', 'a state nobody knows should go to a plain door');
+  // whatever the generator makes can be edited: every opening starts in a state the cycle knows
+  const editBase = { avgRoomSize: 30, sizeVariance: 30, entrances: 2, connectionType: 'hall', connectionRandomness: 14 };
+  const made = DM.generateDungeon({ ...editBase, roomCount: 14, seed: 'edit-mode', hallDoors: 'less' });
+  for (const c of made.connections) for (const o of c.openings) if (!DM.DOOR_STYLES.includes(o.style)) fail('edit', `the generator made an opening in state ${o.style}`);
+  // "was anything changed?" is the same text unless a door really differs, and a full cycle changes nothing
+  const before = DM.doorStates(made);
+  const first = made.connections.find((c) => c.openings.length > 0).openings[0];
+  const startStyle = first.style;
+  first.style = DM.nextDoorStyle(first.style);
+  if (DM.doorStates(made) === before) fail('edit', 'a door was changed but the dungeon looks unedited');
+  for (let i = 1; i < DM.DOOR_STYLES.length; i++) first.style = DM.nextDoorStyle(first.style);
+  if (first.style !== startStyle || DM.doorStates(made) !== before) fail('edit', 'cycling a door all the way round should leave the dungeon unedited');
+
+  // the renderer, on a stand-in for the canvas: real clicks, drags and hover go through its own handlers
+  const ctx = new Proxy({}, { get: (t, k) => (k in t ? t[k] : k === 'measureText' ? () => ({ width: 10 }) : () => {}), set: (t, k, v) => ((t[k] = v), true) });
+  class FakePath {
+    constructor() {
+      this.ops = [];
+    }
+    moveTo(x, y) {
+      this.ops.push(['m', x, y]);
+    }
+    lineTo(x, y) {
+      this.ops.push(['l', x, y]);
+    }
+    rect() {}
+  }
+  globalThis.Path2D = FakePath;
+  globalThis.window = { devicePixelRatio: 1, addEventListener() {} };
+  globalThis.requestAnimationFrame = (cb) => (cb(), 0); // draw at once, so drawing code is run too
+  globalThis.document = { createElement: () => ({ width: 0, height: 0, getContext: () => ctx }) };
+  require('../src/render.js');
+
+  const handlers = {};
+  const classes = new Set();
+  const canvas = {
+    width: 900,
+    height: 700,
+    clientWidth: 900,
+    clientHeight: 700,
+    getContext: () => ctx,
+    addEventListener: (type, fn) => (handlers[type] = fn),
+    setPointerCapture() {},
+    getBoundingClientRect: () => ({ left: 0, top: 0 }),
+    classList: { add: (c) => classes.add(c), remove: (c) => classes.delete(c), toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)) },
+  };
+  const renderer = new DM.DungeonRenderer(canvas);
+  const dungeon = DM.generateDungeon({ ...editBase, roomCount: 16, seed: 'edit-click', hallDoors: 'less', entrances: 3 });
+  renderer.setDungeon(dungeon);
+  const changes = [];
+  renderer.onDoorChange = (c) => changes.push(c);
+
+  const openings = dungeon.connections.flatMap((c) => c.openings);
+  if (renderer.model.edits.length !== openings.length) fail('edit', `${renderer.model.edits.length} doors can be edited, the dungeon has ${openings.length} openings between rooms`);
+  for (const e of dungeon.entrances) if (renderer.model.edits.some((t) => t.x === e.x && t.y === e.y && t.d === e.d)) fail('edit', 'an entrance can be edited');
+  const sum = (o) => o.door + o.locked + o.secret + o.open;
+  if (sum(renderer.doorCounts()) !== openings.length) fail('edit', 'doorCounts does not count every opening');
+
+  const where = (t) => ({ clientX: t.cx * renderer.view.scale + renderer.view.tx, clientY: t.cy * renderer.view.scale + renderer.view.ty });
+  const press = (pos, ...moves) => {
+    handlers.pointerdown({ pointerId: 1, ...pos });
+    for (const m of moves) handlers.pointermove({ pointerId: 1, ...m });
+    handlers.pointerup({ pointerId: 1, ...(moves.length ? moves[moves.length - 1] : pos) });
+  };
+  // is there wall on this door's edge?
+  const hasWall = (t) => {
+    const horizontal = t.d === 0 || t.d === 2;
+    const ops = renderer.model.wallPath.ops;
+    for (let i = 0; i + 1 < ops.length; i += 2) {
+      const [, ax, ay] = ops[i];
+      const [, bx, by] = ops[i + 1];
+      if (horizontal ? ay === t.cy && by === t.cy && ax <= t.cx - 0.5 && bx >= t.cx + 0.5 : ax === t.cx && bx === t.cx && ay <= t.cy - 0.5 && by >= t.cy + 0.5) return true;
+    }
+    return false;
+  };
+  const target = renderer.model.edits[0];
+  const opening = target.opening;
+  const start = opening.style;
+
+  // not in edit mode: a click is only a click
+  press(where(target));
+  if (opening.style !== start || changes.length) fail('edit', 'a click changed a door while edit mode was off');
+  renderer.setEditMode(true);
+  if (!classes.has('editing')) fail('edit', 'the map does not show that edit mode is on');
+  // a click on bare ground changes nothing
+  press({ clientX: 2, clientY: 2 });
+  if (opening.style !== start || changes.length) fail('edit', 'a click away from every door changed a door');
+  // a drag that starts on a door pans the map and leaves the door alone
+  const view0 = { ...renderer.view };
+  const here = where(target);
+  press(here, { clientX: here.clientX + 40, clientY: here.clientY + 15 });
+  if (opening.style !== start || changes.length) fail('edit', 'dragging across a door changed it');
+  if (renderer.view.tx !== view0.tx + 40 || renderer.view.ty !== view0.ty + 15) fail('edit', 'dragging in edit mode does not pan');
+  renderer.view = { ...view0 }; // back where it was
+  // a click that wobbles a little is still a click, and does not slide the map
+  press(where(target), { clientX: where(target).clientX + 2, clientY: where(target).clientY + 1 });
+  if (changes.length !== 1 || changes[0].opening !== opening) fail('edit', 'a click with a little wobble was not taken as a click');
+  if (renderer.view.tx !== view0.tx || renderer.view.ty !== view0.ty) fail('edit', 'a click moved the map');
+  opening.style = start; // (put it back, and carry on from the first state)
+  changes.length = 0;
+  renderer.refreshDoors();
+
+  // clicks go round the four states: what is drawn changes with each
+  const builtText = DM.doorStates(dungeon);
+  const stylesBefore = openings.map((o) => o.style);
+  const states = [];
+  for (let i = 0; i < 4; i++) {
+    press(where(target));
+    const door = renderer.model.doors.some((d) => d.x === target.x && d.y === target.y && d.d === target.d);
+    const locked = renderer.model.doors.some((d) => d.x === target.x && d.y === target.y && d.d === target.d && d.locked);
+    const secret = renderer.model.secrets.some((s) => s.x === target.x && s.y === target.y && s.d === target.d);
+    states.push({ style: opening.style, door, locked, secret, wall: hasWall(target) });
+  }
+  const expectAt = (i, want) => {
+    const got = states[i];
+    for (const k of Object.keys(want)) if (got[k] !== want[k]) fail('edit', `after click ${i + 1} (${got.style}): ${k} is ${got[k]}, should be ${want[k]}`);
+  };
+  const order = [];
+  for (let s = start, i = 0; i < 4; i++) order.push((s = DM.nextDoorStyle(s)));
+  if (states.map((s) => s.style).join() !== order.join()) fail('edit', `clicks gave ${states.map((s) => s.style)}, not ${order}`);
+  order.forEach((style, i) => {
+    if (style === 'door') expectAt(i, { door: true, locked: false, secret: false, wall: false });
+    if (style === 'locked') expectAt(i, { door: true, locked: true, secret: false, wall: false });
+    if (style === 'secret') expectAt(i, { door: false, locked: false, secret: true, wall: true }); // looks like a wall, with an S on it
+    if (style === 'open') expectAt(i, { door: false, locked: false, secret: false, wall: false }); // a gap, nothing in it
+  });
+  if (changes.length !== 4 || changes.some((c, i) => c.to !== order[i] || c.from !== (i ? order[i - 1] : start))) fail('edit', 'the change notices are not one per click, with the state it left and the one it went to');
+  if (opening.style !== start || DM.doorStates(dungeon) !== builtText) fail('edit', 'four clicks should come back to the state the door started in, and so to a dungeon with no edits');
+  // the counts follow the doors, and the other doors are untouched
+  press(where(target)); // one more click: now in the state after `start`
+  const counts = renderer.doorCounts();
+  if (sum(counts) !== openings.length || counts[opening.style] < 1) fail('edit', 'doorCounts did not follow a click');
+  if (opening.style !== DM.nextDoorStyle(start)) fail('edit', 'a fifth click should give the state after the first');
+  if (openings.some((o, i) => o !== opening && o.style !== stylesBefore[i])) fail('edit', 'a click changed another door');
+
+  // hovering shows which door a click would change
+  renderer._hover = null;
+  handlers.pointermove({ ...where(target) });
+  if (!renderer._hover || renderer._hover.opening !== opening || !classes.has('over-door')) fail('edit', 'the door under the pointer is not picked out');
+  handlers.pointermove({ clientX: 2, clientY: 2 });
+  if (renderer._hover || classes.has('over-door')) fail('edit', 'the pointer left the door but it is still picked out');
+
+  // a picture never shows the rings of edit mode, and its key names locked and secret doors only if there are some
+  const swatches = [];
+  const drawSwatch = renderer._drawSwatch.bind(renderer);
+  renderer._drawSwatch = (c, kind, ...rest) => (swatches.push(kind), drawSwatch(c, kind, ...rest));
+  let rings = 0;
+  const drawMarks = renderer._drawEditMarks.bind(renderer);
+  renderer._drawEditMarks = (...a) => (rings++, drawMarks(...a));
+  const keyOf = () => {
+    swatches.length = 0;
+    rings = 0; // (the screen was drawn again by the changes, with rings; only the picture is looked at)
+    if (!renderer.exportImage({ legend: true, caption: 'x' })) fail('edit', 'no picture was made');
+    return swatches.slice();
+  };
+  for (const o of openings) o.style = 'door';
+  renderer.refreshDoors();
+  let key = keyOf();
+  if (key.includes('locked') || key.includes('secret') || !key.includes('door')) fail('edit', `the key of a map with only plain doors is [${key}]`);
+  if (rings) fail('edit', 'a picture of the map was drawn with the rings of edit mode on it');
+  openings[0].style = 'locked';
+  openings[1].style = 'secret';
+  renderer.refreshDoors();
+  key = keyOf();
+  if (!key.includes('locked') || !key.includes('secret')) fail('edit', `the key of a map with a locked and a secret door is [${key}]`);
+  if (rings) fail('edit', 'a picture of the map was drawn with the rings of edit mode on it');
+  rings = 0;
+  renderer.draw(); // (and the screen does show them)
+  if (!rings) fail('edit', 'edit mode draws no rings round the doors');
+  renderer.setEditMode(false);
+  if (classes.has('editing')) fail('edit', 'leaving edit mode left the map marked as editing');
+  const ringsBefore = rings;
+  renderer.draw();
+  if (rings !== ringsBefore) fail('edit', 'the rings are still drawn after leaving edit mode');
+  // a new dungeon starts clean, with nothing of the old doors hovered
+  renderer.setDungeon(DM.generateDungeon({ ...editBase, roomCount: 6, seed: 'edit-new' }));
+  if (renderer._hover) fail('edit', 'a new dungeon kept the old hovered door');
+
+  // the page: the button on the map, the warning, the legend, and what asks before throwing edits away
+  const html = read('index.html');
+  const app = read('src', 'app.js');
+  const css = read('styles.css');
+  const toolbar = html.slice(html.indexOf('<div class="toolbar">'), html.indexOf('</div>', html.indexOf('<div class="toolbar">')));
+  if (!/<button type="button" id="editMode"[^>]*aria-pressed="false"[^>]*>Edit<\/button>/.test(toolbar)) fail('edit', 'the toolbar on the map has no Edit button that shows whether it is on');
+  const dialog = html.slice(html.indexOf('<dialog id="discardDialog"'), html.indexOf('</dialog>'));
+  if (!dialog || !/lose all edits/.test(dialog) || !/value="discard"/.test(dialog) || !/value="cancel"[^>]*autofocus|autofocus[^>]*value="cancel"/.test(dialog)) fail('edit', 'the warning should say re-generating will lose all edits, and Keep editing should be the button already chosen');
+  if (html.indexOf('<dialog') < html.indexOf('</form>')) fail('edit', 'the warning is inside the main form (a form cannot hold a form)');
+  for (const id of ['legendLocked', 'legendSecret']) if (!new RegExp(`<li id="${id}" hidden>`).test(html)) fail('edit', `the legend line ${id} is missing, or shown for maps with none`);
+  for (const sel of ["\\.edit-toggle\\[aria-pressed='true'\\]", '\\.sw-locked', '\\.sw-secret', '#discardDialog', '#map\\.over-door', '\\.legend li\\[hidden\\]']) if (!new RegExp(sel).test(css)) fail('edit', `styles.css has no ${sel}`);
+  if (!/\.toolbar\s*\{[^}]*z-index:\s*2/.test(css)) fail('edit', 'the toolbar must sit above the legend card, or the card can cover the Edit button');
+  if (!/@media \(max-width: 760px\)[^]*?\.toolbar\s*\{\s*flex-direction:\s*column/.test(css)) fail('edit', 'on a narrow screen the toolbar should stack, so the Edit button does not run under the legend');
+  // every way of building a new dungeon asks first (the first one, at page load, has nothing to lose)
+  if (!/\$\('params'\)\.addEventListener\('submit',[^]*?ifEditsDiscarded\(\(\) => generate\(\{ fillSeed: true \}\)\)/.test(app)) fail('edit', 'Re-generate dungeon does not ask before losing edits');
+  if (!/\$\('generateRandom'\)\.addEventListener\('click', \(\) => ifEditsDiscarded\(/.test(app)) fail('edit', 'Generate with random seed does not ask before losing edits');
+  if (!/\$\('resetSettings'\)\.addEventListener\('click', \(\) =>\s*ifEditsDiscarded\(/.test(app)) fail('edit', 'Reset all does not ask before losing edits');
+  if (!/addEventListener\('hashchange', \(\) => ifEditsDiscarded\(openLink, dropLinkFromAddress\)\)/.test(app)) fail('edit', 'opening a link does not ask before losing edits');
+  const calls = (app.match(/\bgenerate\(/g) || []).length;
+  const guarded = (app.match(/ifEditsDiscarded\([^;]*generate\(/g) || []).length + (app.match(/ifEditsDiscarded\(openLink/g) || []).length;
+  if (calls !== 6 || guarded < 3) fail('edit', `generate() is called ${calls} times; the buttons that call it should all ask first (found ${guarded} that do)`);
+  if (!/doorsAsBuilt = DM\.doorStates\(dungeon\)/.test(app) || !/DM\.doorStates\(DM\.current\) !== doorsAsBuilt/.test(app)) fail('edit', 'app.js does not tell whether a door was changed since the dungeon was built');
+  if (!/renderer\.onDoorChange = updateDoorLegend/.test(app) || !/\$\('editMode'\)\.addEventListener\('click'/.test(app) || !/renderer\.setEditMode\(on\)/.test(app)) fail('edit', 'the Edit button is not wired to the renderer');
+  if (!/editsMade\(\) \? '[^']*without your door edits/.test(app)) fail('edit', 'Copy link should say a link does not carry door edits');
+  for (const k of ['Path2D', 'window', 'requestAnimationFrame', 'document']) delete globalThis[k]; // (the stand-ins are only for this section)
   console.log('  done');
 }
 

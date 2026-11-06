@@ -361,6 +361,22 @@ input[aria-invalid='true'] { border-color: var(--danger); }
   background: linear-gradient(var(--c-room, #fbf7ec) 0 4px, var(--c-wall, #2a2018) 4px 7px, var(--c-room, #fbf7ec) 7px);
 }
 .sw-door { width: 16px; height: 8px; margin: 0 3px; background: var(--c-door, #d9a45a); border-color: var(--c-door-line, #4a3018); }
+.legend li[hidden] { display: none; }
+/* a door with a padlock on it */
+.sw-locked { position: relative; width: 16px; height: 8px; margin: 0 3px; background: var(--c-door, #d9a45a); border-color: var(--c-door-line, #4a3018); }
+.sw-locked::before, .sw-locked::after { content: ''; position: absolute; left: 50%; box-sizing: border-box; }
+.sw-locked::after { top: 1px; width: 7px; height: 6px; margin-left: -3.5px; background: var(--c-door-line, #4a3018); border-radius: 1px; }
+.sw-locked::before { top: -3px; width: 5px; height: 5px; margin-left: -2.5px; border: 1.5px solid var(--c-door-line, #4a3018); border-bottom: 0; border-radius: 3px 3px 0 0; }
+/* a wall line across a strip of room floor, with the S of a secret door written on it */
+.sw-secret {
+  width: 22px;
+  height: 14px;
+  background: linear-gradient(var(--c-room, #fbf7ec) 0 4px, var(--c-wall, #2a2018) 4px 7px, var(--c-room, #fbf7ec) 7px);
+  color: var(--c-wall, #2a2018);
+  font: 700 12px/12px Georgia, 'Times New Roman', serif;
+  text-align: center;
+  text-shadow: 0 0 2px var(--c-room, #fbf7ec), 0 0 2px var(--c-room, #fbf7ec), 0 0 3px var(--c-room, #fbf7ec);
+}
 .sw-entrance { width: 16px; height: 8px; margin: 0 3px; background: var(--c-entrance, #e4573d); border-color: var(--c-entrance-line, #4a1a10); }
 .sw-stairs {
   width: 16px;
@@ -412,8 +428,11 @@ input[aria-invalid='true'] { border-color: var(--danger); }
 .map-area { position: relative; flex: 1; min-height: 0; }
 #map { position: absolute; inset: 0; display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
 #map.dragging { cursor: grabbing; }
+/* edit mode: the doors can be clicked */
+#map.over-door { cursor: pointer; }
+#map.editing { outline: 3px solid var(--c-arrow, #c0392b); outline-offset: -3px; }
 
-.toolbar { position: absolute; top: 14px; right: 14px; display: flex; gap: 6px; }
+.toolbar { position: absolute; top: 14px; right: 14px; z-index: 2; display: flex; gap: 6px; } /* above the legend card, so it never covers a button */
 .toolbar button {
   min-width: 36px;
   height: 36px;
@@ -428,6 +447,14 @@ input[aria-invalid='true'] { border-color: var(--danger); }
   cursor: pointer;
 }
 .toolbar button:hover { background: #fff; }
+/* the Edit button stays pressed in while edit mode is on */
+.toolbar .edit-toggle[aria-pressed='true'] {
+  color: #fbf0e2;
+  background: var(--c-arrow, #c0392b);
+  border-color: transparent;
+}
+.toolbar .edit-toggle[aria-pressed='true']:hover { filter: brightness(1.12); background: var(--c-arrow, #c0392b); }
+.toolbar button:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
 
 .canvas-hint {
   position: absolute;
@@ -442,9 +469,42 @@ input[aria-invalid='true'] { border-color: var(--danger); }
   pointer-events: none;
 }
 
+/* the warning before edits are thrown away */
+#discardDialog {
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 0;
+  color: var(--panel-fg);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px #0008;
+}
+#discardDialog::backdrop { background: #0007; }
+#discardDialog form { padding: 20px 22px; }
+#discardDialog h2 { margin: 0 0 10px; font-size: 18px; color: var(--accent-strong); }
+#discardDialog p { margin: 0 0 18px; font-size: 14px; line-height: 1.5; }
+.dialog-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.dialog-buttons button {
+  padding: 9px 14px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e1a15;
+  background: var(--accent);
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.dialog-buttons button:hover { background: var(--accent-strong); }
+.dialog-buttons button.danger { color: #fbf0e2; background: #8f3b24; }
+.dialog-buttons button.danger:hover { background: #a84a2f; }
+.dialog-buttons button:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+
 @media (max-width: 760px) {
   .app { grid-template-columns: 1fr; grid-template-rows: auto 70vh; height: auto; }
   .panel { max-width: none; border-right: 0; border-bottom: 1px solid var(--panel-line); }
+  /* the buttons stack, so with Edit among them they still leave room for the legend beside them */
+  .toolbar { flex-direction: column; }
 
   /* on a narrow screen the columns stack, and collapse like an accordion */
   .blades { display: block; overflow: visible; }

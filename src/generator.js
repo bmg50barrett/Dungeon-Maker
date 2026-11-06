@@ -1711,4 +1711,19 @@
   DM.validateParams = validateParams;
   DM.generateDungeon = generateDungeon;
   DM.DIRS = { DX, DY, OPP };
+
+  /**
+   * The states an opening between rooms can be in, in the order Edit mode cycles through them:
+   * a plain door, a locked door, a secret door (the wall stays solid), no door (an open archway).
+   * The generator itself only makes 'door' and 'open'.
+   */
+  DM.DOOR_STYLES = ['door', 'locked', 'secret', 'open'];
+  DM.DOOR_LABELS = { door: 'Door', locked: 'Locked door', secret: 'Secret door', open: 'No door' };
+  /** The state after this one (after a state it does not know, a plain door). */
+  DM.nextDoorStyle = (style) => {
+    const i = DM.DOOR_STYLES.indexOf(style);
+    return DM.DOOR_STYLES[(i + 1) % DM.DOOR_STYLES.length];
+  };
+  /** Every opening's state in one text: two dungeons' doors are alike exactly when their texts are (used to see if Edit mode changed anything). */
+  DM.doorStates = (dungeon) => dungeon.connections.map((c) => c.openings.map((o) => o.style).join()).join(';');
 })();

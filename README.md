@@ -173,6 +173,25 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
   A color is one value, `#rrggbb`; the colors that go with it are worked out in
   `src/palette.js`. Colors are remembered between visits (see Remembered settings).
 - Controls: scroll to zoom, drag to pan, double-click (or **Fit**) to fit the map.
+- **Edit mode** (the **Edit** button on the map, left of the zoom buttons). Click it to start editing
+  doors, and click it again to stop. While it is on, the button stays pressed in, the map has a coloured
+  frame, and every door between rooms (and hallways) has a ring round it, so a doorway with no door in it
+  can be seen too. **Click a door to change it to the next state**: door, locked door (a padlock on it),
+  secret door (the wall stays solid, with an **S** on it), no door (the wall is left open, with
+  nothing in the gap), then back to a plain door. Hovering a door names what it is now. Dragging
+  still pans (a click that wobbles a few pixels is still a click), and a quick double-click on a door is for
+  the door, not Fit. Entrance doors (the ones with arrows) are not editable. The legend
+  names locked and secret doors only while the map has some.
+  - The edits are made to the dungeon on the page, so **Picture (PNG)**, **Data (JSON)** and **Print**
+    have them (the picture never shows edit mode's rings). **Copy link** does not: a link holds the
+    settings and rebuilds the dungeon from them, so it gives the doors the generator made; the status line under
+    the share buttons says so once a door has been changed. Leaving edit mode keeps the edits.
+  - **Re-generate dungeon**, **Generate with random seed**, **Reset all** and a share link opened in the
+    address bar all build a new dungeon, so if a door has been changed they first ask in a box: *"Re-generating
+    the dungeon will lose all edits you made to its doors."* **Keep editing** (also Esc, or a click outside the
+    box) leaves everything as it was; **Re-generate anyway** goes ahead. A door changed back to the state
+    it started in is not an edit, so four clicks on a door and the box does not appear. Changing the inputs
+    or the colors, or the Display choices, never builds a new dungeon, so it never asks.
 - The inputs are in four columns side by side: **Rooms** (count, sizes, shapes),
   **Hallways** (connection type, randomization, hallway types, doors, entrances),
   **Generate** (seed, the buttons and the results) and **Display** (label position, the
@@ -261,8 +280,8 @@ src/generator.js         layout: placement, hallway routing (A*), entrances, out
 src/labels.js            where room numbers go (inside, or outside the walls): `DM.placeOutsideLabels`
 src/palette.js           map colors: the ready-made choices per category, `DM.themeFrom`
 src/share.js             share links, file names, JSON and caption for exports: `DM.encodeShare`, `DM.decodeShare`
-src/render.js            canvas drawing, zoom/pan, the exported picture (`exportImage`)
-src/app.js               form handling, export buttons, opening links
+src/render.js            canvas drawing, zoom/pan, Edit mode clicks, the exported picture (`exportImage`)
+src/app.js               form handling, export buttons, opening links, the Edit button and the lose-edits warning
 tests/run.js             headless validation:  node tests/run.js
 ```
 
@@ -288,6 +307,11 @@ side (unless Branching is off: rooms along a spine are then just part of the spi
 
 `params.spacing` is the room spacing (`'compact'`, the default when it is left out, `'normal'` or
 `'spaced'`); `DM.SPACING_GAPS` holds each one's closest and furthest gap.
+
+An opening's `style` is `'door'` or `'open'` (an archway) as the generator makes it; Edit mode can also
+make it `'locked'` or `'secret'` (`DM.DOOR_STYLES`, in the order the clicks go round, with
+`DM.nextDoorStyle` and `DM.DOOR_LABELS`). A secret door is drawn as solid wall with an S on it. The
+Data (JSON) export has whatever the styles are when it is saved.
 
 A `'door'` connection joins exactly two rooms through one opening. A `'hall'`
 connection is one hallway: its `cells` form a single connected (possibly branching)

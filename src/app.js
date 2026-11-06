@@ -269,6 +269,63 @@
   const generateButtons = [$('generate'), $('generateRandom')];
   const generateLabels = generateButtons.map((b) => b.textContent);
 
+  // ---- edit mode ---------------------------------------------------------------------
+  // The Edit button on the map lets a click on a door change it (door, locked, secret, none). The
+  // changes are made to the dungeon on the page (DM.current), so the picture, the data and printing
+  // have them; a share link does not (it holds the settings, and rebuilds the dungeon from them).
+  // Anything that builds a new dungeon would lose them, so those buttons ask first.
+
+  /** How every opening was when the dungeon was built, to tell whether anything has been changed since. */
+  let doorsAsBuilt = '';
+  /** Has a door been changed (and not changed back) since the dungeon was built? */
+  const editsMade = () => !!DM.current && DM.doorStates(DM.current) !== doorsAsBuilt;
+
+  /** The warning before edits are thrown away. Resolves true if the user goes ahead. */
+  function askToDiscardEdits() {
+    const dialog = $('discardDialog');
+    if (typeof dialog.showModal !== 'function') return Promise.resolve(window.confirm('Re-generating the dungeon will lose all edits. Go ahead?'));
+    return new Promise((resolve) => {
+      dialog.returnValue = '';
+      dialog.addEventListener('close', () => resolve(dialog.returnValue === 'discard'), { once: true });
+      dialog.showModal();
+    });
+  }
+
+  /** Run `action`, which builds a new dungeon: at once if no door was edited, otherwise only if the user agrees. */
+  function ifEditsDiscarded(action, onCancel) {
+    if (!editsMade()) return action();
+    return askToDiscardEdits().then((go) => {
+      if (go) action();
+      else if (onCancel) onCancel();
+    });
+  }
+
+  // a click outside the box (on the dimmed page) is the same as Keep editing
+  $('discardDialog').addEventListener('click', (e) => {
+    if (e.target === $('discardDialog')) $('discardDialog').close('');
+  });
+
+  /** The legend names locked and secret doors only while the map has some. */
+  function updateDoorLegend() {
+    const n = renderer.doorCounts();
+    $('legendLocked').hidden = n.locked === 0;
+    $('legendSecret').hidden = n.secret === 0;
+  }
+
+  const MAP_HINT = 'Scroll to zoom · drag to pan · double-click to fit';
+  const EDIT_HINT = 'Edit mode · click a door to change it';
+
+  function setEditMode(on) {
+    renderer.setEditMode(on);
+    const button = $('editMode');
+    button.setAttribute('aria-pressed', String(on));
+    button.title = on ? 'Edit mode is on: click a door to change it. Click here to leave it.' : 'Edit the doors: each click on a door changes it (door, locked, secret, no door)';
+    $('canvasHint').textContent = on ? EDIT_HINT : MAP_HINT;
+  }
+
+  $('editMode').addEventListener('click', () => setEditMode($('editMode').getAttribute('aria-pressed') !== 'true'));
+  renderer.onDoorChange = updateDoorLegend;
+
   /**
    * Build and show a dungeon from the current form values.
    * With randomSeed, the seed field is ignored and a fresh random seed is used instead;
@@ -300,7 +357,9 @@
         const dungeon = DM.generateDungeon(check.params);
         const ms = performance.now() - t0;
         DM.current = dungeon;
+        doorsAsBuilt = DM.doorStates(dungeon);
         renderer.setDungeon(dungeon);
+        updateDoorLegend();
         showSummary(dungeon, ms);
         setExportStatus('');
         // the random button always shows the seed it picked; a blank box is filled
@@ -320,9 +379,9 @@
 
   $('params').addEventListener('submit', (e) => {
     e.preventDefault();
-    generate({ fillSeed: true });
+    ifEditsDiscarded(() => generate({ fillSeed: true }));
   });
-  $('generateRandom').addEventListener('click', () => generate({ randomSeed: true }));
+  $('generateRandom').addEventListener('click', () => ifEditsDiscarded(() => generate({ randomSeed: true })));
   for (const f of ['avgRoomSize', 'minRoomWidth', 'minRoomLength', 'sizeVariance', 'connectionRandomness']) $(f).addEventListener('input', updateHints);
   for (const radio of document.querySelectorAll('input[name="connectionType"]')) {
     radio.addEventListener('change', updateRandomnessHint);
@@ -562,7 +621,9 @@
     }
     field.hidden = copied;
     if (!copied) field.focus();
-    setExportStatus(copied ? 'Link copied. Opening it brings back this dungeon.' : 'Copy the link from the box above.');
+    // a link holds the settings, not the edits: the dungeon it rebuilds has the doors the generator made
+    const copiedText = editsMade() ? 'Link copied. It brings back this dungeon without your door edits: save the picture or the data to keep those.' : 'Link copied. Opening it brings back this dungeon.';
+    setExportStatus(copied ? copiedText : 'Copy the link from the box above.');
   }
 
   // Print: the whole map is drawn into a picture, which is the only thing on the printed page
@@ -665,7 +726,8 @@
     }
   }
 
-  window.addEventListener('hashchange', openLink); // a link pasted into the address bar of this page
+  // a link pasted into the address bar of this page (if the edits are kept, the address stops naming a link)
+  window.addEventListener('hashchange', () => ifEditsDiscarded(openLink, dropLinkFromAddress));
 
   // ---- remembered settings -------------------------------------------------------
   // Every input, switch and color is kept in this browser (localStorage) as it changes, in the same
@@ -712,17 +774,19 @@
   factoryForm.roomShapes = factoryForm.roomShapes.slice();
   const factoryDisplay = { labelPosition: 'inside', showGrid: true, showLabels: true, colors: DM.defaultColors() };
 
-  $('resetSettings').addEventListener('click', () => {
-    applyForm({ ...factoryForm, roomShapes: factoryForm.roomShapes.slice(), hallTypes: factoryForm.hallTypes.slice() });
-    applyDisplay(factoryDisplay);
-    $('exportLegend').checked = true;
-    try {
-      localStorage.removeItem(SETTINGS_KEY);
-    } catch (err) {
-      // nothing was kept, or it cannot be reached
-    }
-    generate();
-  });
+  $('resetSettings').addEventListener('click', () =>
+    ifEditsDiscarded(() => {
+      applyForm({ ...factoryForm, roomShapes: factoryForm.roomShapes.slice(), hallTypes: factoryForm.hallTypes.slice() });
+      applyDisplay(factoryDisplay);
+      $('exportLegend').checked = true;
+      try {
+        localStorage.removeItem(SETTINGS_KEY);
+      } catch (err) {
+        // nothing was kept, or it cannot be reached
+      }
+      generate();
+    })
+  );
 
   // any change in the columns (typing, chips, switches, colors) is kept; a link opened in the address bar is not,
   // until something is changed

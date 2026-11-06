@@ -14,6 +14,7 @@
 
   const MIN_SCALE = 0.5;
   const MAX_SCALE = 80;
+  const CLICK_SLOP = 4; // px a pointer may travel and still count as a click (not a drag) in edit mode
 
   /** Size multiplier for entrance arrows: they never shrink below ~11 px per cell-unit. */
   function entranceUnit(scale) {
@@ -42,6 +43,10 @@
       this.dpr = 1;
       this._drag = null;
       this._raf = 0;
+      // edit mode: a click on a door between rooms changes it to its next state (see DM.DOOR_STYLES)
+      this.editMode = false;
+      this.onDoorChange = null; // called with { opening, from, to } after a click changed a door
+      this._hover = null; // the door under the pointer in edit mode (one of model.edits)
 
       this._bindEvents();
       this.resize();
@@ -53,6 +58,36 @@
       this.dungeon = dungeon;
       this.model = dungeon ? this._buildModel(dungeon) : null;
       this.fit();
+    }
+
+    /** Turn edit mode on or off. While it is on, clicking a door (dragging still pans) cycles its state. */
+    setEditMode(on) {
+      this.editMode = !!on;
+      this._hover = null;
+      this.canvas.classList.toggle('editing', this.editMode);
+      this.canvas.classList.remove('over-door');
+      this.requestDraw();
+    }
+
+    /**
+     * Show the dungeon again after one of its openings was changed (the view stays where it is).
+     * The floors and room numbers do not move, so only the walls and doors are worked out again.
+     */
+    refreshDoors() {
+      if (!this.dungeon || !this.model) return;
+      const { outside } = this.model;
+      const hovered = this._hover && this._hover.opening;
+      this.model = this._buildModel(this.dungeon);
+      if (outside) this.model.outside = outside;
+      this._hover = (hovered && this.model.edits.find((t) => t.opening === hovered)) || null;
+      this.requestDraw();
+    }
+
+    /** How many openings between rooms (and hallways) are in each state: { door, locked, secret, open }. */
+    doorCounts() {
+      const counts = { door: 0, locked: 0, secret: 0, open: 0 };
+      if (this.model) for (const t of this.model.edits) counts[DM.DOOR_STYLES.includes(t.opening.style) ? t.opening.style : 'open']++;
+      return counts;
     }
 
     setOption(name, value) {
@@ -180,28 +215,92 @@
       );
       c.addEventListener('pointerdown', (e) => {
         c.setPointerCapture(e.pointerId);
-        this._drag = { x: e.clientX, y: e.clientY, tx: this.view.tx, ty: this.view.ty };
+        this._drag = { x: e.clientX, y: e.clientY, tx: this.view.tx, ty: this.view.ty, moved: false };
         c.classList.add('dragging');
       });
       c.addEventListener('pointermove', (e) => {
-        if (!this._drag) return;
+        if (!this._drag) {
+          if (this.editMode) this._hoverAt(e);
+          return;
+        }
+        const drag = this._drag;
+        // in edit mode a click that wobbles a little is still a click, so the map does not slide under it
+        if (this.editMode && !drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < CLICK_SLOP) return;
+        drag.moved = true;
         this._fitted = false;
-        this.view.tx = this._drag.tx + (e.clientX - this._drag.x);
-        this.view.ty = this._drag.ty + (e.clientY - this._drag.y);
+        this.view.tx = drag.tx + (e.clientX - drag.x);
+        this.view.ty = drag.ty + (e.clientY - drag.y);
         this.requestDraw();
       });
       const end = () => {
         this._drag = null;
         c.classList.remove('dragging');
       };
-      c.addEventListener('pointerup', end);
+      c.addEventListener('pointerup', (e) => {
+        const drag = this._drag;
+        end();
+        if (this.editMode && drag && !drag.moved) this._clickAt(e);
+      });
       c.addEventListener('pointercancel', end);
-      c.addEventListener('dblclick', () => this.fit());
+      c.addEventListener('pointerleave', () => {
+        if (this._hover) {
+          this._hover = null;
+          c.classList.remove('over-door');
+          this.requestDraw();
+        }
+      });
+      c.addEventListener('dblclick', (e) => {
+        // quick clicks on a door in edit mode are for the door, not for fitting the map
+        if (this.editMode) {
+          const rect = c.getBoundingClientRect();
+          if (this._doorAt(e.clientX - rect.left, e.clientY - rect.top)) return;
+        }
+        this.fit();
+      });
       if (typeof ResizeObserver !== 'undefined') {
         new ResizeObserver(() => this.resize()).observe(c);
       } else {
         window.addEventListener('resize', () => this.resize());
       }
+    }
+
+    /** The editable door nearest a point of the canvas (px), if one is close enough to mean it. */
+    _doorAt(px, py) {
+      if (!this.model) return null;
+      const { scale: s, tx, ty } = this.view;
+      const reach = Math.max(0.6 * s, 12); // px
+      let best = null;
+      let bestDist = reach;
+      for (const t of this.model.edits) {
+        const dist = Math.hypot(t.cx * s + tx - px, t.cy * s + ty - py);
+        if (dist < bestDist) {
+          best = t;
+          bestDist = dist;
+        }
+      }
+      return best;
+    }
+
+    _hoverAt(e) {
+      const rect = this.canvas.getBoundingClientRect();
+      const hit = this._doorAt(e.clientX - rect.left, e.clientY - rect.top);
+      if (hit === this._hover) return;
+      this._hover = hit;
+      this.canvas.classList.toggle('over-door', !!hit);
+      this.requestDraw();
+    }
+
+    /** A click in edit mode: the door under it (if any) goes to its next state. */
+    _clickAt(e) {
+      const rect = this.canvas.getBoundingClientRect();
+      const hit = this._doorAt(e.clientX - rect.left, e.clientY - rect.top);
+      if (!hit) return;
+      const opening = hit.opening;
+      const from = opening.style;
+      opening.style = DM.nextDoorStyle(from);
+      this._hover = hit;
+      this.refreshDoors();
+      if (this.onDoorChange) this.onDoorChange({ opening, from, to: opening.style });
     }
 
     zoomBy(factor) {
@@ -240,7 +339,9 @@
       };
 
       const open = { h: new Uint8Array((h + 1) * w), v: new Uint8Array(h * (w + 1)) };
-      const doors = [];
+      const doors = []; // drawn as a door: plain, locked, or an entrance
+      const secrets = []; // drawn as an S on a solid wall
+      const edits = []; // every opening Edit mode can change (the entrances are not among them)
       const markOpen = (o) => {
         const e = edgeOf(o.x, o.y, o.d);
         (e.h ? open.h : open.v)[e.i] = 1;
@@ -248,8 +349,13 @@
       };
       for (const c of d.connections) {
         for (const o of c.openings) {
-          markOpen(o);
-          if (o.style === 'door') doors.push({ x: o.x, y: o.y, d: o.d, entrance: false });
+          // the middle of the edge the opening is on
+          const at = { x: o.x, y: o.y, d: o.d, cx: o.x + 0.5 + DX[o.d] * 0.5, cy: o.y + 0.5 + DY[o.d] * 0.5 };
+          // a secret door looks like a wall; every other state leaves a gap in it (with or without a door in the gap)
+          if (o.style === 'secret') secrets.push(at);
+          else markOpen(o);
+          if (o.style === 'door' || o.style === 'locked') doors.push({ ...at, entrance: false, locked: o.style === 'locked' });
+          edits.push({ ...at, opening: o });
         }
       }
       const stairs = [];
@@ -335,12 +441,12 @@
         size: DM.labelSize(r), // height of the number, in cells
       }));
 
-      return { wallPath, roomFloor, hallFloor, allFloor, doors, stairs, labels };
+      return { wallPath, roomFloor, hallFloor, allFloor, doors, secrets, edits, stairs, labels };
     }
 
     // ---- drawing ------------------------------------------------------------
 
-    draw({ scaleBar = true } = {}) {
+    draw({ scaleBar = true, edit = this.editMode } = {}) {
       const { ctx, canvas, dpr, view, model, dungeon } = this;
       const cw = canvas.clientWidth;
       const ch = canvas.clientHeight;
@@ -418,11 +524,15 @@
         s
       );
 
+      if (edit) this._drawEditMarks(model.edits, s);
+
       // screen-space overlays
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       if (this.options.showLabels) this._drawRoomLabels(model.labels);
+      this._drawSecretMarks(model.secrets);
       this._drawEntranceLabels();
       this._drawStairBadges(model.stairs);
+      if (edit && this._hover) this._drawDoorTip(this._hover);
       if (scaleBar) this._drawScaleBar();
     }
 
@@ -441,7 +551,102 @@
         ctx.strokeStyle = door.entrance ? this.theme.entranceStroke : this.theme.doorStroke;
         ctx.fillRect(cx - rw / 2, cy - rh / 2, rw, rh);
         ctx.strokeRect(cx - rw / 2, cy - rh / 2, rw, rh);
+        if (door.locked) this._drawLock(ctx, cx, cy, Math.max(0.34, 6 / s), Math.max(1, s * 0.05) / s);
       }
+    }
+
+    /** A small padlock centred on (cx, cy), `w` wide, in the door's outline colour: how a locked door is marked. */
+    _drawLock(ctx, cx, cy, w, line) {
+      const bodyH = w * 0.72;
+      const top = cy - bodyH * 0.25; // the shackle rises above the body, so the body sits a little low
+      ctx.fillStyle = this.theme.doorStroke;
+      ctx.fillRect(cx - w / 2, top, w, bodyH);
+      ctx.strokeStyle = this.theme.doorStroke;
+      ctx.lineWidth = line * 1.3;
+      ctx.lineCap = 'butt';
+      ctx.beginPath();
+      ctx.arc(cx, top, w * 0.28, Math.PI, 0);
+      ctx.stroke();
+    }
+
+    /** "S" on the wall where there is a secret door (screen space, so it stays readable when zoomed out). */
+    _drawSecretMarks(secrets) {
+      if (!secrets.length) return;
+      const ctx = this.ctx;
+      const { scale: s, tx, ty } = this.view;
+      if (s < 4) return; // too small to read, and the walls are too close together
+      const ui = this._ui || 1;
+      const size = Math.min(Math.max(s * 0.62, 11), 18) * ui;
+      ctx.font = `700 ${size}px Georgia, 'Times New Roman', serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = this.theme.label;
+      ctx.strokeStyle = this.theme.labelHalo;
+      ctx.lineWidth = Math.max(3, size * 0.3);
+      ctx.lineJoin = 'round';
+      for (const sec of secrets) {
+        const sx = sec.cx * s + tx;
+        const sy = sec.cy * s + ty;
+        if (sx < -20 || sy < -20 || sx > this.canvas.clientWidth + 20 || sy > this.canvas.clientHeight + 20) continue;
+        ctx.strokeText('S', sx, sy + 0.5);
+        ctx.fillText('S', sx, sy + 0.5);
+      }
+      ctx.lineJoin = 'miter';
+    }
+
+    /**
+     * Edit mode: a ring round every door that can be changed (the one under the pointer is drawn
+     * heavier), so a doorway with no door in it can still be seen and clicked.
+     */
+    _drawEditMarks(edits, s) {
+      const ctx = this.ctx;
+      const px = 1 / s;
+      const r = Math.max(0.55, 9 * px);
+      ctx.lineCap = 'butt';
+      ctx.strokeStyle = this.theme.arrow;
+      ctx.fillStyle = this.theme.arrow;
+      for (const t of edits) {
+        const hot = t === this._hover;
+        ctx.globalAlpha = hot ? 1 : 0.6;
+        ctx.lineWidth = (hot ? 2.5 : 1.5) * px;
+        ctx.setLineDash(hot ? [] : [4 * px, 3 * px]);
+        ctx.beginPath();
+        ctx.arc(t.cx, t.cy, r, 0, Math.PI * 2);
+        if (hot) {
+          ctx.globalAlpha = 0.18;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+    }
+
+    /** What the door under the pointer is now, in a small tag just above it (edit mode). */
+    _drawDoorTip(t) {
+      const ctx = this.ctx;
+      const { scale: s, tx, ty } = this.view;
+      const text = DM.DOOR_LABELS[t.opening.style] || DM.DOOR_LABELS.open;
+      const sx = t.cx * s + tx;
+      const sy = t.cy * s + ty - Math.max(0.55 * s, 9) - 14;
+      ctx.font = '600 12px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const w = ctx.measureText(text).width + 14;
+      const h = 22;
+      // keep the tag on the map when the door is at its top edge
+      const y = Math.max(sy, h / 2 + 4);
+      ctx.fillStyle = this.theme.roomFloor;
+      ctx.strokeStyle = this.theme.arrow;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(sx - w / 2, y - h / 2, w, h, 5);
+      else ctx.rect(sx - w / 2, y - h / 2, w, h);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = this.theme.label;
+      ctx.fillText(text, sx, y + 0.5);
     }
 
     /** Stairs to the surface: step lines across a floor cell, climbing towards the wall side `d`. */
@@ -660,7 +865,7 @@
         this.dpr = 1;
         this.view = { scale: s, tx: (W - (b.x1 - b.x0) * s) / 2 - b.x0 * s, ty: MARGIN - b.y0 * s };
         this._ui = ui;
-        this.draw({ scaleBar: false });
+        this.draw({ scaleBar: false, edit: false }); // a picture never shows the editing rings
       } finally {
         this.canvas = saved.canvas;
         this.ctx = saved.ctx;
@@ -687,7 +892,9 @@
       const items = [{ kind: 'room', text: 'Room' }];
       if (d.halls.length > 0) items.push({ kind: 'hall', text: 'Hallway' });
       items.push({ kind: 'wall', text: 'Wall' });
-      if (this.model.doors.some((door) => !door.entrance)) items.push({ kind: 'door', text: 'Door' });
+      if (this.model.doors.some((door) => !door.entrance && !door.locked)) items.push({ kind: 'door', text: 'Door' });
+      if (this.model.doors.some((door) => door.locked)) items.push({ kind: 'locked', text: 'Locked door' });
+      if (this.model.secrets.length > 0) items.push({ kind: 'secret', text: 'Secret door' });
       if (d.entrances.some((e) => e.kind !== 'stairs')) items.push({ kind: 'entrance', text: 'Entrance' });
       if (d.entrances.some((e) => e.kind === 'stairs')) items.push({ kind: 'stairs', text: 'Stairs entrance' });
 
@@ -765,7 +972,7 @@
       return { height, draw };
     }
 
-    /** One sample in the key of an exported map: a room, hallway, wall, door, entrance or stairs. */
+    /** One sample in the key of an exported map: a room, hallway, wall, door, locked or secret door, entrance or stairs. */
     _drawSwatch(ctx, kind, x, y, w, h, ui) {
       const T = this.theme;
       ctx.save();
@@ -787,14 +994,31 @@
         ctx.fillStyle = T.wall;
         ctx.fillRect(x, y + h * 0.36, w, h * 0.28);
         outline(x, y, w, h);
-      } else if (kind === 'door' || kind === 'entrance') {
+      } else if (kind === 'door' || kind === 'locked' || kind === 'entrance') {
         const dw = w * 0.62;
         const dh = h * 0.55;
-        ctx.fillStyle = kind === 'door' ? T.doorFill : T.entranceFill;
-        ctx.strokeStyle = kind === 'door' ? T.doorStroke : T.entranceStroke;
+        ctx.fillStyle = kind === 'entrance' ? T.entranceFill : T.doorFill;
+        ctx.strokeStyle = kind === 'entrance' ? T.entranceStroke : T.doorStroke;
         ctx.lineWidth = 1.5 * ui;
         ctx.fillRect(x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
         ctx.strokeRect(x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+        if (kind === 'locked') this._drawLock(ctx, x + w / 2, y + h / 2, h * 0.55, ui);
+      } else if (kind === 'secret') {
+        // a wall line across a strip of room floor, with the S written on it
+        ctx.fillStyle = T.roomFloor;
+        ctx.fillRect(x, y, w, h);
+        ctx.fillStyle = T.wall;
+        ctx.fillRect(x, y + h * 0.36, w, h * 0.28);
+        outline(x, y, w, h);
+        ctx.font = `700 ${h * 0.95}px Georgia, 'Times New Roman', serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = Math.max(3, h * 0.3);
+        ctx.strokeStyle = T.labelHalo;
+        ctx.strokeText('S', x + w / 2, y + h / 2 + 0.5);
+        ctx.fillStyle = T.label;
+        ctx.fillText('S', x + w / 2, y + h / 2 + 0.5);
       } else if (kind === 'stairs') {
         const dw = w * 0.62;
         const x0 = x + (w - dw) / 2;
