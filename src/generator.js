@@ -437,6 +437,15 @@
         spacing: params.spacing,
         random: () => layoutRng.next(),
       });
+      // a radial dungeon is all hallways, running out from the hub (the first room). Where the settings allow no
+      // hallway at all, its rooms are doorways off the hub instead (and off each other, once the hub's walls are full)
+      this.radial = !!(this.layout && this.layout.radial);
+      this.radialDoors = this.radial && !hallwaysPossible(params);
+      // how many spokes run out from the hub (more rooms, more spokes, up to one from each side), and which sides they leave by
+      this.armTarget = Math.min(4, Math.max(1, Math.ceil((shapes.length - 1) / 5)));
+      // (with neither spines nor branching, a hallway serves one room only, so every room needs a spoke of its own)
+      if (this.radial && !this.types.has('spine') && !this.types.has('branching')) this.armTarget = Math.max(1, shapes.length - 1);
+      this.armDirs = [];
       this.layoutTol = Infinity; // how far beyond the layout's shape a room may go just now (opens up as attempts run out)
       const base = Math.max(Math.ceil(Math.sqrt(sumArea * 4)) * 2 + 80 + 2 * this.hall.spine[1] + spread, maxDim * 4 + 40);
       const side = this.layout ? Math.ceil(base * 1.5) : base; // (a shape that is long or has arms reaches further from the middle)
@@ -464,6 +473,7 @@
     }
 
     chooseType() {
+      if (this.radial) return this.radialDoors ? 'door' : 'hall'; // every room hangs off a hallway
       const base = this.params.connectionType;
       const other = base === 'door' ? 'hall' : 'door';
       return this.rng.chance(this.params.connectionRandomness / 100) ? other : base;
@@ -969,6 +979,7 @@
 
     pickParent() {
       const { rng, rooms } = this;
+      if (this.radial) return rooms[0]; // (the hub)
       // a ring is built one room after another round the circle, so each hangs off the one before
       if (this.layout && this.layout.closes && rooms.length > 1 && rng.chance(0.85)) return rooms[rooms.length - 1];
       if (rooms.length > 1 && rng.chance(CONFIG.chainChance)) return rooms[rooms.length - 1];
@@ -1018,13 +1029,14 @@
      * a long straight spine that more rooms can later be attached along, or curly.
      * `extra` stretches the length range of short and spine hallways, to reach further.
      */
-    tryHall(parent, shape, tries, extra = 0) {
+    tryHall(parent, shape, tries, extra = 0, plan = null) {
       const { rng, W, occ } = this;
       const fromHall = parent.isHall === true;
       // A spine always has at least 3 rooms: the two it joins and one along its side. So a spine can only be
       // started with another room still to place (it is built together with the new room, see below).
       const spineOk = fromHall || this.rooms.length + 1 < this.shapes.length;
-      const kind = this.pickKind(spineOk);
+      // (a radial dungeon's plan for a spoke can ask for a spine, as long a one as it needs, leaving the hub by a given side)
+      const kind = plan && plan.spine && spineOk && this.kinds.includes('spine') ? 'spine' : this.pickKind(spineOk);
       if (kind === null) return null; // every way of starting a hallway is switched off (or only a spine, with no room to spare)
       const allowId = fromHall ? -(parent.id + 1) : parent.id + 1;
       let sides = null;
@@ -1034,16 +1046,29 @@
         if (sides.length === 0) return null;
         straightSides = sides.filter((s) => s.straight);
       }
-      const [lo, hi] = this.lengthRange(kind, extra, fromHall);
+      const [lo, hi] = plan && plan.range && kind === 'spine' && !fromHall ? plan.range : this.lengthRange(kind, extra, fromHall);
       const lateralMax = Math.min(this.hall.lateral, this.gap.max + 1); // (a room off to the side is still within the greatest gap)
       const served = fromHall ? parent.conn.rooms : [parent.id]; // the rooms the new one has to be near enough to
       const newSpine = kind === 'spine' && !fromHall; // a hallway that starts as a spine (a branch of that length off another hallway does not)
+
+      // a new spoke leaves the hub where there is most room from the spokes already there, so they fan out
+      let hubEdges = null;
+      if (this.radial && !fromHall && parent === this.rooms[0]) {
+        if (plan && plan.dir !== undefined) {
+          const facing = parent.edges.filter((e) => e.d === plan.dir && occ[(e.y + DY[e.d]) * W + e.x + DX[e.d]] === 0);
+          const middle = facing.filter((e) => e.interior);
+          hubEdges = middle.length > 0 ? middle : facing.length > 0 ? facing : null;
+        }
+        if (!hubEdges) hubEdges = this.spreadEdges(parent);
+      }
 
       const cands = [];
       for (let t = 0; t < tries && cands.length < CONFIG.candidatesPerParent; t++) {
         const e = fromHall
           ? rng.pick(straightSides.length > 0 && rng.chance(0.6) ? straightSides : sides)
-          : this.sampleEdge(parent);
+          : hubEdges
+            ? rng.pick(hubEdges)
+            : this.sampleEdge(parent);
         const sx = e.x + DX[e.d];
         const sy = e.y + DY[e.d];
         if (occ[sy * W + sx] !== 0 || !this.hallCellOk(sx, sy, allowId, allowId)) continue;
@@ -1234,6 +1259,7 @@
     placeNext(shape) {
       const { rng } = this;
       this.extraPlaced = 0;
+      if (this.radial) return this.placeNextRadial(shape);
       const type = this.chooseType();
       const other = type === 'door' ? 'hall' : 'door';
       // A spine needs a room to spare and rooms along its side, so where spines are the only hallways, a hallway
@@ -1269,6 +1295,118 @@
         for (let attempt = 0; attempt < 60; attempt++) {
           if (this.tryDoor(this.pickParent(), shape)) return 1;
         }
+      }
+      return 0;
+    }
+
+    // ---- a radial dungeon --------------------------------------------------------
+
+    /** The hallways that run out from the hub (the first room). */
+    arms() {
+      return this.halls.filter((h) => h.conn && h.conn.rooms[0] === 0);
+    }
+
+    /**
+     * A few places on the hub's walls for a new spoke to start, the ones furthest from the spokes already there
+     * (the first of them can start anywhere, so then it is a few at random).
+     */
+    spreadEdges(hub) {
+      const { W, occ } = this;
+      const starts = this.arms().map((h) => h.conn.openings[0]);
+      const open = hub.edges.filter((e) => occ[(e.y + DY[e.d]) * W + e.x + DX[e.d]] === 0);
+      if (open.length === 0) return hub.edges;
+      const sample = this.rng.shuffle(open.slice()).slice(0, 40);
+      const scored = sample.map((e) => {
+        let near = Infinity;
+        for (const s of starts) near = Math.min(near, Math.hypot(e.x + DX[e.d] * 0.5 - (s.x + DX[s.d] * 0.5), e.y + DY[e.d] * 0.5 - (s.y + DY[s.d] * 0.5)));
+        return { e, near };
+      });
+      scored.sort((a, b) => b.near - a.near);
+      return scored.slice(0, 5).map((s) => s.e);
+    }
+
+    /**
+     * The plan for the spoke with this number: the side of the hub it leaves by, and how long a spine it needs (a
+     * spoke gets its share of the rooms, some at its end and the rest along its two sides). The sides are spread
+     * round the hub: opposite ones first.
+     */
+    armPlan(index) {
+      if (this.armDirs.length === 0) {
+        const axis = this.rng.int(0, 1); // which pair of sides comes first: north and south, or east and west
+        const first = axis === 0 ? [0, 2] : [1, 3];
+        const second = axis === 0 ? [1, 3] : [0, 2];
+        const lead = first[this.rng.int(0, 1)];
+        this.armDirs = [lead, (lead + 2) % 4, ...(this.rng.int(0, 1) === 0 ? second : [second[1], second[0]])];
+      }
+      const others = this.shapes.length - 1;
+      const share = Math.ceil(others / this.armTarget);
+      const perSide = Math.max(1, Math.ceil((share - 1) / 2));
+      const side = Math.sqrt(baseRoomArea(this.params));
+      const wanted = Math.min(60, Math.ceil(perSide * (side + Math.max(1, this.gap.min))));
+      const [lo, hi] = this.lengthRange('spine');
+      return { dir: index < 4 && this.armTarget <= 4 ? this.armDirs[index] : undefined, spine: true, range: [Math.max(lo, wanted), Math.max(hi, wanted + 3)] };
+    }
+
+    /**
+     * The next room of a radial dungeon: every room hangs off a hallway, and every hallway starts at the hub. The first
+     * rooms go at the ends of the spokes (long straight spines out of the hub's sides, each with a room along it as
+     * well); then the rest go along the sides of the spokes. Only when that is not possible does a hallway fork (the fork
+     * belongs to the spoke it leaves), then does a spoke leave the hub wherever it can, and only as a last resort does a
+     * room hang off anything else, so that no room is lost.
+     */
+    placeNextRadial(shape) {
+      const { rng } = this;
+      const hub = this.rooms[0];
+      const arms = () => this.arms();
+      if (this.radialDoors) {
+        for (let attempt = 0; attempt < 150; attempt++) {
+          this.layoutTol = attempt < 60 ? this.layout.tolerance(attempt) : Infinity;
+          if (this.tryDoor(attempt < 60 ? hub : rng.pick(this.rooms), shape)) return 1;
+        }
+        return 0;
+      }
+      const side = () => {
+        // along the side of the spoke with the fewest rooms first
+        const pool = this.attachableHalls().filter((h) => h.conn); // (Branching off: only spines take rooms along their sides)
+        const picks = [];
+        while (picks.length < CONFIG.hallsTriedPerPlacement && pool.length > 0) {
+          const weights = pool.map((h) => Math.sqrt(h.cells.length) / (1 + 0.8 * (h.conn.rooms.length - 2)));
+          picks.push(pool.splice(rng.weightedIndex(weights), 1)[0]);
+        }
+        for (const hall of picks) {
+          const room = this.tryFlush(hall, shape);
+          if (room) return room;
+        }
+        return null;
+      };
+      const fork = () => {
+        const pool = this.types.has('branching') ? arms() : [];
+        return pool.length > 0 ? this.tryHall(rng.pick(pool), shape, CONFIG.placementTries) : null;
+      };
+      for (let attempt = 0; attempt < 80; attempt++) {
+        this.layoutTol = this.layout.tolerance(attempt);
+        const made = arms().length;
+        let room = null;
+        if (made < this.armTarget) {
+          // the next spoke, by the side planned for it (any side, if that one will not do)
+          const plan = this.armPlan(made);
+          if (attempt >= 25) delete plan.dir;
+          room = this.tryHall(hub, shape, CONFIG.placementTries, 0, plan) || (made > 0 && attempt >= 10 ? side() : null);
+        } else {
+          room = side() || (attempt >= 10 ? fork() : null) || (attempt >= 40 ? this.tryHall(hub, shape, CONFIG.placementTries) : null);
+        }
+        if (room) return 1 + this.extraPlaced;
+      }
+      // Crowded: longer reaches, from the hub, along or off any spoke, and finally from any room
+      this.layoutTol = Infinity;
+      for (let attempt = 0; attempt < 150; attempt++) {
+        const reach = 2 + Math.floor(attempt / 3);
+        const room = this.tryHall(hub, shape, 30, reach) || (attempt % 3 === 2 ? side() || fork() : null) || (attempt >= 100 ? this.tryHall(rng.pick(this.rooms), shape, 30, reach) : null);
+        if (room) return 1 + this.extraPlaced;
+      }
+      // (where spines are the only hallways, a spoke needs a room to spare: the last rooms of a small dungeon get a doorway from the hub)
+      if (this.kinds.length === 1 && this.kinds[0] === 'spine') {
+        for (let attempt = 0; attempt < 60; attempt++) if (this.tryDoor(hub, shape)) return 1;
       }
       return 0;
     }
@@ -1839,6 +1977,15 @@
       shapes.push(DM.makeRoomShape(rng, sampleArea(), params.roomShapes, minRoomWidth, minRoomLength));
     }
 
+    // a radial dungeon has its biggest room in the middle, as the hub
+    if (params.layout === 'radial') {
+      let big = 0;
+      shapes.forEach((s, i) => {
+        if (s.area > shapes[big].area) big = i;
+      });
+      shapes.unshift(...shapes.splice(big, 1));
+    }
+
     const b = new Builder(params, rng, shapes);
     b.placeFirst(shapes[0]);
     for (let i = 1; i < shapes.length; ) {
@@ -1861,7 +2008,8 @@
 
     if (b.layout && b.layout.closes) b.closeLoop();
 
-    const extra = Math.round((b.rooms.length - 1) * CONFIG.extraConnectionFraction);
+    // (a radial dungeon has no other doorways: every room is reached by a hallway from the hub)
+    const extra = b.radial ? 0 : Math.round((b.rooms.length - 1) * CONFIG.extraConnectionFraction);
     for (let i = 0; i < extra; i++) if (!b.addExtraConnection()) break;
 
     b.placeEntrances(params.entrances);

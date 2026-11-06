@@ -12,7 +12,7 @@
   const DM = (globalThis.DM = globalThis.DM || {});
 
   /** The layouts, in the order the page lists them. */
-  const LAYOUTS = ['random', 'cathedral', 'ring', 'cavern', 'square', 'long', 'wide'];
+  const LAYOUTS = ['random', 'cathedral', 'ring', 'cavern', 'radial', 'square', 'long', 'wide'];
   const DEFAULT_LAYOUT = 'random';
 
   /*
@@ -142,6 +142,17 @@
         const aim = target(index);
         return Math.pow(Math.hypot(x - aim.x, y - aim.y), 2) + OUTSIDE * Math.pow(layout.outside(x, y, index), 2);
       };
+      return layout;
+    }
+
+    if (name === 'radial') {
+      // a hub: the biggest room, in the middle, with every hallway running out from it like the spokes of a wheel and
+      // the other rooms along them. The generator builds this one by its own rules (see Builder.placeNextRadial); the
+      // shape here is only a round footprint that keeps the arms from straying far
+      const R = Math.sqrt(footprint / Math.PI) * 1.1;
+      layout.radial = true;
+      layout.outside = (x, y) => Math.max(0, Math.hypot(x, y) - R);
+      layout.score = (x, y) => x * x + y * y + OUTSIDE * Math.pow(layout.outside(x, y), 2);
       return layout;
     }
 

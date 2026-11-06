@@ -142,6 +142,7 @@
     cathedral: 'A long nave crossed by a transept, like a church floor plan',
     ring: 'Rooms circle an empty courtyard and close into a loop',
     cavern: 'Rounded and irregular like a cave, with more winding passages',
+    radial: 'The biggest room in the middle, every hallway running out from it like spokes, other rooms along them',
     square: 'Packed into a square footprint',
     long: 'A tall, narrow dungeon, longer up and down than across',
     wide: 'A wide, shallow dungeon, longer across than up and down',

@@ -43,7 +43,7 @@ const SETTINGS = {
   minRoomLength: int(1, 30, 'Least a room measures up and down the map (north-south), in squares (default 1: no minimum).'),
   sizeVariance: int(0, 100, 'How much room sizes vary, as a percentage of the average (default 30).'),
   spacing: { type: 'string', enum: ['compact', 'normal', 'spaced'], description: 'How far apart rooms are: compact (rooms may touch; default), normal or spaced.' },
-  layout: { type: 'string', enum: ['random', 'cathedral', 'ring', 'cavern', 'square', 'long', 'wide'], description: 'The overall shape the dungeon leans towards: random (default, no shape), cathedral (a long nave crossed by a transept), ring (rooms circling an empty middle, closed into a loop), cavern (a few round chambers), square, long (taller than wide) or wide (wider than tall).' },
+  layout: { type: 'string', enum: ['random', 'cathedral', 'ring', 'cavern', 'radial', 'square', 'long', 'wide'], description: 'The overall shape the dungeon leans towards: random (default, no shape), cathedral (a long nave crossed by a transept), ring (rooms circling an empty middle, closed into a loop), cavern (a few round chambers), radial (the biggest room in the middle, every hallway running out from it like the spokes of a wheel and the other rooms along them; all hallways, no doorways between rooms unless hallways are switched off), square, long (taller than wide) or wide (wider than tall).' },
   roomShapes: {
     type: 'array',
     items: { type: 'string', enum: ['rect', 'chamfer', 'L', 'T', 'U', 'H', 'Z', 'plus'] },

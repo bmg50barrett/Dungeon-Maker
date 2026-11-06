@@ -1396,7 +1396,7 @@ console.log('== overall layout');
   // The layout is a lean towards a shape, so it is judged on how a batch of dungeons come out, and every one of them
   // still has to be a good dungeon (checkDungeon holds each to all the rules: rooms, hallways, spacing).
   const base = { roomCount: 12, avgRoomSize: 30, sizeVariance: 30, entrances: 2, connectionType: 'hall', connectionRandomness: 14 };
-  const LAYOUT_NAMES = ['random', 'cathedral', 'ring', 'cavern', 'square', 'long', 'wide'];
+  const LAYOUT_NAMES = ['random', 'cathedral', 'ring', 'cavern', 'radial', 'square', 'long', 'wide'];
   if (JSON.stringify(DM.LAYOUTS) !== JSON.stringify(LAYOUT_NAMES)) fail('layout', `the layouts are ${DM.LAYOUTS}`);
   if (DM.DEFAULT_LAYOUT !== 'random') fail('layout', 'the default layout is not random');
 
@@ -1517,6 +1517,33 @@ console.log('== overall layout');
     if (sq.fill < rnd.fill + 0.02) fail('layout', `${spacing}: square dungeons are ${sq.fill} full, random ones ${rnd.fill}`);
   }
 
+  // radial: the biggest room is the hub, every room is on a hallway, every hallway starts at the hub, and there are no other doorways
+  for (const spacing of DM.SPACINGS) {
+    for (const count of [5, 12, 25]) {
+      let rooted = 0;
+      const tries = 30;
+      for (let s = 0; s < tries; s++) {
+        const dun = DM.generateDungeon({ ...base, roomCount: count, spacing, layout: 'radial', seed: `radial-${spacing}${count}-${s}` });
+        const hub = dun.rooms[0];
+        if (dun.rooms.some((r) => r.area > hub.area)) fail('layout', `radial ${spacing} ${count}: room ${hub.label} is the hub but is not the biggest`);
+        if (dun.connections.some((c) => c.type !== 'hall')) fail('layout', `radial ${spacing} ${count}: a doorway between rooms`);
+        const halls = dun.connections.filter((c) => c.type === 'hall');
+        const reached = new Set(halls.flatMap((c) => c.rooms));
+        if (dun.rooms.some((r) => r.id !== 0 && !reached.has(r.id))) fail('layout', `radial ${spacing} ${count}: a room with no hallway`);
+        if (halls.every((c) => c.rooms.includes(0))) rooted++;
+      }
+      if (rooted / tries < 0.85) fail('layout', `radial ${spacing} ${count}: only ${rooted} of ${tries} dungeons have every hallway starting at the hub`);
+    }
+  }
+  // where the settings allow no hallway at all, a radial dungeon is doorways off the hub; with doorways asked for but hallways possible it is still all hallways
+  {
+    const doors = DM.generateDungeon({ ...base, roomCount: 8, layout: 'radial', connectionType: 'door', connectionRandomness: 0, hallTypes: [], seed: 'radial-doors' });
+    checkDungeon(doors, 'radial, no hallways possible');
+    if (doors.halls.length > 0) fail('layout', 'radial built a hallway where none is possible');
+    const halls = DM.generateDungeon({ ...base, roomCount: 8, layout: 'radial', connectionType: 'door', connectionRandomness: 30, seed: 'radial-halls' });
+    if (halls.connections.some((c) => c.type !== 'hall')) fail('layout', 'radial made a doorway where hallways are possible');
+  }
+
   // a ring is the one place hallways run in a circle, and its closing hallway is a short one: with Short switched off it closes by doorway or not at all
   for (let s = 0; s < 20; s++) {
     const dun = DM.generateDungeon({ ...base, roomCount: 14, layout: 'ring', hallTypes: ['spine'], connectionRandomness: 0, seed: `ring-nohall${s}` });
@@ -1524,7 +1551,7 @@ console.log('== overall layout');
     for (const h of dun.halls) if (h.kind !== 'spine') fail('layout', 'a closing hallway of a kind that is switched off');
   }
   // only a ring runs its hallways in a circle: with every other layout the hallways alone join the rooms as a tree
-  for (const name of ['cathedral', 'cavern', 'square', 'long', 'wide']) {
+  for (const name of ['cathedral', 'cavern', 'radial', 'square', 'long', 'wide']) {
     for (let s = 0; s < 10; s++) {
       const dun = DM.generateDungeon({ ...base, layout: name, seed: `noloop-${name}${s}` });
       if (dun.stats.hallLinks > dun.rooms.length - 1) fail('layout', `${name}: hallways made a loop`);
