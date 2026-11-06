@@ -1724,6 +1724,4 @@
     const i = DM.DOOR_STYLES.indexOf(style);
     return DM.DOOR_STYLES[(i + 1) % DM.DOOR_STYLES.length];
   };
-  /** Every opening's state in one text: two dungeons' doors are alike exactly when their texts are (used to see if Edit mode changed anything). */
-  DM.doorStates = (dungeon) => dungeon.connections.map((c) => c.openings.map((o) => o.style).join()).join(';');
 })();

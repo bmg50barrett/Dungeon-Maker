@@ -270,15 +270,17 @@
   const generateLabels = generateButtons.map((b) => b.textContent);
 
   // ---- edit mode ---------------------------------------------------------------------
-  // The Edit button on the map lets a click on a door change it (door, locked, secret, none). The
-  // changes are made to the dungeon on the page (DM.current), so the picture, the data and printing
-  // have them; a share link does not (it holds the settings, and rebuilds the dungeon from them).
-  // Anything that builds a new dungeon would lose them, so those buttons ask first.
+  // The Edit button on the map lets a click on a door change it (door, locked, secret, none), and lets
+  // hallways be drawn and deleted. The changes are made to the dungeon on the page (DM.current), so the
+  // picture, the data and printing have them; a share link does not (it holds the settings, and
+  // rebuilds the dungeon from them). Anything that builds a new dungeon would lose them, so those
+  // buttons ask first.
 
-  /** How every opening was when the dungeon was built, to tell whether anything has been changed since. */
-  let doorsAsBuilt = '';
-  /** Has a door been changed (and not changed back) since the dungeon was built? */
-  const editsMade = () => !!DM.current && DM.doorStates(DM.current) !== doorsAsBuilt;
+  /** The doors and hallways as they were when the dungeon was built (DM.editState), to tell whether anything has been changed since. */
+  let editsAsBuilt = '';
+  /** Has anything been changed (and not changed back) since the dungeon was built? */
+  const editsMade = () => !!DM.current && DM.editState(DM.current) !== editsAsBuilt;
+  let builtMs = 0; // how long the dungeon on the map took to build, for the summary
 
   /** The warning before edits are thrown away. Resolves true if the user goes ahead. */
   function askToDiscardEdits() {
@@ -313,18 +315,44 @@
   }
 
   const MAP_HINT = 'Scroll to zoom · drag to pan · double-click to fit';
-  const EDIT_HINT = 'Edit mode · click a door to change it';
+  const TOOL_HINTS = {
+    door: 'Edit mode · click a door to change it',
+    draw: 'Drag to draw a hallway · hold Space to pan',
+    drawTouch: 'Drag to draw a hallway · pick Doors to pan',
+    erase: 'Click a stretch of hallway to delete it',
+  };
+
+  /** What the hint says for a tool: a touch screen has no Space key, so there it says how else to pan. */
+  function toolHint(tool) {
+    const touch = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+    return TOOL_HINTS[tool === 'draw' && touch ? 'drawTouch' : tool];
+  }
+
+  /** Pick what a click or a drag on the map does in edit mode: 'door', 'draw' or 'erase'. */
+  function setEditTool(tool) {
+    renderer.setEditTool(tool);
+    for (const b of $('editTools').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.tool === renderer.editTool));
+    $('canvasHint').textContent = toolHint(renderer.editTool);
+  }
 
   function setEditMode(on) {
     renderer.setEditMode(on);
     const button = $('editMode');
     button.setAttribute('aria-pressed', String(on));
-    button.title = on ? 'Edit mode is on: click a door to change it. Click here to leave it.' : 'Edit the doors: each click on a door changes it (door, locked, secret, no door)';
-    $('canvasHint').textContent = on ? EDIT_HINT : MAP_HINT;
+    button.title = on ? 'Edit mode is on: click here to leave it' : 'Edit the doors and hallways';
+    $('editTools').hidden = !on;
+    if (on) setEditTool('door');
+    else $('canvasHint').textContent = MAP_HINT;
   }
 
   $('editMode').addEventListener('click', () => setEditMode($('editMode').getAttribute('aria-pressed') !== 'true'));
+  for (const b of $('editTools').querySelectorAll('button')) b.addEventListener('click', () => setEditTool(b.dataset.tool));
   renderer.onDoorChange = updateDoorLegend;
+  // hallways were drawn or deleted: the legend, and the counts and footprint in the summary, follow
+  renderer.onLayoutChange = () => {
+    updateDoorLegend();
+    showSummary(DM.current, builtMs);
+  };
 
   /**
    * Build and show a dungeon from the current form values.
@@ -357,7 +385,8 @@
         const dungeon = DM.generateDungeon(check.params);
         const ms = performance.now() - t0;
         DM.current = dungeon;
-        doorsAsBuilt = DM.doorStates(dungeon);
+        editsAsBuilt = DM.editState(dungeon);
+        builtMs = ms;
         renderer.setDungeon(dungeon);
         updateDoorLegend();
         showSummary(dungeon, ms);
@@ -622,7 +651,7 @@
     field.hidden = copied;
     if (!copied) field.focus();
     // a link holds the settings, not the edits: the dungeon it rebuilds has the doors the generator made
-    const copiedText = editsMade() ? 'Link copied. It brings back this dungeon without your door edits: save the picture or the data to keep those.' : 'Link copied. Opening it brings back this dungeon.';
+    const copiedText = editsMade() ? 'Link copied. It brings back this dungeon without your edits to its doors and hallways: save the picture or the data to keep those.' : 'Link copied. Opening it brings back this dungeon.';
     setExportStatus(copied ? copiedText : 'Copy the link from the box above.');
   }
 

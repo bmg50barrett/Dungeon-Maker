@@ -249,10 +249,18 @@
       <div class="map-area">
         <canvas id="map" aria-label="Dungeon map"></canvas>
         <div class="toolbar">
-          <button type="button" id="editMode" class="edit-toggle" aria-pressed="false" title="Edit the doors: each click on a door changes it (door, locked, secret, no door)">Edit</button>
-          <button type="button" id="zoomIn" title="Zoom in" aria-label="Zoom in">+</button>
-          <button type="button" id="zoomOut" title="Zoom out" aria-label="Zoom out">&minus;</button>
-          <button type="button" id="fit" title="Fit dungeon to screen" aria-label="Fit to screen">Fit</button>
+          <div class="toolbar-row">
+            <button type="button" id="editMode" class="edit-toggle" aria-pressed="false" title="Edit the doors and hallways">Edit</button>
+            <button type="button" id="zoomIn" title="Zoom in" aria-label="Zoom in">+</button>
+            <button type="button" id="zoomOut" title="Zoom out" aria-label="Zoom out">&minus;</button>
+            <button type="button" id="fit" title="Fit dungeon to screen" aria-label="Fit to screen">Fit</button>
+          </div>
+          <!-- shown while Edit is on: what a click or a drag on the map does -->
+          <div class="edit-tools" id="editTools" role="group" aria-label="Edit tools" hidden>
+            <button type="button" data-tool="door" aria-pressed="true" title="Click a door to change it (door, locked, secret, no door)">Doors</button>
+            <button type="button" data-tool="draw" aria-pressed="false" title="Drag over squares to draw a hallway. Hold Space and drag to pan">Draw hallway</button>
+            <button type="button" data-tool="erase" aria-pressed="false" title="Click a stretch of hallway to delete it">Delete hallway</button>
+          </div>
         </div>
         <!-- on the map itself, not in a column, so it stays in view when the columns are collapsed -->
         <section class="legend" id="legend">
@@ -282,7 +290,7 @@
   <dialog id="discardDialog" aria-labelledby="discardTitle" aria-describedby="discardText">
     <form method="dialog">
       <h2 id="discardTitle">Lose your edits?</h2>
-      <p id="discardText">Re-generating the dungeon will lose all edits you made to its doors. To keep them, save the picture or the data first.</p>
+      <p id="discardText">Re-generating the dungeon will lose all edits you made to its doors and hallways. To keep them, save the picture or the data first.</p>
       <div class="dialog-buttons">
         <button type="submit" value="cancel" autofocus>Keep editing</button>
         <button type="submit" value="discard" id="discardConfirm" class="danger">Re-generate anyway</button>
@@ -293,6 +301,7 @@
   <script src="src/rng.js"></script>
   <script src="src/shapes.js"></script>
   <script src="src/generator.js"></script>
+  <script src="src/edit.js"></script>
   <script src="src/labels.js"></script>
   <script src="src/palette.js"></script>
   <script src="src/share.js"></script>

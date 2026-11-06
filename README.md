@@ -174,24 +174,52 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
   `src/palette.js`. Colors are remembered between visits (see Remembered settings).
 - Controls: scroll to zoom, drag to pan, double-click (or **Fit**) to fit the map.
 - **Edit mode** (the **Edit** button on the map, left of the zoom buttons). Click it to start editing
-  doors, and click it again to stop. While it is on, the button stays pressed in, the map has a coloured
-  frame, and every door between rooms (and hallways) has a ring round it, so a doorway with no door in it
-  can be seen too. **Click a door to change it to the next state**: door, locked door (a padlock on it),
-  secret door (the wall stays solid, with an **S** on it), no door (the wall is left open, with
-  nothing in the gap), then back to a plain door. Hovering a door names what it is now. Dragging
-  still pans (a click that wobbles a few pixels is still a click), and a quick double-click on a door is for
-  the door, not Fit. Entrance doors (the ones with arrows) are not editable. The legend
-  names locked and secret doors only while the map has some.
+  doors and hallways, and click it again to stop. While it is on, the button stays pressed in, the map has a
+  coloured frame, and a row of three tools appears under the buttons. Leaving edit mode keeps the edits,
+  and turning it on again starts on **Doors**. The line at the bottom of the map says what the tool does.
+  - **Doors.** Every door between rooms (and hallways) has a ring round it, so a doorway with no door in
+    it can be seen too. **Click a door to change it to the next state**: door, locked door (a padlock on it),
+    secret door (the wall stays solid, with an **S** on it), no door (the wall is left open, with
+    nothing in the gap), then back to a plain door. Hovering a door names what it is now. Dragging
+    still pans (a click that wobbles a few pixels is still a click), and a quick double-click on a door is for
+    the door, not Fit. Entrance doors (the ones with arrows) are not editable. The legend
+    names locked and secret doors only while the map has some.
+  - **Draw hallway.** Press and drag over the squares you want as hallway; a dashed preview follows the
+    pointer, and the squares go in when you let go. Esc cancels a stroke that is still down. Dragging does
+    not pan with this tool: hold **Space** while you drag (or use the middle mouse button) to pan. On a
+    touch screen there is no Space key, so switch to **Doors** to pan, and back to draw (the zoom buttons
+    and **Fit** work with any tool).
+    - **Branching.** Squares that touch are one hallway, so a stroke that starts on, crosses or ends next to
+      a hallway joins it, and a stroke from the middle of a hallway is a branch. Strokes that touch nothing
+      are fine too: a hallway may be a dead end and serve no rooms at all.
+    - **Rooms.** Where a stroke ends against a room's wall (or runs on into the room) it makes an opening into
+      that room, and the opening follows the generator's **Hallway doors** setting: with *All*, every new
+      opening has a door; with *None*, every one is an archway; in between, some are. The ring in the preview
+      shows each opening that will be made, and the chance is worked out from the seed and the spot, so the
+      preview is what you get. Running *along* a wall opens nothing. Room squares cannot be drawn on (a
+      stroke through a room simply skips it), and neither can the square just outside an entrance door.
+      The new openings can then be changed with the **Doors** tool like any others.
+    - **The map grows to fit.** A stroke past the edge makes the map bigger (up to 1200 squares across),
+      and the picture does not jump when it does. Deleting what was drawn out there shrinks it again.
+  - **Delete hallway.** Hovering a hallway picks out one **stretch** in red: the squares between one
+    junction and the next, or up to a dead end. A *junction* is a square with three or more hallway
+    neighbours, or a side door into a room. **Click to delete the stretch**; its doors go with it, and what is
+    left is re-counted, so deleting a junction can split one hallway into several. A whole hallway can be
+    removed this way, generated ones included. Room numbers are not renumbered after an edit.
   - The edits are made to the dungeon on the page, so **Picture (PNG)**, **Data (JSON)** and **Print**
-    have them (the picture never shows edit mode's rings). **Copy link** does not: a link holds the
-    settings and rebuilds the dungeon from them, so it gives the doors the generator made; the status line under
-    the share buttons says so once a door has been changed. Leaving edit mode keeps the edits.
+    have them (the picture never shows edit mode's rings or a stroke's preview), and the results in the
+    Generate column (hallway count, footprint and so on) follow them. **Copy link** does not: a link holds
+    the settings and rebuilds the dungeon from them, so it gives the doors and hallways the generator made;
+    the status line under the share buttons says so once something has been changed. There is no undo yet:
+    delete or redraw to put something back.
   - **Re-generate dungeon**, **Generate with random seed**, **Reset all** and a share link opened in the
-    address bar all build a new dungeon, so if a door has been changed they first ask in a box: *"Re-generating
-    the dungeon will lose all edits you made to its doors."* **Keep editing** (also Esc, or a click outside the
-    box) leaves everything as it was; **Re-generate anyway** goes ahead. A door changed back to the state
-    it started in is not an edit, so four clicks on a door and the box does not appear. Changing the inputs
-    or the colors, or the Display choices, never builds a new dungeon, so it never asks.
+    address bar all build a new dungeon, so if a door or hallway has been changed they first ask in a box:
+    *"Re-generating the dungeon will lose all edits you made to its doors and hallways. To keep them, save the
+    picture or the data first."* **Keep editing** (also Esc, or a click outside the
+    box) leaves everything as it was; **Re-generate anyway** goes ahead. An edit that is put back as it was
+    is not an edit, so four clicks on a door, or drawing a hallway and deleting it, and the box does not
+    appear. Changing the inputs or the colors, or the Display choices, never builds a new dungeon, so it
+    never asks.
 - The inputs are in four columns side by side: **Rooms** (count, sizes, shapes),
   **Hallways** (connection type, randomization, hallway types, doors, entrances),
   **Generate** (seed, the buttons and the results) and **Display** (label position, the
@@ -280,8 +308,9 @@ src/generator.js         layout: placement, hallway routing (A*), entrances, out
 src/labels.js            where room numbers go (inside, or outside the walls): `DM.placeOutsideLabels`
 src/palette.js           map colors: the ready-made choices per category, `DM.themeFrom`
 src/share.js             share links, file names, JSON and caption for exports: `DM.encodeShare`, `DM.decodeShare`
-src/render.js            canvas drawing, zoom/pan, Edit mode clicks, the exported picture (`exportImage`)
-src/app.js               form handling, export buttons, opening links, the Edit button and the lose-edits warning
+src/edit.js              hallway editing on the data: `DM.planHallway`, `DM.addHallway`, `DM.deleteHallStretch`, `DM.editState`
+src/render.js            canvas drawing, zoom/pan, the Edit mode tools (clicks, strokes), the exported picture (`exportImage`)
+src/app.js               form handling, export buttons, opening links, the Edit button and tools, the lose-edits warning
 tests/run.js             headless validation:  node tests/run.js
 ```
 
@@ -293,7 +322,7 @@ future export / editing features should build on:
   rooms:       [{ id, label, kind, area, bbox, labelCell, cells: [[x, y], ...] }],
                // kind: 'rect' | 'chamfer' | 'L' | 'T' | 'U' | 'H' | 'Z' | 'plus'
   halls:       [{ id, kind, cells: [[x, y], ...], rooms: [roomId, ...], connection }],
-               // kind: how the hallway started: 'short' | 'spine' | 'curly';
+               // kind: how the hallway started: 'short' | 'spine' | 'curly', or 'drawn' (Edit mode);
   connections: [{ id, type: 'door'|'hall', rooms: [roomId, ...], hall,
                   openings: [{ x, y, d, style, room }] }],
   entrances:   [{ id, label, kind: 'door'|'stairs', room, x, y, d }],
@@ -316,7 +345,15 @@ Data (JSON) export has whatever the styles are when it is saved.
 A `'door'` connection joins exactly two rooms through one opening. A `'hall'`
 connection is one hallway: its `cells` form a single connected (possibly branching)
 passage, `rooms` lists every room it serves (2 or more), and each of those rooms has
-exactly one entry in `openings`.
+exactly one entry in `openings`. That is what the generator makes. Dungeons changed with the
+Edit mode hallway tools are looser: a hallway may serve 0 or 1 rooms (a dead end), and may have
+several openings into the same room. A hallway's `kind` after an edit is the kind that
+contributed most of its squares, or `'drawn'` when it is all new. Rooms keep their numbers, and a
+hall's `id` is always its index in `halls`. The edits live in `src/edit.js`, which changes the squares
+and then rebuilds `halls`, `connections`, the map's size (squares of the map shift if it grows up or
+left, so the rooms and entrances move with them) and `stats`. `DM.editState(dungeon)` is a canonical
+text of the hallway squares and every opening's style, in an order that does not depend on how the
+dungeon got there: the page compares it with the state as built to tell whether anything has been edited.
 
 Coordinates start at (0, 0) top-left, y grows downward. Cell `(x, y)` covers the
 square `[x, x+1] x [y, y+1]`. `d` is a side of the cell: 0 = N, 1 = E, 2 = S, 3 = W.

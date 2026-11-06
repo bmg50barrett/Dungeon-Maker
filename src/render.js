@@ -15,6 +15,31 @@
   const MIN_SCALE = 0.5;
   const MAX_SCALE = 80;
   const CLICK_SLOP = 4; // px a pointer may travel and still count as a click (not a drag) in edit mode
+  const MAX_STROKE = 5000; // squares one hallway stroke may cover
+
+  /** The squares from a (left out) to b, each next to the one before (a straight run, or as straight as squares allow). */
+  function walkCells(a, b) {
+    const out = [];
+    let x = a[0];
+    let y = a[1];
+    const nx = Math.abs(b[0] - x);
+    const ny = Math.abs(b[1] - y);
+    const sx = Math.sign(b[0] - x);
+    const sy = Math.sign(b[1] - y);
+    let ix = 0;
+    let iy = 0;
+    while (ix < nx || iy < ny) {
+      if (iy >= ny || (ix < nx && (0.5 + ix) * ny <= (0.5 + iy) * nx)) {
+        x += sx;
+        ix++;
+      } else {
+        y += sy;
+        iy++;
+      }
+      out.push([x, y]);
+    }
+    return out;
+  }
 
   /** Size multiplier for entrance arrows: they never shrink below ~11 px per cell-unit. */
   function entranceUnit(scale) {
@@ -43,10 +68,18 @@
       this.dpr = 1;
       this._drag = null;
       this._raf = 0;
-      // edit mode: a click on a door between rooms changes it to its next state (see DM.DOOR_STYLES)
+      // edit mode, with a tool: 'door' (a click on a door between rooms changes it to its next state, see
+      // DM.DOOR_STYLES), 'draw' (drag to draw a hallway) or 'erase' (click a stretch of hallway to delete it)
       this.editMode = false;
+      this.editTool = 'door';
       this.onDoorChange = null; // called with { opening, from, to } after a click changed a door
-      this._hover = null; // the door under the pointer in edit mode (one of model.edits)
+      this.onLayoutChange = null; // called with { kind: 'draw'|'erase', dx, dy, ... } after the hallways changed
+      this._hover = null; // the door under the pointer (door tool; one of model.edits)
+      this._hoverCell = null; // the square under the pointer (draw and erase tools)
+      this._hoverStretch = null; // the stretch of hallway a click would delete (erase tool)
+      this._stroke = null; // a hallway being drawn: { cells: [[x, y], ...], plan }
+      this._space = false; // Space is held: dragging pans even while drawing
+      this._inside = false; // is the pointer over the map?
 
       this._bindEvents();
       this.resize();
@@ -60,27 +93,57 @@
       this.fit();
     }
 
-    /** Turn edit mode on or off. While it is on, clicking a door (dragging still pans) cycles its state. */
+    /** Turn edit mode on or off. What a click or a drag does while it is on depends on the tool (setEditTool). */
     setEditMode(on) {
       this.editMode = !!on;
-      this._hover = null;
+      this._stroke = null;
+      this._clearHover();
       this.canvas.classList.toggle('editing', this.editMode);
-      this.canvas.classList.remove('over-door');
       this.requestDraw();
     }
 
+    /** The tool of edit mode: 'door' (the first one), 'draw' or 'erase'. */
+    setEditTool(tool) {
+      this.editTool = ['door', 'draw', 'erase'].includes(tool) ? tool : 'door';
+      this._stroke = null;
+      this._clearHover();
+      this.requestDraw();
+    }
+
+    _clearHover() {
+      this._hover = null;
+      this._hoverCell = null;
+      this._hoverStretch = null;
+      this._cursor();
+    }
+
+    /** The shape of the pointer: a hand over what a click would change, a cross for drawing. */
+    _cursor() {
+      const cl = this.canvas.classList;
+      const tool = this.editMode ? this.editTool : '';
+      cl.toggle('over-door', tool === 'door' && !!this._hover);
+      cl.toggle('tool-draw', tool === 'draw' && !this._space);
+      cl.toggle('over-hall', tool === 'erase' && !!this._hoverStretch);
+    }
+
     /**
-     * Show the dungeon again after one of its openings was changed (the view stays where it is).
-     * The floors and room numbers do not move, so only the walls and doors are worked out again.
+     * Show the dungeon again after it was changed from outside (the view stays where it is).
+     * A door changing leaves the floors and room numbers where they were, so only the walls and doors
+     * are worked out again; with `moved` the squares changed too (hallways were drawn or deleted).
      */
-    refreshDoors() {
+    refreshModel({ moved = false } = {}) {
       if (!this.dungeon || !this.model) return;
-      const { outside } = this.model;
+      const outside = moved ? null : this.model.outside;
       const hovered = this._hover && this._hover.opening;
       this.model = this._buildModel(this.dungeon);
       if (outside) this.model.outside = outside;
       this._hover = (hovered && this.model.edits.find((t) => t.opening === hovered)) || null;
       this.requestDraw();
+    }
+
+    /** Show the dungeon again after one of its openings was changed. */
+    refreshDoors() {
+      this.refreshModel();
     }
 
     /** How many openings between rooms (and hallways) are in each state: { door, locked, secret, open }. */
@@ -215,10 +278,21 @@
       );
       c.addEventListener('pointerdown', (e) => {
         c.setPointerCapture(e.pointerId);
+        // with the draw tool a drag draws a hallway; the middle button, or Space held, pans as usual
+        if (this.editMode && this.editTool === 'draw' && e.button === 0 && !this._space) {
+          this._stroke = { cells: [this._cellAt(e)], plan: null };
+          this._planStroke();
+          this.requestDraw();
+          return;
+        }
         this._drag = { x: e.clientX, y: e.clientY, tx: this.view.tx, ty: this.view.ty, moved: false };
         c.classList.add('dragging');
       });
       c.addEventListener('pointermove', (e) => {
+        if (this._stroke) {
+          this._extendStroke(e);
+          return;
+        }
         if (!this._drag) {
           if (this.editMode) this._hoverAt(e);
           return;
@@ -237,26 +311,39 @@
         c.classList.remove('dragging');
       };
       c.addEventListener('pointerup', (e) => {
+        if (this._stroke) {
+          this._finishStroke();
+          return;
+        }
         const drag = this._drag;
         end();
         if (this.editMode && drag && !drag.moved) this._clickAt(e);
       });
-      c.addEventListener('pointercancel', end);
+      c.addEventListener('pointercancel', () => {
+        this._stroke = null;
+        end();
+        this.requestDraw();
+      });
+      c.addEventListener('pointerenter', () => (this._inside = true));
       c.addEventListener('pointerleave', () => {
-        if (this._hover) {
-          this._hover = null;
-          c.classList.remove('over-door');
+        this._inside = false;
+        if (this._hover || this._hoverCell || this._hoverStretch) {
+          this._clearHover();
           this.requestDraw();
         }
       });
       c.addEventListener('dblclick', (e) => {
-        // quick clicks on a door in edit mode are for the door, not for fitting the map
+        // in edit mode quick clicks are for the doors and hallways, not for fitting the map (the Fit button is there)
         if (this.editMode) {
+          if (this.editTool !== 'door') return;
           const rect = c.getBoundingClientRect();
           if (this._doorAt(e.clientX - rect.left, e.clientY - rect.top)) return;
         }
         this.fit();
       });
+      // holding Space pans, even with the draw tool; Escape drops a hallway being drawn
+      window.addEventListener('keydown', (e) => this._key(e, true));
+      window.addEventListener('keyup', (e) => this._key(e, false));
       if (typeof ResizeObserver !== 'undefined') {
         new ResizeObserver(() => this.resize()).observe(c);
       } else {
@@ -281,17 +368,39 @@
       return best;
     }
 
-    _hoverAt(e) {
+    /** The square of the map (its x, y) under a pointer event; it may be outside the dungeon. */
+    _cellAt(e) {
       const rect = this.canvas.getBoundingClientRect();
-      const hit = this._doorAt(e.clientX - rect.left, e.clientY - rect.top);
-      if (hit === this._hover) return;
-      this._hover = hit;
-      this.canvas.classList.toggle('over-door', !!hit);
+      const { scale: s, tx, ty } = this.view;
+      return [Math.floor((e.clientX - rect.left - tx) / s), Math.floor((e.clientY - rect.top - ty) / s)];
+    }
+
+    /** Edit mode with no button down: pick out what a click (or, drawing, a press) here would act on. */
+    _hoverAt(e) {
+      if (this.editTool === 'door') {
+        const rect = this.canvas.getBoundingClientRect();
+        const hit = this._doorAt(e.clientX - rect.left, e.clientY - rect.top);
+        if (hit === this._hover) return;
+        this._hover = hit;
+      } else {
+        const cell = this._cellAt(e);
+        if (this._hoverCell && this._hoverCell[0] === cell[0] && this._hoverCell[1] === cell[1]) return;
+        this._hoverCell = cell;
+        this._hoverStretch = this.editTool === 'erase' ? DM.hallStretchAt(this.dungeon, cell[0], cell[1]) : null;
+      }
+      this._cursor();
       this.requestDraw();
     }
 
-    /** A click in edit mode: the door under it (if any) goes to its next state. */
+    /** A click in edit mode: with the door tool the door under it goes to its next state; with the erase tool the stretch of hallway under it goes. */
     _clickAt(e) {
+      if (this.editTool === 'erase') {
+        const [x, y] = this._cellAt(e);
+        const res = DM.deleteHallStretch(this.dungeon, x, y);
+        if (res.ok) this._layoutChanged(res, 'erase');
+        return;
+      }
+      if (this.editTool !== 'door') return;
       const rect = this.canvas.getBoundingClientRect();
       const hit = this._doorAt(e.clientX - rect.left, e.clientY - rect.top);
       if (!hit) return;
@@ -301,6 +410,68 @@
       this._hover = hit;
       this.refreshDoors();
       if (this.onDoorChange) this.onDoorChange({ opening, from, to: opening.style });
+    }
+
+    // ---- drawing hallways ---------------------------------------------------
+
+    _planStroke() {
+      this._stroke.plan = DM.planHallway(this.dungeon, this._stroke.cells);
+    }
+
+    /** The pointer moved with the draw tool down: the stroke takes in every square it crossed. */
+    _extendStroke(e) {
+      const cells = this._stroke.cells;
+      const cell = this._cellAt(e);
+      const last = cells[cells.length - 1];
+      if ((cell[0] === last[0] && cell[1] === last[1]) || cells.length >= MAX_STROKE) return;
+      for (const c of walkCells(last, cell)) cells.push(c);
+      this._planStroke();
+      this.requestDraw();
+    }
+
+    _finishStroke() {
+      const { cells } = this._stroke;
+      this._stroke = null;
+      const res = DM.addHallway(this.dungeon, cells);
+      if (res.ok) this._layoutChanged(res, 'draw');
+      else this.requestDraw();
+    }
+
+    /**
+     * Hallways were drawn or deleted. The map grows and shrinks to fit them, which can move every square
+     * (its top left is always 0, 0), so the view moves the other way and the picture stays where it was.
+     */
+    _layoutChanged(res, kind) {
+      this.view.tx -= res.dx * this.view.scale;
+      this.view.ty -= res.dy * this.view.scale;
+      this._clearHover();
+      this.refreshModel({ moved: true });
+      if (this.onLayoutChange) this.onLayoutChange({ kind, ...res });
+    }
+
+    _key(e, down) {
+      if (e.code === 'Escape' && down && this._stroke) {
+        this._stroke = null;
+        this.requestDraw();
+        return;
+      }
+      if (e.code !== 'Space') return;
+      if (!down) {
+        // (the button that was pressed before Space must not be pressed again as Space goes up)
+        if (this._space) {
+          this._space = false;
+          this._cursor();
+          if (e.preventDefault) e.preventDefault();
+        }
+        return;
+      }
+      const tag = e.target && e.target.tagName;
+      if (!this.editMode || this.editTool !== 'draw' || !this._inside || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.preventDefault) e.preventDefault();
+      if (!this._space) {
+        this._space = true;
+        this._cursor();
+      }
     }
 
     zoomBy(factor) {
@@ -524,7 +695,10 @@
         s
       );
 
-      if (edit) this._drawEditMarks(model.edits, s);
+      if (edit) {
+        if (this.editTool === 'door') this._drawEditMarks(model.edits, s);
+        else this._drawHallEditing(s);
+      }
 
       // screen-space overlays
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -532,7 +706,10 @@
       this._drawSecretMarks(model.secrets);
       this._drawEntranceLabels();
       this._drawStairBadges(model.stairs);
-      if (edit && this._hover) this._drawDoorTip(this._hover);
+      if (edit && this.editTool === 'door' && this._hover) this._drawDoorTip(this._hover);
+      if (edit && this.editTool === 'erase' && this._hoverStretch && this._hoverCell) {
+        this._drawTip((this._hoverCell[0] + 0.5) * s + view.tx, this._hoverCell[1] * s + view.ty - 14, 'Click to delete this stretch');
+      }
       if (scaleBar) this._drawScaleBar();
     }
 
@@ -623,13 +800,65 @@
       ctx.globalAlpha = 1;
     }
 
+    /**
+     * Edit mode with the draw or erase tool: the hallway being drawn as it will be (floor, and the doors
+     * it will open into rooms), the square under the pointer, or the stretch a click would delete.
+     */
+    _drawHallEditing(s) {
+      const ctx = this.ctx;
+      const T = this.theme;
+      const px = 1 / s;
+      const outline = (cells) => {
+        for (const [x, y] of cells) ctx.strokeRect(x + 0.05, y + 0.05, 0.9, 0.9);
+      };
+      ctx.lineCap = 'butt';
+      ctx.strokeStyle = T.arrow;
+      ctx.fillStyle = T.arrow;
+      if (this._stroke && this._stroke.plan) {
+        const { floor, openings } = this._stroke.plan;
+        ctx.fillStyle = T.hallFloor;
+        for (const [x, y] of floor) ctx.fillRect(x, y, 1, 1);
+        ctx.strokeStyle = T.arrow;
+        ctx.lineWidth = 2 * px;
+        ctx.setLineDash([4 * px, 3 * px]);
+        outline(floor);
+        ctx.setLineDash([]);
+        // a ring on every wall it will open, with a door in it where it will have one
+        const doors = openings.filter((o) => o.style === 'door').map((o) => ({ x: o.x, y: o.y, d: o.d, entrance: false, locked: false }));
+        this._drawDoors(doors, s);
+        ctx.strokeStyle = T.arrow;
+        ctx.lineWidth = 2 * px;
+        for (const o of openings) {
+          ctx.beginPath();
+          ctx.arc(o.x + 0.5 + DX[o.d] * 0.5, o.y + 0.5 + DY[o.d] * 0.5, Math.max(0.55, 9 * px), 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      } else if (this.editTool === 'draw' && this._hoverCell) {
+        ctx.globalAlpha = 0.7;
+        ctx.lineWidth = 2 * px;
+        outline([this._hoverCell]);
+        ctx.globalAlpha = 1;
+      }
+      if (this.editTool === 'erase' && this._hoverStretch) {
+        ctx.globalAlpha = 0.4;
+        ctx.fillStyle = T.arrow;
+        for (const [x, y] of this._hoverStretch) ctx.fillRect(x, y, 1, 1);
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = T.arrow;
+        ctx.lineWidth = 2.5 * px;
+        outline(this._hoverStretch);
+      }
+    }
+
     /** What the door under the pointer is now, in a small tag just above it (edit mode). */
     _drawDoorTip(t) {
-      const ctx = this.ctx;
       const { scale: s, tx, ty } = this.view;
-      const text = DM.DOOR_LABELS[t.opening.style] || DM.DOOR_LABELS.open;
-      const sx = t.cx * s + tx;
-      const sy = t.cy * s + ty - Math.max(0.55 * s, 9) - 14;
+      this._drawTip(t.cx * s + tx, t.cy * s + ty - Math.max(0.55 * s, 9) - 14, DM.DOOR_LABELS[t.opening.style] || DM.DOOR_LABELS.open);
+    }
+
+    /** A small tag centred at (sx, sy) of the screen. */
+    _drawTip(sx, sy, text) {
+      const ctx = this.ctx;
       ctx.font = '600 12px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
