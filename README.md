@@ -255,7 +255,7 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
   grid and room-number switches, and colors). Display only changes how the map is
   drawn (and, for the theme, the page around it), so it applies at once. Click a
   column's title bar to collapse it to a thin strip and give the map more room, and
-  click the strip to open it again. Which columns are collapsed is remembered. A
+  click the strip to open it again. Which columns are collapsed is remembered; on a first visit Display starts collapsed. A
   collapsed column opens by itself if one of its inputs has an error. On a narrow
   screen the columns stack and collapse like an accordion.
 - The **legend** is a small card in the bottom right corner of the map, not in a column, so it

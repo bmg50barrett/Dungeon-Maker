@@ -32,12 +32,12 @@
   }
 
   function restoreBlades() {
-    let closed = [];
+    let closed = ['display']; // a first visit starts with Display folded away; once the columns have been used, what was chosen wins
     try {
       const saved = JSON.parse(localStorage.getItem(BLADES_KEY));
       if (Array.isArray(saved)) closed = saved;
     } catch (err) {
-      // nothing saved, or unreadable: start with every column open
+      // nothing saved, or unreadable: start as on a first visit
     }
     for (const blade of bladeEls()) setBlade(blade, !closed.includes(blade.dataset.blade));
   }
