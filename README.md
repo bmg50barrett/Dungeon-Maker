@@ -258,7 +258,7 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
   click the strip to open it again. Which columns are collapsed is remembered. A
   collapsed column opens by itself if one of its inputs has an error. On a narrow
   screen the columns stack and collapse like an accordion.
-- The **legend** is a small card in the top left corner of the map, not in a column, so it
+- The **legend** is a small card in the bottom right corner of the map, not in a column, so it
   stays in view however many columns are collapsed. Click its title to fold it away if it
   is covering part of the dungeon, and again to bring it back.
 
