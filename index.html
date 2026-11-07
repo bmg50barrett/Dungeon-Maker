@@ -60,6 +60,20 @@
             </fieldset>
 
             <div class="field">
+              <label for="levels">Levels</label>
+              <input id="levels" name="levels" type="number" min="1" max="20" step="1" value="1" inputmode="numeric">
+              <p class="hint" id="levelsHint">1&ndash;20 floors</p>
+              <p class="error" id="err-levels" role="alert"></p>
+            </div>
+
+            <div class="field">
+              <label for="levelStairs">Stairs between levels</label>
+              <input id="levelStairs" name="levelStairs" type="number" min="1" max="10" step="1" value="1" inputmode="numeric">
+              <p class="hint" id="levelStairsHint">Needs more than one level</p>
+              <p class="error" id="err-levelStairs" role="alert"></p>
+            </div>
+
+            <div class="field">
               <label for="entrances">Entrances</label>
               <input id="entrances" name="entrances" type="number" min="1" max="10" step="1" value="1" inputmode="numeric">
               <p class="hint">External entrances, 1&ndash;10</p>
@@ -240,6 +254,12 @@
                 <button type="button" id="printMap" title="Print the map on one page">Print</button>
               </div>
               <label class="check"><input type="checkbox" id="exportLegend" checked> Legend and details on the picture and printout</label>
+              <!-- a dungeon of several levels: what the picture and the printout hold (shown by app.js) -->
+              <fieldset class="export-scope" id="exportScope" hidden>
+                <legend>Picture and printout hold</legend>
+                <label class="check"><input type="radio" name="exportScope" value="all" checked> All levels (one picture, one page each)</label>
+                <label class="check"><input type="radio" name="exportScope" value="this"> Only the level on the map</label>
+              </fieldset>
               <input type="text" id="shareUrl" readonly hidden aria-label="Link to this dungeon">
               <p class="hint" id="exportStatus" role="status" aria-live="polite"></p>
             </section>
@@ -319,10 +339,14 @@
           <span class="map-mark">Duckweed’s Aeldara</span>
         </div>
       </header>
+      <!-- a dungeon of several levels: one button for each floor, and one for all of them side by side (shown by app.js) -->
+      <nav class="level-tabs" id="levelTabs" aria-label="Levels" hidden></nav>
       <!-- the map sits in a double gold frame, like a plate in a printed book -->
       <div class="map-frame"><div class="map-frame-inner">
       <div class="map-area">
         <canvas id="map" aria-label="Dungeon map"></canvas>
+        <!-- the "All" view of a dungeon of several levels: a picture of each floor (built by app.js), over the map -->
+        <div class="all-levels" id="allLevels" hidden></div>
         <div class="toolbar">
           <div class="toolbar-row">
             <button type="button" id="editMode" class="edit-toggle" aria-pressed="false" title="Edit the doors and hallways">Edit</button>
@@ -365,6 +389,7 @@
             <li id="legendSecret" hidden><span class="sw sw-secret">S</span> Secret door</li>
             <li><span class="sw sw-entrance"></span> Entrance (E1, E2&hellip;)</li>
             <li><span class="sw sw-stairs"></span> Stairs entrance (inside)</li>
+            <li id="legendLevelStairs" hidden><span class="sw sw-stairs"></span> Stairs to another level (&darr; down, &uarr; up)</li>
           </ul>
         </section>
       </div>

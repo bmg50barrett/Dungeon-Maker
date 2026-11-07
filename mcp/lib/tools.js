@@ -24,6 +24,8 @@ const APP_DEFAULTS = {
   hallTypes: ['short', 'spine', 'branching'],
   hallDoors: 'all',
   hallWidth: 1,
+  levels: 1,
+  levelStairs: 1,
   entrances: 1,
   edgeEntrancesOnly: true,
 };
@@ -59,6 +61,8 @@ const SETTINGS = {
   },
   hallDoors: { type: 'string', enum: ['none', 'less', 'more', 'all'], description: 'How many hallway openings into rooms have a door rather than an open archway (default "all").' },
   hallWidth: int(1, 10, 'How many squares across the generated hallways are (default 1). Wider hallways make a bigger dungeon. Hallways added later with edit_dungeon are always 1 wide.'),
+  levels: int(1, 20, 'How many floors the dungeon has (default 1). Every floor is built from the same settings and has the same size of map, and rooms are then numbered by level, such as 2-5 for room 5 of level 2. Level 1 is the top and has the entrances; the floors below are reached by stairs only. Dungeons of several levels cannot be changed with edit_dungeon yet.'),
+  levelStairs: int(1, 10, 'How many stairs join each floor to the one below it (default 1; only matters with more than one level). A stair is one square in a room, at the same place on both floors, and away from doors. Where the floors have no room for that many, there are fewer, and the answer says so.'),
   entrances: int(1, 10, 'How many ways in from outside (default 1).'),
   edgeEntrancesOnly: { type: 'boolean', description: 'Entrances only as doors in the outer walls (default true). If false, some may be stairs inside the dungeon.' },
   seed: { type: 'string', description: 'Any text or number. The same settings and seed always give the same dungeon. Leave out for a random one.' },
@@ -71,6 +75,7 @@ const LOOK = {
   labelPosition: { type: 'string', enum: ['inside', 'outside'], description: 'Room numbers on the rooms (default) or just outside their walls.' },
   showGrid: { type: 'boolean', description: 'Draw the 5 ft grid (default true).' },
   showRoomNumbers: { type: 'boolean', description: 'Draw the room numbers (default true).' },
+  level: int(1, 20, 'A dungeon of several levels: draw only this level (default: every level, one above the other).'),
   showCoordinates: { type: 'boolean', description: 'Number the squares along the top (x) and left (y) edges of the map, the same x and y that edit_dungeon takes (default false). Use it to read off where a door or hallway should go.' },
   colors: {
     type: 'object',
@@ -103,6 +108,10 @@ function readLook(args) {
   if (args.labelPosition !== undefined) {
     if (!['inside', 'outside'].includes(args.labelPosition)) throw new ToolError('"labelPosition" must be "inside" or "outside".');
     look.labelPosition = args.labelPosition;
+  }
+  if (args.level !== undefined) {
+    if (!Number.isInteger(args.level) || args.level < 1) throw new ToolError('"level" must be a whole number from 1.');
+    look.level = args.level;
   }
   for (const [from, to] of [['showGrid', 'showGrid'], ['showRoomNumbers', 'showLabels'], ['showCoordinates', 'showCoordinates']]) {
     if (args[from] === undefined) continue;
@@ -155,6 +164,7 @@ function createTools({ store = new Store() } = {}) {
     description:
       "Make a new dungeon map with Duckweed's Dungeon Drafter: rooms of several shapes on a 5 ft grid, joined by hallways and doors, with entrances from outside. " +
       'Every setting is optional (the defaults are the app\'s). The same settings and seed always give the same dungeon. ' +
+      'With levels above 1 it makes a dungeon of several floors joined by stairs (a stair is the same square on both floors it joins). ' +
       'Answers with a picture of the map and a room-by-room description using the numbers printed on the map, so the content you write for each room matches it. ' +
       'The dungeon is kept under an id (d1, d2, ...) for the other tools.',
     inputSchema: { type: 'object', properties: { ...SETTINGS, picture: PICTURE }, additionalProperties: false },
@@ -219,6 +229,7 @@ function createTools({ store = new Store() } = {}) {
       only(args, ['id', ...Object.keys(LOOK)], 'draw_map');
       const look = readLook(args);
       const item = store.get(args.id);
+      checkLevel(item.dungeon, look);
       return { text: `Map of dungeon ${item.id} (seed ${item.dungeon.seed}).`, png: renderPng(item.dungeon, look) };
     },
   });
@@ -276,6 +287,7 @@ function createTools({ store = new Store() } = {}) {
       if (args.edits.length > MAX_EDITS) throw new ToolError(`At most ${MAX_EDITS} edits at a time.`);
       const item = store.get(args.id);
       const d = item.dungeon;
+      if (dm().levelCount(d) > 1) throw new ToolError('This dungeon has several levels, and dungeons of several levels cannot be changed with edit_dungeon yet. Make a new one with generate_dungeon, or one level at a time.');
       const shift = { x: 0, y: 0 }; // how far the map has moved so far in this call
       const snap = { hallCells: d.halls.map((h) => h.cells[0]) }; // a square of each hallway, to find it again by its H number
       const report = [];
@@ -323,6 +335,7 @@ function createTools({ store = new Store() } = {}) {
       if (args.overwrite !== undefined && typeof args.overwrite !== 'boolean') throw new ToolError('"overwrite" must be true or false.');
       const look = readLook(args);
       const item = store.get(args.id);
+      checkLevel(item.dungeon, look);
       const files = store.save(item, { name: args.name, look, overwrite: args.overwrite === true });
       return { text: `Saved dungeon ${item.id}:\nPicture: ${files.png}\nData: ${files.json}\nOpen the data again later with open_dungeon.` };
     },
@@ -338,7 +351,8 @@ function createTools({ store = new Store() } = {}) {
       const lines = ['IN USE NOW'];
       for (const item of store.items.values()) {
         const d = item.dungeon;
-        lines.push(`- ${item.id}: seed ${d.seed}, ${d.rooms.length} rooms, ${d.width}×${d.height} squares${store.isEdited(item) ? ', edited' : ''}${item.file ? `, from/saved as ${item.file}` : ', not saved'}`);
+        const levels = load().levelCount(d);
+        lines.push(`- ${item.id}: seed ${d.seed}, ${levels > 1 ? `${levels} levels of ${d.rooms.length} rooms` : `${d.rooms.length} rooms`}, ${d.width}×${d.height} squares${store.isEdited(item) ? ', edited' : ''}${item.file ? `, from/saved as ${item.file}` : ', not saved'}`);
       }
       if (store.items.size === 0) lines.push('- none yet');
       lines.push('', `SAVED IN ${store.dir}`);
@@ -350,6 +364,12 @@ function createTools({ store = new Store() } = {}) {
   });
 
   return tools;
+}
+
+/** A level to draw has to be one the dungeon has. */
+function checkLevel(d, look) {
+  const n = load().levelCount(d);
+  if (look.level !== undefined && look.level > n) throw new ToolError(`This dungeon has ${n === 1 ? 'one level' : `${n} levels`}, so there is no level ${look.level}.`);
 }
 
 // ---- edits -----------------------------------------------------------------------------------------

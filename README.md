@@ -44,7 +44,9 @@ Duckweed's Aeldara is a printed-book look: parchment, ink, and two accents, wine
 | Room shapes | at least one on (default on the page: Rectangle and Chamfered) | Which shapes rooms may take: rectangle, chamfered, L, T, U, H, Z, plus. Switch each on or off; rooms pick at random among the ones that are on, and every shape that is on is used by at least one room (given rooms enough, and one big enough for it) |
 | Room spacing | Compact / Normal / Spread (default Compact) | In the Layout column. How far apart rooms are; see below. Compact rooms can share walls and rooms a hallway joins are at most 4 squares apart; Normal rooms are 1-6 apart and never touch; Spread rooms are 2-12 apart and never touch. Spines are the exception to the furthest gap: they keep their own, longer length |
 | Label position | Inside / Outside (default Inside) | Where room numbers are drawn: on the room's middle square, or just beyond one of its walls without overlapping any room (see below). A display option: it changes at once, without regenerating |
-| Entrances | 1-10 (default 1) | External entrances into the dungeon |
+| Levels | 1-20 (default 1) | In the Layout column. How many floors the dungeon has; see *Levels and stairs* below |
+| Stairs between levels | 1-10 (default 1) | In the Layout column. How many stairs join each floor to the one below it. Only matters with more than one level |
+| Entrances | 1-10 (default 1) | External entrances into the dungeon (on level 1 only, when there are several levels) |
 | Entrances on outer edge only | On / Off (default On) | On: every entrance is a door in the outer wall. Off: entrances can be in any room (see below) |
 | Connections | Hallways / Doorways | How most rooms are joined |
 | Connection randomization | 0-100 (default 14) | % chance that a connection uses the other type. 14 is about 1 in 7; 0 never mixes; 50 is an even mix; 100 flips every connection |
@@ -317,6 +319,31 @@ theme is about the viewer, not the dungeon, so a share link does not hold it and
   blocks storage (private windows, a local file in some browsers), the page works as before
   and nothing is remembered. Clearing the site's data forgets them.
 
+## Levels and stairs
+
+**Levels** above 1 makes a dungeon of several floors. Every floor is built from the same settings (room count,
+shapes, layout, hallways and so on) with its own random numbers, so each has the room count you asked for, and
+every floor is connected inside itself. Level 1 is the top and has the entrances from outside; the floors below
+are reached by stairs only.
+
+- Every floor has the same size of map (the largest floor's), and a floor may be slid within it so that its
+  stairs line up with the floor above.
+- A **stair** is one room square at the same (x, y) on the two floors it joins, away from doors, hallway
+  openings and entrances. **Stairs between levels** is how many join each pair of floors; they are spread
+  far apart, and each pair of floors chooses its own, so the stairs down from level 2 need not be where the
+  stairs down from level 1 land. If a floor has no room for that many stairs, the lower floor is rebuilt a few
+  times, then the dungeon settles for fewer stairs and a warning says so (small dungeons often do).
+- Rooms are numbered by level and number: room 5 of level 2 is **2-5**. Stairs are drawn as a stair symbol
+  with an arrow, down (↓) or up (↑), and a letter that is the same at both ends (↓A on the upper
+  floor, ↑A on the lower).
+- On the page, tabs above the map pick a level, and **All** shows every level side by side. Clicking a level
+  there opens it. Room names are per room, and the legend and key are per level. **Picture (PNG)** and
+  **Print** ask what to hold: all levels (a stacked picture, one printed page for each level) or only the
+  level on the map.
+- **Edit mode is for dungeons of one level for now**; it is not offered on several levels. The MCP server's
+  `edit_dungeon` likewise refuses them.
+- A share link holds `levels` and `lstairs` (stairs between levels), and rebuilds every floor from them.
+
 ## Share and export
 
 At the bottom of the Generate column. All of it is made in the page: nothing is uploaded.
@@ -394,11 +421,11 @@ the map, then writes the content for each room by the numbers printed on it.
 
 | Tool | What it does |
 | --- | --- |
-| `generate_dungeon` | Makes a dungeon from any of the page's settings (all optional, with the page's starting values) and a seed. Answers with the picture and a description of every room, door, hallway and entrance. |
+| `generate_dungeon` | Makes a dungeon from any of the page's settings (all optional, with the page's starting values) and a seed. Answers with the picture and a description of every room, door, hallway and entrance. `levels` (1-20) and `levelStairs` (1-10) make a dungeon of several floors: the description then lists the stairs, then each level in turn, with rooms named like `2-5`, and the picture shows every level one above the other. |
 | `open_dungeon` | Opens a dungeon saved as **Data (JSON)**, from the page or from `save_dungeon`. A bare file name is looked for in the maps folder. |
 | `describe_dungeon` | The description alone: each room by its number on the map, with its shape, size in feet and place on the map, its doors and what they lead to. |
 | `edit_dungeon` | A list of edits: change a door (door, locked, secret, no door), draw a hallway through some squares, delete a stretch of hallway. The rules are Edit mode's. |
-| `draw_map` | The picture alone, with the legend, grid, room numbers, number position and colors as chosen. |
+| `draw_map` | The picture alone, with the legend, grid, room numbers, number position and colors as chosen. For a dungeon of several levels, `level` draws just that one (the default is all, one above the other). |
 | `save_dungeon` | Writes the picture (`.png`) and the data (`.json`) to the maps folder. A name already used gets `-2`, `-3`, ... unless `overwrite` is set. |
 | `list_dungeons` | The dungeons in use, and the saved maps. |
 
@@ -412,7 +439,7 @@ Things to know:
   what stays. As with the page, a seed no longer gives the dungeon once it has been edited, so save the data.
 - If a hallway reaches past the top or left edge the map grows and every square's coordinates move; the
   answer says by how much, and hallways are numbered again (H1, H2, ...).
-- Entrance doors cannot be changed, as in Edit mode. Nothing is sent anywhere: the server runs on your
+- Dungeons of several levels cannot be changed with `edit_dungeon` yet. Entrance doors cannot be changed, as in Edit mode. Nothing is sent anywhere: the server runs on your
   computer and Claude only gets what the tools answer.
 
 `node tests/mcp.js` checks the tools, the protocol and the real process (after `npm install` in `mcp/`).
@@ -455,6 +482,15 @@ future export / editing features should build on:
   entrances:   [{ id, label, kind: 'door'|'stairs', room, x, y, d }],
   warnings, stats, seed, params }
 ```
+
+A dungeon of several levels (`params.levels` above 1) has all of that for level 1, as above, and in addition
+`levels` (the count), `floors` (the same kind of model for levels 2 to N: `rooms`, `halls`,
+`connections`, `entrances` (none), `stats`) and `stairs`:
+`[{ id, letter, x, y, upper, lower, upperRoom, lowerRoom }]`, a stair at square (x, y) between level `upper` and
+level `lower` (= `upper` + 1), in the room with that id on each. Every room has a `level` (from 1). The
+width and height are shared by all floors. `DM.levelCount(model)`, `DM.floorView(model, n)` (one floor as a
+model of its own, with its `stairs` and `level`), `DM.floorStairs(model, n)`, `DM.allRooms(model)` and
+`DM.roomTag(room)` (`"2-5"`) are the ways in. A dungeon of one level has none of these fields.
 
 `params.hallTypes` lists the hallway types that were on. `stats.hallTypeCounts` says how
 often each was used, `{ short, spine, curly, branching }`: a branch off an existing

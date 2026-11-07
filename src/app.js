@@ -5,7 +5,7 @@
   const DM = globalThis.DM;
   const $ = (id) => document.getElementById(id);
 
-  const FIELDS = ['roomCount', 'avgRoomSize', 'minRoomWidth', 'minRoomLength', 'sizeVariance', 'entrances', 'connectionRandomness', 'hallWidth'];
+  const FIELDS = ['roomCount', 'avgRoomSize', 'minRoomWidth', 'minRoomLength', 'sizeVariance', 'entrances', 'connectionRandomness', 'hallWidth', 'levels', 'levelStairs'];
   const renderer = new DM.DungeonRenderer($('map'));
   DM.renderer = renderer; // handy for poking around in the browser console
 
@@ -228,6 +228,21 @@
     updateRandomnessHint();
     updateSpacingHint();
     updateLayoutHint();
+    updateLevelsHint();
+  }
+
+  /** The Levels hint, and the stairs input, which only means something with more than one level. */
+  function updateLevelsHint() {
+    const n = whole('levels', 1, 20);
+    const stairs = whole('levelStairs', 1, 10);
+    const many = n === null || n > 1; // (a blank or bad number leaves the stairs input alone)
+    $('levelStairs').disabled = !many;
+    $('levelsHint').textContent = n === null ? '1–20 floors' : n === 1 ? 'One floor' : `${n} floors, each built from the same settings · level 1 has the entrances`;
+    $('levelStairsHint').textContent = !many
+      ? 'Needs more than one level'
+      : stairs === null
+        ? 'Stairs between each pair of floors, 1–10'
+        : `${stairs} ${stairs === 1 ? 'stair' : 'stairs'} between each pair of floors, in the same square on both`;
   }
 
   function updateRandomnessHint() {
@@ -265,15 +280,23 @@
 
   function showSummary(d, ms) {
     const s = d.stats;
+    const levels = DM.levelCount(d);
+    const floors = [d, ...(d.floors || [])]; // every floor's own figures
+    const total = (key) => floors.reduce((n, f) => n + f.stats[key], 0);
     const ftW = d.width * d.cellSizeFt;
     const ftH = d.height * d.cellSizeFt;
     const warnings = d.warnings.map((w) => `<p class="warn">${escapeHtml(w)}</p>`).join('');
+    const rooms = levels > 1 ? `${total('rooms')} (${s.rooms} on each level)` : s.rooms;
+    const mean = floors.reduce((n, f) => n + f.stats.meanRoomArea, 0) / floors.length;
+    const halls = total('hallConnections');
+    const multi = total('multiRoomHalls');
     $('summary').innerHTML =
       '<dl>' +
-      row('Rooms', s.rooms) +
-      row('Avg room size', `${s.meanRoomArea.toFixed(1)} sq`) +
-      row('Hallways', s.multiRoomHalls > 0 ? `${s.hallConnections} (${s.multiRoomHalls} serve 3+ rooms)` : s.hallConnections) +
-      row('Doorways', s.doorConnections) +
+      (levels > 1 ? row('Levels', levels) + row('Stairs', d.stairs.length) : '') +
+      row('Rooms', rooms) +
+      row('Avg room size', `${mean.toFixed(1)} sq`) +
+      row('Hallways', multi > 0 ? `${halls} (${multi} serve 3+ rooms)` : halls) +
+      row('Doorways', total('doorConnections')) +
       row('Entrances', s.stairsEntrances > 0 ? `${s.entrances} (${s.stairsEntrances} stairs)` : s.entrances) +
       row('Footprint', `${d.width}×${d.height} sq (${ftW}×${ftH} ft)`) +
       row('Seed', escapeHtml(d.seed)) +
@@ -332,6 +355,7 @@
     const n = renderer.doorCounts();
     $('legendLocked').hidden = n.locked === 0;
     $('legendSecret').hidden = n.secret === 0;
+    $('legendLevelStairs').hidden = !renderer.dungeon || (renderer.dungeon.stairs || []).length === 0;
   }
 
   // ---- room names ---------------------------------------------------------------------
@@ -344,7 +368,7 @@
   const namePanelOpen = () => !$('roomPanel').hidden;
 
   function updateRoomNamesCount() {
-    const rooms = DM.current ? DM.current.rooms : [];
+    const rooms = DM.current ? DM.allRooms(DM.current) : [];
     const n = rooms.filter((r) => r.name).length;
     $('roomNamesCount').textContent = rooms.length === 0 ? '' : n === 0 ? `${rooms.length} rooms, none named` : `${n} of ${rooms.length} rooms named`;
   }
@@ -362,20 +386,21 @@
       return;
     }
     const inputs = [];
-    for (const room of [...dungeon.rooms].sort((a, b) => a.label - b.label)) {
+    for (const room of [...DM.allRooms(dungeon)].sort((a, b) => (a.level || 1) - (b.level || 1) || a.label - b.label)) {
       const row = document.createElement('div');
       row.className = 'room-name-row';
       const label = document.createElement('label');
-      label.htmlFor = `roomName${room.id}`;
-      label.textContent = room.label;
+      const inputId = `roomName${room.level || 1}-${room.id}`;
+      label.htmlFor = inputId;
+      label.textContent = DM.roomTag(room);
       const input = document.createElement('input');
       input.type = 'text';
-      input.id = `roomName${room.id}`;
+      input.id = inputId;
       input.maxLength = MAX_ROOM_NAME;
       input.value = room.name || '';
       input.placeholder = 'Unnamed';
       input.autocomplete = 'off';
-      input.setAttribute('aria-label', `Name of room ${room.label}`);
+      input.setAttribute('aria-label', `Name of room ${DM.roomTag(room)}`);
       input.addEventListener('input', () => {
         const name = input.value.replace(/\s+/g, ' ').trim();
         if (name) room.name = name;
@@ -419,7 +444,7 @@
   });
   $('clearRoomNames').addEventListener('click', () => {
     if (!DM.current) return;
-    for (const room of DM.current.rooms) delete room.name;
+    for (const room of DM.allRooms(DM.current)) delete room.name;
     showRoomNames(DM.current);
   });
 
@@ -463,6 +488,93 @@
     showSummary(DM.current, builtMs);
   };
 
+  // ---- levels ---------------------------------------------------------------------------
+  // A dungeon of several levels has a row of buttons above the map, one for each floor and one for All. The map shows
+  // one floor at a time (DM.floorView); All puts a picture of every floor over the map, side by side. Editing the doors and
+  // hallways is for one floor at a time and is not offered yet.
+
+  let viewLevel = 1; // the level on the map (from 1), or 'all'
+  let shownDungeon = null; // the dungeon of several levels on the map, to tell a new one from another of its floors
+  const mapArea = document.querySelector('.map-area');
+
+  function levelButton(text, level, title) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = text;
+    b.title = title;
+    b.dataset.level = String(level);
+    b.setAttribute('aria-pressed', String(level === viewLevel));
+    b.addEventListener('click', () => {
+      viewLevel = level;
+      showFloor();
+    });
+    return b;
+  }
+
+  function buildLevelTabs(n) {
+    const bar = $('levelTabs');
+    bar.textContent = '';
+    for (let i = 1; i <= n; i++) bar.append(levelButton(n <= 6 ? `Level ${i}` : String(i), i, `Show level ${i}`));
+    const all = levelButton('All', 'all', 'Show every level side by side');
+    all.classList.add('level-tabs-all');
+    bar.append(all);
+  }
+
+  /** A small picture of every floor, in the all-levels view over the map. A click on one goes to that level. */
+  function buildGallery(d) {
+    const host = $('allLevels');
+    host.textContent = '';
+    for (let n = 1; n <= DM.levelCount(d); n++) {
+      const figure = document.createElement('figure');
+      const caption = document.createElement('figcaption');
+      caption.textContent = `Level ${n}`;
+      const canvas = renderer.imageOf(DM.floorView(d, n), { legend: false, size: 1100 });
+      if (!canvas) continue;
+      canvas.title = `Show level ${n}`;
+      canvas.addEventListener('click', () => {
+        viewLevel = n;
+        showFloor();
+      });
+      figure.append(caption, canvas);
+      host.append(figure);
+    }
+  }
+
+  /** The all-levels pictures are drawn in the colors and numbering as they were: draw them again when those change. */
+  function redrawGallery() {
+    if (DM.current && viewLevel === 'all' && DM.levelCount(DM.current) > 1) buildGallery(DM.current);
+  }
+
+  /** Show the dungeon (DM.current) on the map: the level in viewLevel, or all of them. */
+  function showFloor() {
+    const d = DM.current;
+    if (!d) return;
+    const n = DM.levelCount(d);
+    if (n === 1 || (viewLevel !== 'all' && viewLevel > n)) viewLevel = 1;
+    const multi = n > 1;
+    const all = multi && viewLevel === 'all';
+    $('levelTabs').hidden = !multi;
+    if (multi) buildLevelTabs(n);
+    $('exportScope').hidden = !multi;
+    $('editMode').hidden = multi;
+    if (multi && $('editMode').getAttribute('aria-pressed') === 'true') setEditMode(false);
+    mapArea.classList.toggle('showing-all', all);
+    $('allLevels').hidden = !all;
+    if (all) buildGallery(d);
+    else $('allLevels').textContent = '';
+    if (!multi) renderer.setDungeon(d);
+    else {
+      // every floor is shown in the view that fits level 1 (its entrances stick out of the map), so that a stair is in the
+      // same place on screen on both of the floors it joins; the view is only fitted when a new dungeon comes
+      const fresh = shownDungeon !== d;
+      if (fresh) renderer.setDungeon(DM.floorView(d, 1));
+      const level = all ? 1 : viewLevel;
+      if (!fresh || level !== 1) renderer.setDungeon(DM.floorView(d, level), { keepView: true });
+    }
+    shownDungeon = multi ? d : null;
+    updateDoorLegend();
+  }
+
   /**
    * Build and show a dungeon from the current form values.
    * With randomSeed, the seed field is ignored and a fresh random seed is used instead;
@@ -496,8 +608,7 @@
         DM.current = dungeon;
         editsAsBuilt = DM.editState(dungeon);
         builtMs = ms;
-        renderer.setDungeon(dungeon);
-        updateDoorLegend();
+        showFloor();
         showSummary(dungeon, ms);
         if (namePanelOpen()) showRoomNames(dungeon);
         setExportStatus('');
@@ -521,7 +632,7 @@
     ifEditsDiscarded(() => generate({ fillSeed: true }));
   });
   $('generateRandom').addEventListener('click', () => ifEditsDiscarded(() => generate({ randomSeed: true })));
-  for (const f of ['avgRoomSize', 'minRoomWidth', 'minRoomLength', 'sizeVariance', 'connectionRandomness']) $(f).addEventListener('input', updateHints);
+  for (const f of ['avgRoomSize', 'minRoomWidth', 'minRoomLength', 'sizeVariance', 'connectionRandomness', 'levels', 'levelStairs']) $(f).addEventListener('input', updateHints);
   for (const radio of document.querySelectorAll('input[name="connectionType"]')) {
     radio.addEventListener('change', updateRandomnessHint);
   }
@@ -554,6 +665,7 @@
     const choice = document.querySelector('input[name="labelPosition"]:checked').value;
     $('labelPositionHint').textContent = LABEL_HINTS[choice];
     renderer.setOption('labelPosition', choice);
+    redrawGallery();
   }
   for (const radio of document.querySelectorAll('input[name="labelPosition"]')) radio.addEventListener('change', updateLabelPosition);
 
@@ -580,6 +692,7 @@
   function applyColors() {
     const theme = DM.themeFrom(colors);
     renderer.setTheme(theme);
+    redrawGallery();
     // the legend and the page behind the map follow along through CSS variables
     for (const [name, value] of Object.entries(DM.themeCssVars(theme))) document.documentElement.style.setProperty(name, value);
   }
@@ -675,6 +788,7 @@
   for (const id of ['showGrid', 'showLabels']) {
     $(id).addEventListener('change', (e) => {
       renderer.setOption(id, e.target.checked);
+      redrawGallery();
       showSwitchState(id);
     });
   }
@@ -720,11 +834,53 @@
 
   const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+  /** The levels the picture and the printout cover: the one level, or (of several) the one on the map or all of them. */
+  function levelsToDraw() {
+    const n = DM.levelCount(DM.current);
+    if (n === 1) return [1];
+    if (viewLevel !== 'all' && radioValue('exportScope') === 'this') return [viewLevel];
+    return Array.from({ length: n }, (_, i) => i + 1);
+  }
+
+  function levelCaption(n) {
+    const d = DM.current;
+    const levels = DM.levelCount(d);
+    return levels === 1 ? DM.exportCaption(d) : `Level ${n} of ${levels} · ${DM.exportCaption(DM.floorView(d, n))}`;
+  }
+
+  /** A picture of the whole of each level asked for (not just what is on screen), a canvas each; `size` is the longer side, in px. */
+  function pictureCanvases(size) {
+    const d = DM.current;
+    if (!d) return [];
+    const legend = $('exportLegend').checked;
+    return levelsToDraw().map((n) => renderer.imageOf(DM.floorView(d, n), { legend, caption: levelCaption(n), size }));
+  }
+
+  /** The pictures one above the other, in one canvas (one picture of a dungeon of several levels). */
+  function stackCanvases(list) {
+    if (list.length === 1) return list[0];
+    const gap = 40;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(...list.map((c) => c.width));
+    canvas.height = list.reduce((h, c) => h + c.height, 0) + gap * (list.length - 1);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = renderer.theme.background;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    let y = 0;
+    for (const c of list) {
+      ctx.drawImage(c, Math.floor((canvas.width - c.width) / 2), y);
+      y += c.height + gap;
+    }
+    return canvas;
+  }
+
   /** The picture of the whole map (not just what is on screen) as a PNG, or null if the browser cannot make it. */
   function pictureCanvas() {
-    const d = DM.current;
-    if (!d) return null;
-    return renderer.exportImage({ legend: $('exportLegend').checked, caption: DM.exportCaption(d) });
+    if (!DM.current) return null;
+    const n = levelsToDraw().length;
+    // (the more levels in one picture, the smaller each, so that the picture stays a size a browser can make)
+    const list = pictureCanvases(n === 1 ? 3920 : Math.max(500, Math.min(3920, Math.floor(14000 / n) - 300)));
+    return list.length === 0 || list.some((c) => !c) ? null : stackCanvases(list);
   }
 
   function pictureBlob() {
@@ -742,7 +898,9 @@
     await pause(30); // let that show before the picture is drawn
     const blob = await pictureBlob();
     if (!blob) return setExportStatus(NO_PICTURE);
-    const name = DM.exportFileName(DM.current, 'png');
+    let name = DM.exportFileName(DM.current, 'png');
+    const drawn = levelsToDraw();
+    if (DM.levelCount(DM.current) > 1 && drawn.length === 1) name = name.replace(/\.png$/, `-level${drawn[0]}.png`);
     download(blob, name);
     setExportStatus(`Saved ${name}`);
   }
@@ -788,27 +946,50 @@
 
   // Print: the whole map is drawn into a picture, which is the only thing on the printed page
   // (see @media print). The picture is made when asked for, and dropped once printing is done.
-  let printUrl = null;
+  let printUrls = [];
+
+  /** The pictures on the printed pages: #printImage, and one more after it for each further level. */
+  function printImages() {
+    return [$('printImage'), ...document.querySelectorAll('.print-extra')];
+  }
 
   function clearPrintImage() {
-    const img = $('printImage');
-    img.removeAttribute('src');
-    if (printUrl) URL.revokeObjectURL(printUrl);
-    printUrl = null;
+    for (const img of printImages()) {
+      img.removeAttribute('src');
+      if (img.classList.contains('print-extra')) img.remove();
+    }
+    for (const url of printUrls) URL.revokeObjectURL(url);
+    printUrls = [];
+  }
+
+  /** Put one picture (a URL) in the printed pages for each level: the first in #printImage, the others after it. */
+  function setPrintImages(urls) {
+    let after = $('printImage');
+    urls.forEach((url, i) => {
+      let img = $('printImage');
+      if (i > 0) {
+        img = document.createElement('img');
+        img.className = 'print-extra';
+        img.alt = 'The dungeon map, for printing';
+        after.after(img);
+      }
+      img.src = url;
+      after = img;
+    });
   }
 
   async function printMap() {
     if (!DM.current) return setExportStatus(NO_DUNGEON);
     setExportStatus('Getting the page ready…');
     await pause(30);
-    const blob = await pictureBlob();
-    if (!blob) return setExportStatus(NO_PICTURE);
+    const list = pictureCanvases(levelsToDraw().length === 1 ? 3920 : 2400);
+    const blobs = list.length === 0 || list.some((c) => !c) ? [] : await Promise.all(list.map((c) => new Promise((resolve) => c.toBlob(resolve, 'image/png'))));
+    if (blobs.length === 0 || blobs.some((b) => !b)) return setExportStatus(NO_PICTURE);
     clearPrintImage();
-    printUrl = URL.createObjectURL(blob);
-    const img = $('printImage');
-    img.src = printUrl;
+    printUrls = blobs.map((b) => URL.createObjectURL(b));
+    setPrintImages(printUrls);
     try {
-      await img.decode(); // printing before the picture is ready would give a blank page
+      await Promise.all(printImages().map((img) => img.decode())); // printing before the pictures are ready would give blank pages
     } catch (err) {
       clearPrintImage();
       return setExportStatus(NO_PICTURE);
@@ -817,11 +998,11 @@
     window.print();
   }
 
-  // Ctrl+P and the browser's own Print menu skip the button: make the picture right then
+  // Ctrl+P and the browser's own Print menu skip the button: make the pictures right then
   window.addEventListener('beforeprint', () => {
-    if (!$('printImage').getAttribute('src')) {
-      const canvas = pictureCanvas();
-      if (canvas) $('printImage').src = canvas.toDataURL('image/png');
+    if (!$('printImage').getAttribute('src') && DM.current) {
+      const list = pictureCanvases(levelsToDraw().length === 1 ? 3920 : 2400);
+      if (list.length > 0 && list.every((c) => c)) setPrintImages(list.map((c) => c.toDataURL('image/png')));
     }
   });
   window.addEventListener('afterprint', clearPrintImage);

@@ -230,7 +230,7 @@ function checkDungeon(dun, ctx) {
   }
   const want = dun.params.entrances;
   if (dun.entrances.length !== want && dun.warnings.length === 0) fail(ctx, `entrances ${dun.entrances.length}/${want} without a warning`);
-  if (dun.entrances.length === 0) fail(ctx, 'no entrances');
+  if (dun.entrances.length === 0 && !(dun.level > 1)) fail(ctx, 'no entrances'); // (a floor below the first has none: its stairs are the way in)
   const seenEdges = new Set();
   const stairCells = new Set();
   const doorCells = new Set(); // both cells of every doorway / hallway opening
@@ -950,6 +950,7 @@ console.log('== share and export');
     { roomCount: 40, avgRoomSize: 9, minRoomWidth: 2, minRoomLength: 3, sizeVariance: 80, entrances: 5, connectionType: 'door', connectionRandomness: 37, roomShapes: ['rect', 'L'], hallTypes: ['spine'], hallDoors: 'all', spacing: 'spaced', edgeEntrancesOnly: false, seed: 'a b/c#d&e=f%g é 日本' },
     { roomCount: 1, avgRoomSize: 1, sizeVariance: 0, entrances: 10, connectionType: 'door', edgeEntrancesOnly: false, seed: '0' },
     { roomCount: 99, avgRoomSize: 999, sizeVariance: 100, entrances: 10, connectionType: 'door', connectionRandomness: 0, hallTypes: [], seed: 'big' },
+    { roomCount: 10, avgRoomSize: 20, sizeVariance: 30, entrances: 1, levels: 4, levelStairs: 3, connectionType: 'hall', seed: 'deep' },
   ];
   let longest = 0;
   for (const [i, p] of samples.entries()) {
@@ -1751,6 +1752,99 @@ console.log('== overall layout');
     if (!dun.stats.shapeCounts.chamfer) fail('layout', 'gauntlet with Chamfered on has no chamfered room');
   }
 
+  // several levels: floors in one box, joined by stairs that are in the same square (a room square, away from doors) on both floors
+  {
+    const lvBase = { ...base, roomCount: 10 };
+    let made = 0;
+    for (const [levels, stairs] of [[2, 1], [3, 1], [4, 3], [6, 2], [3, 10]]) {
+      for (const layout of ['random', 'gauntlet', 'ring', 'radial', 'cathedral']) {
+        for (let s = 0; s < 3; s++) {
+          const ctx = `levels ${levels}x${stairs} ${layout} ${s}`;
+          const seedText = `lv-${levels}-${stairs}-${layout}-${s}`;
+          const dun = DM.generateDungeon({ ...lvBase, layout, levels, levelStairs: stairs, seed: seedText });
+          made++;
+          if (DM.levelCount(dun) !== levels || dun.floors.length !== levels - 1) fail('levels', `${ctx}: the floors are not all there`);
+          const views = [];
+          for (let n = 1; n <= levels; n++) views.push(DM.floorView(dun, n));
+          // each floor on its own is a dungeon: rooms, hallways, doors; only the first has entrances
+          views.forEach((v, n) => {
+            if (v.width !== dun.width || v.height !== dun.height) fail('levels', `${ctx}: level ${n + 1} is not in the one box`);
+            if (v.rooms.length !== lvBase.roomCount) fail('levels', `${ctx}: level ${n + 1} has ${v.rooms.length} rooms`);
+            if ((n === 0) !== (v.entrances.length > 0)) fail('levels', `${ctx}: level ${n + 1} has ${v.entrances.length} entrances`);
+            if (v.rooms.some((r) => r.level !== n + 1)) fail('levels', `${ctx}: a room on level ${n + 1} is not marked with its level`);
+            checkDungeon({ ...v, params: { ...v.params, entrances: v.entrances.length } }, `${ctx} level ${n + 1}`);
+          });
+          // every stair: a room square on both floors, at the same place, clear of doors, hallway openings and entrances
+          const owner = views.map((v) => {
+            const m = new Map();
+            for (const r of v.rooms) for (const [x, y] of r.cells) m.set(`${x},${y}`, r.id);
+            return m;
+          });
+          const near = views.map((v) => {
+            const set = new Set();
+            const add = (x, y) => {
+              for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) set.add(`${x + i},${y + j}`);
+            };
+            for (const c of v.connections) {
+              for (const o of c.openings) {
+                add(o.x, o.y);
+                add(o.x + DX[o.d], o.y + DY[o.d]);
+              }
+            }
+            for (const e of v.entrances) {
+              add(e.x, e.y);
+              add(e.x + DX[e.d], e.y + DY[e.d]);
+            }
+            return set;
+          });
+          const seen = new Set();
+          const perPair = {};
+          for (const st of dun.stairs) {
+            const key = `${st.x},${st.y}`;
+            if (st.lower !== st.upper + 1 || st.upper < 1 || st.lower > levels) fail('levels', `${ctx}: stair ${st.letter} joins levels ${st.upper} and ${st.lower}`);
+            if (owner[st.upper - 1].get(key) !== st.upperRoom) fail('levels', `${ctx}: stair ${st.letter} is not in room ${st.upperRoom} of level ${st.upper}`);
+            if (owner[st.lower - 1].get(key) !== st.lowerRoom) fail('levels', `${ctx}: stair ${st.letter} is not in room ${st.lowerRoom} of level ${st.lower}`);
+            if (near[st.upper - 1].has(key) || near[st.lower - 1].has(key)) fail('levels', `${ctx}: stair ${st.letter} is by a door or an entrance`);
+            if (seen.has(`${st.upper}:${key}`) || seen.has(`${st.lower}:${key}`)) fail('levels', `${ctx}: two stairs share a square on a level`);
+            seen.add(`${st.upper}:${key}`);
+            seen.add(`${st.lower}:${key}`);
+            perPair[st.upper] = (perPair[st.upper] || 0) + 1;
+          }
+          if (new Set(dun.stairs.map((st) => st.letter)).size !== dun.stairs.length) fail('levels', `${ctx}: stair letters repeat`);
+          for (let n = 1; n < levels; n++) {
+            if (!perPair[n]) fail('levels', `${ctx}: no stair between level ${n} and level ${n + 1}`);
+            else if (perPair[n] < stairs && !dun.warnings.some((w) => w.includes(`Levels ${n} and ${n + 1} could only get`))) fail('levels', `${ctx}: ${perPair[n]} of ${stairs} stairs between level ${n} and level ${n + 1}, with no warning`);
+          }
+          // a floor's stairs as the page will draw them
+          for (let n = 1; n <= levels; n++) {
+            const list = DM.floorStairs(dun, n);
+            const down = list.filter((x) => x.dir === 'down').length;
+            const up = list.filter((x) => x.dir === 'up').length;
+            if (down !== (perPair[n] || 0) || up !== (perPair[n - 1] || 0)) fail('levels', `${ctx}: level ${n} lists ${down} down and ${up} up stairs`);
+          }
+          // the same seed, the same dungeon; the first floor is the dungeon a single level would be (but in the box)
+          if (s === 0) {
+            const again = DM.generateDungeon({ ...lvBase, layout, levels, levelStairs: stairs, seed: seedText });
+            if (JSON.stringify(again) !== JSON.stringify(dun)) fail('levels', `${ctx}: the same seed gave another dungeon`);
+            const alone = DM.generateDungeon({ ...lvBase, layout, seed: seedText });
+            const strip = (rooms) => JSON.stringify(rooms.map((r) => ({ ...r, level: undefined })));
+            if (strip(alone.rooms) !== strip(dun.rooms)) fail('levels', `${ctx}: level 1 is not the dungeon of one level`);
+          }
+        }
+      }
+    }
+    console.log(`  levels: ${made} dungeons of 2-6 levels made`);
+    // one level is the dungeon as it always was
+    const single = DM.generateDungeon({ ...base, seed: 'one-level' });
+    if (single.levels !== undefined || single.floors !== undefined || single.stairs !== undefined || DM.levelCount(single) !== 1 || DM.floorView(single, 1) !== single) fail('levels', 'a dungeon of one level has level fields');
+    for (const bad of [0, 21, 1.5, 'x']) if (DM.validateParams({ ...base, levels: bad }).ok) fail('levels', `${bad} levels was accepted`);
+    for (const bad of [0, 11, 2.5]) if (DM.validateParams({ ...base, levelStairs: bad }).ok) fail('levels', `${bad} stairs was accepted`);
+    if (DM.stairLetter(0) !== 'A' || DM.stairLetter(25) !== 'Z' || DM.stairLetter(26) !== 'AA' || DM.stairLetter(27) !== 'AB' || DM.stairLetter(701) !== 'ZZ' || DM.stairLetter(702) !== 'AAA') fail('levels', 'stair letters are not A..Z, AA, ..');
+    // twenty floors
+    const deep = DM.generateDungeon({ ...base, roomCount: 8, levels: 20, levelStairs: 2, seed: 'deep' });
+    if (DM.levelCount(deep) !== 20 || deep.stairs.length < 19) fail('levels', 'twenty levels did not all get stairs');
+  }
+
   // the shapes themselves (layout.js on its own): the start is inside, far away is not, and each is the shape it says
   let n = 0.3;
   const info = { rooms: 12, area: 360, side: 5.5, gap: 2, spacing: 'compact', random: () => (n = (n * 9301 + 0.49297) % 1) };
@@ -1875,7 +1969,7 @@ console.log('== page layout');
     return col;
   };
   const expected = {
-    layout: ['name="layout"', 'name="spacing"', 'id="entrances"', 'id="edgeEntrancesOnly"'],
+    layout: ['name="layout"', 'name="spacing"', 'id="levels"', 'id="levelStairs"', 'id="entrances"', 'id="edgeEntrancesOnly"'],
     rooms: ['id="roomCount"', 'id="avgRoomSize"', 'id="minRoomWidth"', 'id="minRoomLength"', 'id="sizeVariance"', 'name="roomShape"'],
     hallways: ['name="connectionType"', 'id="connectionRandomness"', 'name="hallType"', 'id="hallWidth"', 'name="hallDoors"'],
     generate: ['id="seed"', 'id="generate"', 'id="generateRandom"', 'id="summary"'],

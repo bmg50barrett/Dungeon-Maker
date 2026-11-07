@@ -212,6 +212,54 @@ console.log('== generate and describe');
 }
 
 // ---------------------------------------------------------------------------------------------------
+console.log('== levels');
+{
+  const { tools, store, dir, done } = freshTools();
+  const out = tools.generate_dungeon.run({ seed: 'lv', roomCount: 8, levels: 3, levelStairs: 2, picture: false });
+  const d = store.get('d1').dungeon;
+  if (DM.levelCount(d) !== 3 || d.stairs.length === 0) fail('levels', 'generate_dungeon with levels: 3 did not make a dungeon of three levels with stairs');
+  if (!/3 levels of 8 rooms each/.test(out.text) || !/STAIRS/.test(out.text)) fail('levels', 'the description does not say it has three levels and list the stairs');
+  for (let n = 1; n <= 3; n++) if (!out.text.includes(`==== LEVEL ${n} of 3 ====`)) fail('levels', `no section for level ${n}`);
+  for (const r of DM.allRooms(d)) if (!out.text.includes(`Room ${r.level}-${r.label}:`)) fail('levels', `no line for room ${r.level}-${r.label}`);
+  for (const s of d.stairs) if (!out.text.includes(`${s.letter}: at (${s.x},${s.y})`)) fail('levels', `stair ${s.letter} is not listed`);
+
+  // the picture: every level one above the other, or one level on its own
+  const all = tools.draw_map.run({}).png;
+  const one = tools.draw_map.run({ level: 2 }).png;
+  if (!isPng(all) || !isPng(one)) fail('levels', 'draw_map did not make PNG files for a dungeon of several levels');
+  if (pngSize(all).h <= pngSize(one).h) fail('levels', 'the picture of all three levels should be taller than that of one');
+  if (one.equals(tools.draw_map.run({ level: 1 }).png)) fail('levels', 'levels 1 and 2 are drawn the same');
+  for (const [args, re] of [[{ level: 4 }, /no level 4/], [{ level: 0 }, /1 and 20|whole number|at least|from 1/i]]) {
+    const err = toolError(() => tools.draw_map.run(args));
+    if (!err || !re.test(err.message)) fail('levels', `draw_map ${JSON.stringify(args)} should fail mentioning ${re}: ${err && err.message}`);
+  }
+  // one level asked for in a dungeon of one level is also an error, and the setting is checked on generate
+  tools.generate_dungeon.run({ seed: 'flat', picture: false });
+  if (!toolError(() => tools.draw_map.run({ id: 'd2', level: 2 }))) fail('levels', 'level 2 of a dungeon of one level was drawn');
+  const bad = (a) => toolError(() => tools.generate_dungeon.run({ picture: false, ...a }));
+  if (!bad({ levels: 0 }) || !bad({ levels: 21 }) || !bad({ levelStairs: 0 }) || !bad({ levelStairs: 11 }) || !bad({ levels: 2.5 })) fail('levels', 'levels outside 1 to 20 or stairs outside 1 to 10 were accepted');
+
+  // edits are for one level only, for now
+  const err = toolError(() => tools.edit_dungeon.run({ id: 'd1', edits: [{ type: 'door', x: 0, y: 0, side: 'N', state: 'open' }], picture: false }));
+  if (!err || !/several levels/.test(err.message)) fail('levels', `edit_dungeon on a dungeon of several levels: ${err && err.message}`);
+
+  // listed, saved, opened again: the same dungeon with all its levels
+  if (!/3 levels of 8 rooms/.test(tools.list_dungeons.run({}).text)) fail('levels', 'list_dungeons does not say how many levels');
+  const saved = tools.save_dungeon.run({ name: 'Deep' }).text;
+  const jsonFile = /Data: (.*)/.exec(saved)[1];
+  const reopened = tools.open_dungeon.run({ path: jsonFile, picture: false });
+  if (JSON.stringify(store.get('d3').dungeon) !== JSON.stringify(d)) fail('levels', 'a saved dungeon of several levels did not come back the same');
+  if (!/3 levels of 8 rooms each/.test(reopened.text)) fail('levels', 'a reopened dungeon of several levels is described differently');
+  // a data file with the levels damaged is refused
+  const damaged = JSON.parse(fs.readFileSync(jsonFile, 'utf8'));
+  damaged.floors.pop();
+  fs.writeFileSync(path.join(dir, 'damaged.json'), JSON.stringify(damaged));
+  if (!toolError(() => tools.open_dungeon.run({ path: 'damaged.json', picture: false }))) fail('levels', 'a dungeon with a floor missing was opened');
+  done();
+  console.log('  done');
+}
+
+// ---------------------------------------------------------------------------------------------------
 console.log('== editing doors');
 {
   const { tools, store, done } = freshTools();

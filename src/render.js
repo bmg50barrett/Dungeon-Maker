@@ -66,10 +66,15 @@
 
     // ---- public API ---------------------------------------------------------
 
-    setDungeon(dungeon) {
+    /**
+     * Show a dungeon, fitted in the view. With keepView the view stays as it is instead: for another floor of the same
+     * dungeon, so that a square stays in the same place on screen from one level to the next (stairs line up).
+     */
+    setDungeon(dungeon, { keepView = false } = {}) {
       this.dungeon = dungeon;
       this.model = dungeon ? this._buildModel(dungeon) : null;
-      this.fit();
+      if (keepView && dungeon) this.requestDraw();
+      else this.fit();
     }
 
     /** Turn edit mode on or off. What a click or a drag does while it is on depends on the tool (setEditTool). */
@@ -524,6 +529,8 @@
         markOpen(e);
         doors.push({ x: e.x, y: e.y, d: e.d, entrance: true });
       }
+      // the stairs to the floor above or below (a dungeon of several levels), named by their letters: a down arrow or an up arrow
+      for (const st of d.stairs || []) stairs.push({ x: st.x, y: st.y, d: 0, label: `${st.dir === 'down' ? '\u2193' : '\u2191'}${st.letter}`, level: true });
 
       // wall edges: any floor edge whose other side is a different region, unless it is open
       const wall = { h: new Uint8Array((h + 1) * w), v: new Uint8Array(h * (w + 1)) };
@@ -591,7 +598,7 @@
       }
 
       const labels = d.rooms.map((r) => ({
-        text: String(r.label),
+        text: DM.roomTag(r),
         x: r.labelCell[0] + 0.5,
         y: r.labelCell[1] + 0.5,
         size: DM.labelSize(r), // height of the number, in cells
@@ -1096,7 +1103,7 @@
      * canvas made for printing or sharing. With `legend`, a strip under the map gives `caption`,
      * a scale bar and a key to the colors. Returns the canvas, or null if there is no dungeon yet.
      */
-    exportImage({ legend = true, caption = '' } = {}) {
+    exportImage({ legend = true, caption = '', size = 3920 } = {}) {
       if (!this.dungeon || !this.model) return null;
       const MARGIN = 40; // px of paper round the map
       const MIN_WIDTH = 900; // so the strip under the map always has room for its details
@@ -1104,7 +1111,7 @@
       let s = 24;
       for (let i = 0; i < 3; i++) {
         const b = this._bounds(s);
-        s = Math.max(8, Math.min(48, Math.floor(3920 / Math.max(b.x1 - b.x0, b.y1 - b.y0))));
+        s = Math.max(8, Math.min(48, Math.floor(size / Math.max(b.x1 - b.x0, b.y1 - b.y0))));
       }
       const b = this._bounds(s);
       const ui = Math.max(1, s / 24); // text and thin lines grow with the picture
@@ -1141,6 +1148,20 @@
       return canvas;
     }
 
+    /** The picture (see exportImage) of another dungeon than the one on show, such as one floor of several; the view is not touched. */
+    imageOf(dungeon, options) {
+      if (dungeon === this.dungeon) return this.exportImage(options);
+      const saved = { dungeon: this.dungeon, model: this.model };
+      try {
+        this.dungeon = dungeon;
+        this.model = this._buildModel(dungeon);
+        return this.exportImage(options);
+      } finally {
+        this.dungeon = saved.dungeon;
+        this.model = saved.model;
+      }
+    }
+
     /**
      * Lay out the strip under an exported map: a line of details with a scale bar at its right,
      * then a key to what the colors mean (only the things this dungeon has).
@@ -1160,6 +1181,7 @@
       if (this.model.secrets.length > 0) items.push({ kind: 'secret', text: 'Secret door' });
       if (d.entrances.some((e) => e.kind !== 'stairs')) items.push({ kind: 'entrance', text: 'Entrance' });
       if (d.entrances.some((e) => e.kind === 'stairs')) items.push({ kind: 'stairs', text: 'Stairs entrance' });
+      if ((d.stairs || []).length > 0) items.push({ kind: 'stairs', text: 'Stairs to another level (\u2193 down, \u2191 up)' });
 
       const swW = 26 * ui;
       const swH = 16 * ui;
@@ -1190,7 +1212,7 @@
         while (t.length > 1 && scratch.measureText(`${t}…`).width > maxText) t = t.slice(0, -1);
         return `${t}…`;
       };
-      const entries = named.map((r) => fit(`${r.label} - ${r.name.trim()}`));
+      const entries = named.map((r) => fit(`${DM.roomTag(r)} - ${r.name.trim()}`));
       const colGap = 36 * ui;
       const colW = entries.reduce((m, t) => Math.max(m, scratch.measureText(t).width), 0);
       const cols = Math.max(1, Math.min(entries.length, Math.floor((maxText + colGap) / (colW + colGap))));

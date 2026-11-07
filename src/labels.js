@@ -13,9 +13,18 @@
   /** Height of every room's number, in cells (the text's size, not the height of the digits, which is a little less). */
   const LABEL_SIZE = 1.25;
 
-  /** Height of a room's number, in cells. The same for every room, whatever its size or shape. */
-  function labelSize() {
-    return LABEL_SIZE;
+  /** What is written on a room: its number, with its level in front on a dungeon of several levels ("2-5"). */
+  function roomTag(room) {
+    return room.level ? `${room.level}-${room.label}` : String(room.label);
+  }
+
+  /**
+   * Height of a room's number, in cells. The same for every room, whatever its size or shape, except that a longer tag
+   * ("12-5", with its level) is written smaller, so that it still fits a small room.
+   */
+  function labelSize(room) {
+    const len = room && room.label !== undefined ? roomTag(room).length : 1;
+    return len <= 2 ? LABEL_SIZE : LABEL_SIZE * Math.max(0.6, 2.2 / len);
   }
 
   /*
@@ -79,7 +88,7 @@
     for (const room of dungeon.rooms) {
       const size = labelSize(room);
       const bh = size;
-      const bw = measure(String(room.label), size) + 0.15 * size;
+      const bw = measure(roomTag(room), size) + 0.15 * size;
       let rx = 0;
       let ry = 0;
       for (const [x, y] of room.cells) {
@@ -159,5 +168,6 @@
   DM.LABEL_POSITIONS = ['inside', 'outside'];
   DM.LABEL_SIZE = LABEL_SIZE;
   DM.labelSize = labelSize;
+  DM.roomTag = roomTag;
   DM.placeOutsideLabels = placeOutsideLabels;
 })();

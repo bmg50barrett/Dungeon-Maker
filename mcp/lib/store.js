@@ -41,6 +41,17 @@ function whatIsWrong(d) {
       if (!o || !isInt(o.x) || !isInt(o.y) || ![0, 1, 2, 3].includes(o.d) || !roomIds.has(o.room) || typeof o.style !== 'string') return `connection ${i} has a door that is not in the usual form`;
     }
   }
+  // a dungeon of several levels: the floors below the first, and the stairs between them
+  if (d.levels !== undefined) {
+    if (!isInt(d.levels) || d.levels < 2 || d.levels > 20) return 'it has a number of levels that is not from 2 to 20';
+    if (!Array.isArray(d.floors) || d.floors.length !== d.levels - 1) return 'it does not have a floor for each level';
+    for (const [i, f] of d.floors.entries()) {
+      for (const key of ['rooms', 'halls', 'connections', 'entrances']) if (!Array.isArray(f[key])) return `level ${i + 2} has no "${key}" list`;
+      if (f.rooms.some((r, n) => !r || r.id !== n || !Array.isArray(r.cells) || !isInt(r.label))) return `a room on level ${i + 2} is not in the usual form`;
+    }
+    const ok = (n) => isInt(n) && n >= 1 && n < d.levels;
+    if (!Array.isArray(d.stairs) || d.stairs.some((s) => !s || !isInt(s.x) || !isInt(s.y) || !ok(s.upper) || s.lower !== s.upper + 1 || !isInt(s.upperRoom) || !isInt(s.lowerRoom))) return 'its stairs are not in the usual form';
+  }
   for (const e of d.entrances) {
     if (!e || !isInt(e.x) || !isInt(e.y) || ![0, 1, 2, 3].includes(e.d) || !roomIds.has(e.room)) return 'an entrance is not in the usual form';
   }

@@ -47,6 +47,9 @@
     connectionRandomness: [0, 100],
     // how wide the hallways the generator builds are, in squares (1 when not given)
     hallWidth: [1, 10],
+    // how many floors the dungeon has (1 when not given), and how many stairs join each floor to the one below it (1 when not given)
+    levels: [1, 20],
+    levelStairs: [1, 10],
   };
 
   /** Used when a caller does not supply connectionRandomness: 14% is the nearest whole percent to 1 in 7. */
@@ -209,12 +212,14 @@
       entrances: 'Entrances',
       connectionRandomness: 'Connection randomization',
       hallWidth: 'Hallway width',
+      levels: 'Levels',
+      levelStairs: 'Stairs between levels',
     };
     for (const key of Object.keys(LIMITS)) {
       const [lo, hi] = LIMITS[key];
       let v = raw[key];
       if (key === 'connectionRandomness' && (v === undefined || v === null)) v = DEFAULT_CONNECTION_RANDOMNESS;
-      if ((key === 'minRoomWidth' || key === 'minRoomLength' || key === 'hallWidth') && (v === undefined || v === null)) v = 1; // no minimum / one square wide
+      if ((key === 'minRoomWidth' || key === 'minRoomLength' || key === 'hallWidth' || key === 'levels' || key === 'levelStairs') && (v === undefined || v === null)) v = 1; // no minimum / one square wide / one floor / one stair
 
       const n = typeof v === 'string' ? (v.trim() === '' ? NaN : Number(v)) : Number(v);
       if (v === undefined || v === null || !Number.isInteger(n) || n < lo || n > hi) {
@@ -2328,13 +2333,11 @@
     }
   }
 
-  function generateDungeon(raw) {
-    const v = validateParams(raw);
-    if (!v.ok) throw new RangeError(Object.values(v.errors).join(' '));
-    const params = v.params;
-    const seed = params.seed !== null ? params.seed : String(Math.floor(Math.random() * 1e9));
-    params.seed = seed;
-
+  /**
+   * One floor: the dungeon the settings describe, from this seed (the model of a single-level dungeon). `entrances` false
+   * leaves out the entrances (a floor below the first is reached by its stairs only).
+   */
+  function generateFloor(params, seed, entrances = true) {
     const rng = new DM.Rng(seed);
     // Rooms are built around the average size, or around the smallest room if that is bigger.
     const base = baseRoomArea(params);
@@ -2399,9 +2402,262 @@
     const extra = b.radial || b.main || b.gauntlet ? 0 : Math.round((b.rooms.length - 1) * CONFIG.extraConnectionFraction);
     for (let i = 0; i < extra; i++) if (!b.addExtraConnection()) break;
 
-    b.placeEntrances(params.entrances);
+    if (entrances) b.placeEntrances(params.entrances);
     return b.buildModel(seed);
   }
+
+  // ---- several levels ---------------------------------------------------------
+  //
+  // A dungeon of several levels is made of floors, each built as a dungeon of its own from the same settings (and its own numbers).
+  // They share one bounding box, the size of the biggest floor, and a stair joins two floors in a square that is a room square on
+  // both, at the same place on the map. To make the stairs fit, each floor is slid about inside the box until enough such squares
+  // are where it meets the floor above; if none will do, the floor is built again from other numbers.
+  //
+  // The model of a dungeon of several levels is that of its first floor (level 1: the top, with the entrances), with
+  //   levels   how many floors there are
+  //   floors   the floors below, each { level, width, height, rooms, halls, connections, entrances, warnings, stats }
+  //   stairs   [{ id, letter, x, y, upper, lower, upperRoom, lowerRoom }]: a stair between level `upper` and level `lower` (= upper + 1)
+  // and width / height the shared box. Every room has its `level`. A model of one level has none of these (see levelCount).
+
+  const LEVEL_TRIES = 12; // new floors built when the stairs do not fit, before settling for fewer
+  const LEVEL_TRIES_MAX = 40; // ... and before giving up on a floor with no stair at all
+  const LEVEL_OFFSETS = 120; // places tried for a floor in the box
+
+  /** How many levels a model has. */
+  function levelCount(model) {
+    return model && model.levels ? model.levels : 1;
+  }
+
+  /** The name of a stair: A, B, ... Z, AA, AB, ... */
+  function stairLetter(n) {
+    let s = '';
+    for (n++; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+    return s;
+  }
+
+  /** Slide a floor's model by (dx, dy) squares. */
+  function moveFloor(f, dx, dy) {
+    if (dx === 0 && dy === 0) return;
+    const mv = ([x, y]) => [x + dx, y + dy];
+    for (const r of f.rooms) {
+      r.bbox.x += dx;
+      r.bbox.y += dy;
+      r.labelCell = mv(r.labelCell);
+      r.cells = r.cells.map(mv);
+    }
+    for (const h of f.halls) h.cells = h.cells.map(mv);
+    for (const c of f.connections) {
+      for (const o of c.openings) {
+        o.x += dx;
+        o.y += dy;
+      }
+    }
+    for (const e of f.entrances) {
+      e.x += dx;
+      e.y += dy;
+    }
+  }
+
+  const cellKey = (x, y) => x * 65536 + y;
+
+  /**
+   * The squares of a floor where a stair could go: room squares that are not at a doorway, a hallway's opening or an entrance
+   * (nor next to one, on either side of it). Returns { cells: [[x, y, room id]], keys: Set of the squares }.
+   */
+  function stairSquares(f) {
+    const blocked = new Set();
+    const block = (x, y) => {
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) blocked.add(cellKey(x + dx, y + dy));
+    };
+    for (const c of f.connections) {
+      for (const o of c.openings) {
+        block(o.x, o.y);
+        block(o.x + DX[o.d], o.y + DY[o.d]);
+      }
+    }
+    for (const e of f.entrances) {
+      block(e.x, e.y);
+      if (e.kind !== 'stairs') block(e.x + DX[e.d], e.y + DY[e.d]);
+    }
+    const cells = [];
+    const keys = new Set();
+    for (const r of f.rooms) {
+      for (const [x, y] of r.cells) {
+        if (blocked.has(cellKey(x, y))) continue;
+        cells.push([x, y, r.id]);
+        keys.add(cellKey(x, y));
+      }
+    }
+    return { cells, keys };
+  }
+
+  /**
+   * Choose up to `count` of these squares for stairs, spread out: each next one is far from the stairs the floor already has
+   * (`anchors`) and from those chosen, and never next to one of them. With `rng` the pick is at random among the farthest tenth;
+   * without it, the first that is farthest (to count what fits).
+   */
+  function pickStairs(squares, count, anchors, rng) {
+    const chosen = [];
+    const taken = anchors.slice();
+    for (let n = 0; n < count; n++) {
+      const scored = [];
+      for (const s of squares) {
+        let near = Infinity;
+        let touching = false;
+        for (const t of taken) {
+          if (Math.abs(s[0] - t[0]) <= 1 && Math.abs(s[1] - t[1]) <= 1) {
+            touching = true;
+            break;
+          }
+          near = Math.min(near, Math.hypot(s[0] - t[0], s[1] - t[1]));
+        }
+        if (!touching) scored.push({ s, near });
+      }
+      if (scored.length === 0) break;
+      scored.sort((p, q) => q.near - p.near);
+      const pick = rng ? scored[rng.int(0, Math.max(0, Math.ceil(scored.length / 10) - 1))].s : scored[0].s;
+      chosen.push(pick);
+      taken.push(pick);
+    }
+    return chosen;
+  }
+
+  /** The squares that are valid stair squares on both floors, where `above` is slid to (ax, ay) in the box and `below` to (ox, oy). */
+  function sharedSquares(above, ax, ay, below, ox, oy) {
+    const out = [];
+    for (const [x, y, room] of above.cells) {
+      const bx = x + ax - ox;
+      const by = y + ay - oy;
+      if (bx < 0 || by < 0) continue;
+      if (below.keys.has(cellKey(bx, by))) out.push([x + ax, y + ay, room]);
+    }
+    return out;
+  }
+
+  /** Several levels: see above. */
+  function generateLevels(params, seed) {
+    const stairRng = new DM.Rng(`${seed}:stairs`);
+    const want = params.levelStairs;
+    const first = generateFloor(params, seed, true);
+    // each floor: its model (at its own origin), what its squares are, where it is slid to in the box
+    const floors = [{ model: first, squares: stairSquares(first), at: [0, 0] }];
+    let boxW = first.width;
+    let boxH = first.height;
+    const stairs = [];
+    const warnings = [];
+
+    for (let i = 1; i < params.levels; i++) {
+      const upper = floors[i - 1];
+      // the stairs the floor above already has (to the floor over it), in box squares: new stairs keep away from them
+      const anchors = stairs.filter((s) => s.lower === i).map((s) => [s.x, s.y]);
+      let best = null;
+      for (let t = 0; t < LEVEL_TRIES_MAX; t++) {
+        const model = generateFloor(params, `${seed}:level${i + 1}${t > 0 ? ':' + t : ''}`, false);
+        const squares = stairSquares(model);
+        const W = Math.max(boxW, model.width);
+        const H = Math.max(boxH, model.height);
+        // where in the box this floor can be slid to
+        const spots = [];
+        const rx = W - model.width;
+        const ry = H - model.height;
+        if ((rx + 1) * (ry + 1) <= LEVEL_OFFSETS) {
+          for (let x = 0; x <= rx; x++) for (let y = 0; y <= ry; y++) spots.push([x, y]);
+        } else {
+          for (let n = 0; n < LEVEL_OFFSETS; n++) spots.push([stairRng.int(0, rx), stairRng.int(0, ry)]);
+        }
+        let top = -1;
+        let tops = [];
+        for (const at of spots) {
+          const shared = sharedSquares(upper.squares, upper.at[0], upper.at[1], squares, at[0], at[1]);
+          const fit = shared.length === 0 ? 0 : pickStairs(shared, want, anchors, null).length;
+          if (fit > top) {
+            top = fit;
+            tops = [at];
+          } else if (fit === top) tops.push(at);
+        }
+        if (!best || top > best.fit) best = { model, squares, at: tops[stairRng.int(0, tops.length - 1)], fit: top };
+        if (top >= want) break;
+        if (t + 1 >= LEVEL_TRIES && best.fit >= 1) break;
+      }
+      floors.push({ model: best.model, squares: best.squares, at: best.at });
+      boxW = Math.max(boxW, best.model.width);
+      boxH = Math.max(boxH, best.model.height);
+      const shared = best.fit === 0 ? [] : sharedSquares(upper.squares, upper.at[0], upper.at[1], best.squares, best.at[0], best.at[1]);
+      const picked = pickStairs(shared, want, anchors, stairRng);
+      for (const [x, y, room] of picked) {
+        const lx = x - best.at[0];
+        const ly = y - best.at[1];
+        const lowerRoom = best.model.rooms.find((r) => r.cells.some(([cx, cy]) => cx === lx && cy === ly)).id;
+        stairs.push({ id: stairs.length, letter: stairLetter(stairs.length), x, y, upper: i, lower: i + 1, upperRoom: room, lowerRoom });
+      }
+      if (picked.length === 0) warnings.push(`No stair could be placed between level ${i} and level ${i + 1}.`);
+      else if (picked.length < want) warnings.push(`Levels ${i} and ${i + 1} could only get ${picked.length} of ${want} stairs.`);
+    }
+
+    // every floor in the one box
+    for (const f of floors) moveFloor(f.model, f.at[0], f.at[1]);
+    floors.forEach((f, n) => {
+      f.model.width = boxW;
+      f.model.height = boxH;
+      for (const r of f.model.rooms) r.level = n + 1;
+      if (n > 0) for (const w of f.model.warnings) warnings.push(`Level ${n + 1}: ${w}`);
+    });
+    const model = floors[0].model;
+    model.levels = params.levels;
+    model.floors = floors.slice(1).map((f, n) => ({
+      level: n + 2,
+      width: boxW,
+      height: boxH,
+      rooms: f.model.rooms,
+      halls: f.model.halls,
+      connections: f.model.connections,
+      entrances: f.model.entrances,
+      warnings: f.model.warnings,
+      stats: f.model.stats,
+    }));
+    model.stairs = stairs;
+    model.warnings = [...model.warnings, ...warnings];
+    model.stats.levels = params.levels;
+    model.stats.stairs = stairs.length;
+    return model;
+  }
+
+  /** The stairs on a floor (level `n`, from 1), each as { id, letter, x, y, dir: 'down' | 'up', to: the level it leads to, room }. */
+  function floorStairs(model, n) {
+    const out = [];
+    for (const s of model.stairs || []) {
+      if (s.upper === n) out.push({ id: s.id, letter: s.letter, x: s.x, y: s.y, dir: 'down', to: s.lower, room: s.upperRoom });
+      else if (s.lower === n) out.push({ id: s.id, letter: s.letter, x: s.x, y: s.y, dir: 'up', to: s.upper, room: s.lowerRoom });
+    }
+    return out;
+  }
+
+  /** The model of one floor (level `n`, from 1), as a model of a dungeon of its own, plus its stairs and its level; for a single level, the model. */
+  function floorView(model, n = 1) {
+    if (levelCount(model) === 1) return model;
+    const own = n > 1 ? model.floors[n - 2] : {};
+    return { ...model, ...own, floors: undefined, level: n, stairs: floorStairs(model, n) };
+  }
+
+  function generateDungeon(raw) {
+    const v = validateParams(raw);
+    if (!v.ok) throw new RangeError(Object.values(v.errors).join(' '));
+    const params = v.params;
+    const seed = params.seed !== null ? params.seed : String(Math.floor(Math.random() * 1e9));
+    params.seed = seed;
+    return params.levels > 1 ? generateLevels(params, seed) : generateFloor(params, seed);
+  }
+
+  /** Every room of a model, level by level (for a single level, its rooms). */
+  function allRooms(model) {
+    return levelCount(model) === 1 ? model.rooms : [model.rooms, ...model.floors.map((f) => f.rooms)].flat();
+  }
+
+  DM.levelCount = levelCount;
+  DM.allRooms = allRooms;
+  DM.floorView = floorView;
+  DM.floorStairs = floorStairs;
+  DM.stairLetter = stairLetter;
 
   DM.LIMITS = LIMITS;
   DM.hallPathLimit = (direct, maxPath = CONFIG.maxHallPath) => hallPathLimit(direct, maxPath); // how long a routed hallway may be

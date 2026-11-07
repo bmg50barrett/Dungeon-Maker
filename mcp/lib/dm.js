@@ -66,6 +66,7 @@ function screenCanvas() {
  * @param {boolean} [look.showLabels=true]      room numbers
  * @param {boolean} [look.showCoordinates=false] x and y square numbers along the top and left edges
  * @param {object} [look.colors]                { categoryId: '#rrggbb' }, see DM.COLOR_CATEGORIES
+ * @param {number} [look.level]                 a dungeon of several levels: the one level to draw (default: all of them, one above the other)
  * @returns {Buffer} PNG
  */
 function renderPng(dungeon, look = {}) {
@@ -76,9 +77,27 @@ function renderPng(dungeon, look = {}) {
   renderer.options.showGrid = look.showGrid !== false;
   renderer.options.showLabels = look.showLabels !== false;
   renderer.options.showCoordinates = look.showCoordinates === true;
-  renderer.setDungeon(dungeon);
-  const canvas = renderer.exportImage({ legend: look.legend !== false, caption: dm.exportCaption(dungeon) });
-  return canvas.toBuffer('image/png');
+  const levels = dm.levelCount(dungeon);
+  const drawn = levels === 1 ? [1] : look.level ? [look.level] : Array.from({ length: levels }, (_, i) => i + 1);
+  // (the more levels in one picture, the smaller each, as in the page, so that the picture stays a size that can be made)
+  const size = drawn.length === 1 ? 3920 : Math.max(500, Math.min(3920, Math.floor(14000 / drawn.length) - 300));
+  const pictures = drawn.map((n) => {
+    const view = dm.floorView(dungeon, n);
+    const caption = levels === 1 ? dm.exportCaption(dungeon) : `Level ${n} of ${levels} · ${dm.exportCaption(view)}`;
+    return renderer.imageOf(view, { legend: look.legend !== false, caption, size });
+  });
+  if (pictures.length === 1) return pictures[0].toBuffer('image/png');
+  const gap = 40;
+  const sheet = createCanvas(Math.max(...pictures.map((c) => c.width)), pictures.reduce((h, c) => h + c.height, 0) + gap * (pictures.length - 1));
+  const ctx = sheet.getContext('2d');
+  ctx.fillStyle = renderer.theme.background;
+  ctx.fillRect(0, 0, sheet.width, sheet.height);
+  let y = 0;
+  for (const c of pictures) {
+    ctx.drawImage(c, Math.floor((sheet.width - c.width) / 2), y);
+    y += c.height + gap;
+  }
+  return sheet.toBuffer('image/png');
 }
 
 module.exports = { load, renderPng };
