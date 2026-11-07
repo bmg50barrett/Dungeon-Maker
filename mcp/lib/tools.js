@@ -61,7 +61,7 @@ const SETTINGS = {
   },
   hallDoors: { type: 'string', enum: ['none', 'less', 'more', 'all'], description: 'How many hallway openings into rooms have a door rather than an open archway (default "all").' },
   hallWidth: int(1, 10, 'How many squares across the generated hallways are (default 1). Wider hallways make a bigger dungeon. Hallways added later with edit_dungeon are always 1 wide.'),
-  levels: int(1, 20, 'How many floors the dungeon has (default 1). Every floor is built from the same settings and has the same size of map, and rooms are then numbered by level, such as 2-5 for room 5 of level 2. Level 1 is the top and has the entrances; the floors below are reached by stairs only. Dungeons of several levels cannot be changed with edit_dungeon yet.'),
+  levels: int(1, 20, 'How many floors the dungeon has (default 1). Every floor is built from the same settings and has the same size of map, and rooms are then numbered by level, such as 2-5 for room 5 of level 2. Level 1 is the top and has the entrances; the floors below are reached by stairs only. edit_dungeon changes a dungeon of several levels one level at a time (give its "level").'),
   levelStairs: int(1, 10, 'How many stairs join each floor to the one below it (default 1; only matters with more than one level). A stair is one square in a room, at the same place on both floors, and away from doors. Where the floors have no room for that many, there are fewer, and the answer says so.'),
   entrances: int(1, 10, 'How many ways in from outside (default 1).'),
   edgeEntrancesOnly: { type: 'boolean', description: 'Entrances only as doors in the outer walls (default true). If false, some may be stairs inside the dungeon.' },

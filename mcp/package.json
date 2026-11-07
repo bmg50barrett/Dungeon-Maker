@@ -1,6 +1,6 @@
 {
   "name": "dungeon-maker-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Lets Claude generate, edit and draw dungeons with Duckweed's Dungeon Drafter (an MCP server)",
   "main": "server.js",

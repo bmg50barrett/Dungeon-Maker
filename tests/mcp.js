@@ -223,6 +223,17 @@ console.log('== levels');
   if (DM.levelCount(d) !== 3 || d.stairs.length === 0) fail('levels', 'generate_dungeon with levels: 3 did not make a dungeon of three levels with stairs');
   if (!/3 levels of 8 rooms each/.test(out.text) || !/STAIRS/.test(out.text)) fail('levels', 'the description does not say it has three levels and list the stairs');
   for (let n = 1; n <= 3; n++) if (!out.text.includes(`==== LEVEL ${n} of 3 ====`)) fail('levels', `no section for level ${n}`);
+  // a room added to one level by hand makes the levels differ: the header must not claim the same count on each
+  {
+    const f = freshTools();
+    f.tools.generate_dungeon.run({ seed: 'lv-add', roomCount: 8, levels: 3, levelStairs: 2, picture: false });
+    const y = f.store.get('d1').dungeon.height + 2;
+    const grown = f.tools.edit_dungeon.run({ id: 'd1', level: 2, edits: [{ type: 'add_room', x: 0, y, x2: 2, y2: y + 1 }], picture: false });
+    const total = DM.allRooms(f.store.get('d1').dungeon).length;
+    const header = f.tools.describe_dungeon.run({ id: 'd1' }).text.split('\n')[0];
+    if (!/room/.test(grown.text) || total !== 8 * 3 + 1 || /of 8 rooms each/.test(header) || !new RegExp(`${total} rooms in all`).test(header) || !/9 rooms on level 2/.test(header)) fail('levels', `the header after add_room on level 2: ${header}`);
+    f.done();
+  }
   for (const r of DM.allRooms(d)) if (!out.text.includes(`Room ${r.level}-${r.label}:`)) fail('levels', `no line for room ${r.level}-${r.label}`);
   for (const s of d.stairs) if (!out.text.includes(`${s.letter}: at (${s.x},${s.y})`)) fail('levels', `stair ${s.letter} is not listed`);
 

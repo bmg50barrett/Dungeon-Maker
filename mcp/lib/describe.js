@@ -134,7 +134,14 @@ function describeLevels(d, { id, edited } = {}) {
   const tag = (level, roomId) => dm.roomTag(dm.floorView(d, level).rooms[roomId]);
   const lines = [];
   const title = id ? `Dungeon ${id}` : 'Dungeon';
-  lines.push(`${title} (seed ${d.seed}${edited ? ', edited by hand in this session' : ''}): ${count(n, 'level')} of ${count(d.rooms.length, 'room')} each (${count(rooms.length, 'room')} in all), ${d.width}×${d.height} squares (${d.width * ft}×${d.height * ft} ft) on every level.`);
+  // the levels start with the same number of rooms, but rooms added or deleted by hand make them differ
+  const perLevel = [];
+  for (let level = 1; level <= n; level++) perLevel.push(dm.floorView(d, level).rooms.length);
+  const sameCount = perLevel.every((c) => c === perLevel[0]);
+  const roomsText = sameCount
+    ? `${count(n, 'level')} of ${count(perLevel[0], 'room')} each (${count(rooms.length, 'room')} in all)`
+    : `${count(n, 'level')} (${perLevel.map((c, i) => `${count(c, 'room')} on level ${i + 1}`).join(', ')}; ${count(rooms.length, 'room')} in all)`;
+  lines.push(`${title} (seed ${d.seed}${edited ? ', edited by hand in this session' : ''}): ${roomsText}, ${d.width}×${d.height} squares (${d.width * ft}×${d.height * ft} ft) on every level.`);
   lines.push(`One square is ${ft} ft. North is up. Squares are written (x,y), counted from the top left corner (0,0): x grows to the east, y to the south. Every level has the same size of map, and a square (x,y) is the same place on every level.`);
   lines.push('Level 1 is the top, with the entrances from outside; stairs lead down to level 2, and so on. Rooms are numbered by level and number as on the map: "2-5" is room 5 of level 2.');
   lines.push('edit_dungeon changes one level at a time: give the "level" of each edit. The doors and hallways of a level are written as (x,y) squares of the shared map, and if a hallway makes the map bigger every level and every stair moves with it.');
