@@ -12,7 +12,7 @@
   const DM = (globalThis.DM = globalThis.DM || {});
 
   /** The layouts, in the order the page lists them. */
-  const LAYOUTS = ['random', 'cathedral', 'ring', 'cavern', 'radial', 'mainst', 'square', 'long', 'wide'];
+  const LAYOUTS = ['random', 'cathedral', 'ring', 'spiral', 'gauntlet', 'radial', 'mainst', 'square', 'long', 'wide'];
   const DEFAULT_LAYOUT = 'random';
 
   /*
@@ -60,7 +60,7 @@
    * @param {number} info.side      about how wide a room is, in squares
    * @param {number} info.gap       about how far apart room centres are beyond their size (the spacing's usual gap)
    * @param {string} info.spacing   'compact', 'normal' or 'spaced'
-   * @param {() => number} info.random  a source of numbers in [0, 1) for the odd one out (a cavern's outline)
+   * @param {() => number} info.random  a source of numbers in [0, 1) for the odd one out the wobble of the gauntlet path
    * @returns {null|{
    *   name: string,
    *   start: {x: number, y: number},
@@ -145,6 +145,36 @@
       return layout;
     }
 
+    if (name === 'spiral') {
+      // a spiral: the rooms are put in order along a curve that winds outward from the first room, each a little further
+      // round and out than the one before, so that it ends at a tip on the outside. The generator chains each room to the
+      // one before it, and puts the first two entrances at the two ends
+      const pitch = side + gap; // about how far apart the centres of neighbouring rooms are
+      const turnGap = 1.7 * side + gap; // how far one turn of the spiral is from the next, from middle to middle
+      const b = turnGap / (2 * Math.PI);
+      const r0 = 0.6 * pitch;
+      const targets = [];
+      let theta = 0;
+      for (let i = 0; i < Math.max(rooms, 1); i++) {
+        const r = r0 + b * theta;
+        targets.push({ x: r * Math.cos(theta), y: r * Math.sin(theta) });
+        theta += pitch / Math.max(r, 0.5 * pitch);
+      }
+      const target = (index) => targets[Math.min(index, targets.length - 1)];
+      layout.start = target(0);
+      layout.chain = true;
+      layout.ends = true;
+      layout.outside = (x, y, index = 0) => {
+        const aim = target(index);
+        return Math.max(0, Math.hypot(x - aim.x, y - aim.y) - 1.2 * pitch);
+      };
+      layout.score = (x, y, last, index = 0) => {
+        const aim = target(index);
+        return Math.pow(Math.hypot(x - aim.x, y - aim.y), 2) + OUTSIDE * Math.pow(layout.outside(x, y, index), 2);
+      };
+      return layout;
+    }
+
     if (name === 'radial') {
       // a hub: the biggest room, in the middle, with every hallway running out from it like the spokes of a wheel and
       // the other rooms along them. The generator builds this one by its own rules (see Builder.placeNextRadial); the
@@ -172,21 +202,35 @@
       return layout;
     }
 
-    // cavern: a few round chambers of different sizes around a middle one, each reaching into the next through a
-    // narrow neck, like the outline of a cave. The rooms fill the chambers and are drawn in towards their middles
-    const chambers = Math.max(2, Math.min(5, Math.round(rooms / 4)));
-    const unit = Math.sqrt((footprint * 1.1) / (Math.PI * (chambers + 1)));
-    const round = [{ x: 0, y: 0, r: unit }];
-    const turn = info.random() * 2 * Math.PI;
-    for (let i = 0; i < chambers; i++) {
-      const angle = turn + ((i + (info.random() - 0.5) * 0.5) * 2 * Math.PI) / chambers;
-      const r = unit * (0.8 + 0.5 * info.random());
-      const reach = unit + r * 0.8; // (a little short of touching, so the chambers meet in a neck)
-      round.push({ x: reach * Math.cos(angle), y: reach * Math.sin(angle), r });
+    // gauntlet: a single chain of rooms, each joined only to the next, laid out as a snake that runs along the map and
+    // turns back at the end of each row (so the long path still fits a page). The generator builds it one room after
+    // another off the one before, with no branches, spines or loops
+    const rows = Math.max(1, Math.round(Math.sqrt(Math.max(rooms, 1) / 2)));
+    const perRow = Math.ceil(Math.max(rooms, 1) / rows);
+    const stepX = 1.15 * (side + gap);
+    const stepY = 1.7 * side + gap;
+    const targets = [];
+    for (let i = 0; i < Math.max(rooms, 1); i++) {
+      const row = Math.floor(i / perRow);
+      const j = i % perRow;
+      const col = row % 2 === 0 ? j : perRow - 1 - j;
+      // (a little off the line, so that the snake is not ruled)
+      targets.push({ x: (col - (perRow - 1) / 2) * stepX, y: (row - (rows - 1) / 2) * stepY + (info.random() - 0.5) * 0.5 * side });
     }
-    layout.outside = (x, y) => Math.min(...round.map((c) => Math.max(0, Math.hypot(x - c.x, y - c.y) - c.r)));
-    layout.score = (x, y) => Math.min(...round.map((c) => 0.5 * ((x - c.x) * (x - c.x) + (y - c.y) * (y - c.y)))) + OUTSIDE * Math.pow(layout.outside(x, y), 2);
-    layout.winding = 2;
+    const target = (index) => targets[Math.min(index, targets.length - 1)];
+    const reach = 1.3 * (side + gap);
+    layout.start = target(0);
+    layout.chain = true;
+    layout.gauntlet = true;
+    layout.ends = true; // (the first two entrances go in the first and last rooms)
+    layout.outside = (x, y, index = 0) => {
+      const aim = target(index);
+      return Math.max(0, Math.hypot(x - aim.x, y - aim.y) - reach);
+    };
+    layout.score = (x, y, last, index = 0) => {
+      const aim = target(index);
+      return Math.pow(Math.hypot(x - aim.x, y - aim.y), 2) + OUTSIDE * Math.pow(layout.outside(x, y, index), 2);
+    };
     return layout;
   }
 

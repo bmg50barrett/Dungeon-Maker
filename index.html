@@ -33,7 +33,8 @@
                 <label class="chip" title="No shape in mind: rooms grow outward in any direction"><input type="radio" name="layout" value="random" checked><span class="chip-body">Random</span></label>
                 <label class="chip" title="A long nave crossed by a transept, like the floor plan of a church"><input type="radio" name="layout" value="cathedral"><span class="chip-body">Cathedral</span></label>
                 <label class="chip" title="Rooms circle a central courtyard and close into a loop"><input type="radio" name="layout" value="ring"><span class="chip-body">Ring</span></label>
-                <label class="chip" title="Rounded and irregular, like a natural cave, with more winding passages"><input type="radio" name="layout" value="cavern"><span class="chip-body">Cavern</span></label>
+                <label class="chip" title="Rooms wind outward in a spiral; the first two entrances are at its two ends"><input type="radio" name="layout" value="spiral"><span class="chip-body">Spiral</span></label>
+                <label class="chip" title="One chain of rooms, each joined only to the next, winding back and forth like a snake (with Branching on, a hallway can fork to a one-room dead end); the first two entrances are at its two ends"><input type="radio" name="layout" value="gauntlet"><span class="chip-body">Gauntlet</span></label>
                 <label class="chip" title="A big central room with every hallway running out from it like the spokes of a wheel, and the other rooms along them"><input type="radio" name="layout" value="radial"><span class="chip-body">Radial</span></label>
                 <label class="chip" title="One very long straight hallway, running up and down the map, with every room and branch along it"><input type="radio" name="layout" value="mainst"><span class="chip-body">Main St.</span></label>
                 <label class="chip" title="Packed into a square footprint"><input type="radio" name="layout" value="square"><span class="chip-body">Square</span></label>
@@ -57,6 +58,23 @@
               <p class="hint" id="spacingHint">Rooms can touch · rooms a hallway joins are up to 4 squares apart · spines run longer</p>
               <p class="error" id="err-spacing" role="alert"></p>
             </fieldset>
+
+            <div class="field">
+              <label for="entrances">Entrances</label>
+              <input id="entrances" name="entrances" type="number" min="1" max="10" step="1" value="1" inputmode="numeric">
+              <p class="hint">External entrances, 1&ndash;10</p>
+              <p class="error" id="err-entrances" role="alert"></p>
+            </div>
+
+            <div class="field toggle-field">
+              <label class="switch" for="edgeEntrancesOnly">
+                <span class="switch-title">Entrances on outer edge only</span>
+                <input type="checkbox" id="edgeEntrancesOnly" name="edgeEntrancesOnly" role="switch" checked>
+                <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+                <span class="switch-state" id="edgeOnlyState" aria-hidden="true">On</span>
+              </label>
+              <p class="hint" id="edgeOnlyHint">Entrances are doors in the outer walls.</p>
+            </div>
           </div>
         </section>
 
@@ -154,6 +172,13 @@
               <p class="error" id="err-connectionRandomness" role="alert"></p>
             </div>
 
+            <div class="field">
+              <label for="hallWidth">Hallway width</label>
+              <input id="hallWidth" name="hallWidth" type="number" min="1" max="10" step="1" value="1" inputmode="numeric">
+              <p class="hint">Squares across, 1&ndash;10 (hallways drawn by hand are always 1)</p>
+              <p class="error" id="err-hallWidth" role="alert"></p>
+            </div>
+
             <fieldset class="field chip-group" id="hallTypes">
               <legend>Hallway types <button type="button" class="link-btn" id="hallTypesAll">All</button></legend>
               <div class="chips">
@@ -165,13 +190,6 @@
               <p class="hint" id="hallTypesHint">4 of 4 types on</p>
               <p class="error" id="err-hallTypes" role="alert"></p>
             </fieldset>
-
-            <div class="field">
-              <label for="hallWidth">Hallway width</label>
-              <input id="hallWidth" name="hallWidth" type="number" min="1" max="10" step="1" value="1" inputmode="numeric">
-              <p class="hint">Squares across, 1&ndash;10 (hallways drawn by hand are always 1)</p>
-              <p class="error" id="err-hallWidth" role="alert"></p>
-            </div>
 
             <fieldset class="field segmented" id="hallDoors">
               <legend>Hallway doors</legend>
@@ -188,23 +206,6 @@
               <p class="hint" id="hallDoorsHint">About 1 in 3 hallway openings have a door</p>
               <p class="error" id="err-hallDoors" role="alert"></p>
             </fieldset>
-
-            <div class="field">
-              <label for="entrances">Entrances</label>
-              <input id="entrances" name="entrances" type="number" min="1" max="10" step="1" value="1" inputmode="numeric">
-              <p class="hint">External entrances, 1&ndash;10</p>
-              <p class="error" id="err-entrances" role="alert"></p>
-            </div>
-
-            <div class="field toggle-field">
-              <label class="switch" for="edgeEntrancesOnly">
-                <span class="switch-title">Entrances on outer edge only</span>
-                <input type="checkbox" id="edgeEntrancesOnly" name="edgeEntrancesOnly" role="switch" checked>
-                <span class="track" aria-hidden="true"><span class="thumb"></span></span>
-                <span class="switch-state" id="edgeOnlyState" aria-hidden="true">On</span>
-              </label>
-              <p class="hint" id="edgeOnlyHint">Entrances are doors in the outer walls.</p>
-            </div>
           </div>
         </section>
 

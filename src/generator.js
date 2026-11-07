@@ -138,6 +138,12 @@
     hallsTriedPerPlacement: 6,
     /** When attaching to an existing hallway: chance of a branching hallway rather than a room flush against its side. */
     hallBranchChance: 0.25,
+    /** In a gauntlet with Branching on: chance that the next room is a side branch (a single dead-end room) off the latest hallway. */
+    gauntletBranchChance: 0.3,
+    /** While a hallway type that is switched on has not been used yet: chance that the next hallway is one of the unused types. */
+    freshKindChance: 0.7,
+    /** How many more times a dungeon is built, from other numbers, when a hallway type that is switched on has not turned up in it. */
+    typeRetries: 8,
     /** Random placements sampled per (parent, attempt). */
     placementTries: 40,
     /** Stop sampling once this many valid placements have been found. */
@@ -270,7 +276,7 @@
     } else {
       errors.spacing = `Room spacing must be one of: ${SPACINGS.join(', ')}.`;
     }
-    // The overall shape the dungeon leans towards: random / cathedral / ring / cavern / square / long / wide (default: random).
+    // The overall shape the dungeon leans towards: random / cathedral / ring / gauntlet / square / long / wide (default: random).
     const layout = raw.layout === undefined || raw.layout === null ? DM.DEFAULT_LAYOUT : raw.layout;
     if (DM.LAYOUTS.includes(layout)) {
       params.layout = layout;
@@ -442,6 +448,21 @@
       });
       // a radial dungeon is all hallways, running out from the hub (the first room). Where the settings allow no
       // hallway at all, its rooms are doorways off the hub instead (and off each other, once the hub's walls are full)
+      // a gauntlet is one chain of rooms, each joined only to the one before: no spines, and with Branching off no branches
+      // either. (With Branching on, a hallway can fork to a side room that is a dead end, one room and no more, while the
+      // main path goes on.) It needs a hallway that can start, so short is switched on if none else is
+      this.gauntlet = !!(this.layout && this.layout.gauntlet);
+      this.branchRooms = new Set(); // the gauntlet's side rooms (ids)
+      this.pathEnd = 0; // the room the path has got to (the latest room that is not a side room)
+      this.inBranch = false; // a side room is being placed just now
+      this.branchIndex = 0; // (and the place in the layout it is drawn to: where the hallway it forks from is)
+      this.lastWasBranch = false;
+      if (this.gauntlet) {
+        const allowed = params.hallTypes.filter((k) => k !== 'spine');
+        if (!allowed.some((k) => HALL_KINDS.includes(k))) allowed.push('short');
+        this.types = new Set(allowed);
+        this.kinds = HALL_KINDS.filter((k) => this.types.has(k));
+      }
       this.radial = !!(this.layout && this.layout.radial);
       this.radialDoors = this.radial && !hallwaysPossible(params);
       // Main St.: one long straight hallway, with the rooms along its sides and branching off it (doorways in a row instead,
@@ -752,10 +773,20 @@
       return isSpine ? Math.max(this.gap.max, spineTop) : this.gap.max;
     }
 
+    /**
+     * The place in the layout the room being placed belongs to: how many rooms there are so far. In a gauntlet the side rooms
+     * do not count, as they are off the path, and one is drawn to where the path has got to.
+     */
+    layoutIndex() {
+      if (!this.gauntlet) return this.rooms.length;
+      if (this.inBranch) return this.branchIndex;
+      return Math.max(0, this.rooms.length - this.branchRooms.size);
+    }
+
     /** Is a room of this shape at (ox, oy) close enough to the overall layout's shape, on this attempt? (Always, with no layout.) */
     layoutOk(shape, ox, oy) {
       if (!this.layout || this.layoutTol === Infinity) return true;
-      if (this.layout.outside(ox + shape.w / 2 - this.W / 2, oy + shape.h / 2 - this.H / 2, this.rooms.length) > this.layoutTol) return false;
+      if (this.layout.outside(ox + shape.w / 2 - this.W / 2, oy + shape.h / 2 - this.H / 2, this.layoutIndex()) > this.layoutTol) return false;
       // the last room of a ring has to come round close enough to the first to be joined to it
       if (this.layout.closes && this.rooms.length === this.shapes.length - 1 && this.rooms.length > 3) return this.withinReach(shape, ox, oy, [0]);
       return true;
@@ -769,7 +800,7 @@
         // drawn towards the layout's shape instead of the middle of the dungeon so far
         const last = this.rooms.length > 0 ? this.rooms[this.rooms.length - 1] : null;
         const lastAt = last ? { x: last.ox + last.shape.w / 2 - this.W / 2, y: last.oy + last.shape.h / 2 - this.H / 2 } : null;
-        return this.layout.score(cx - this.W / 2, cy - this.H / 2, lastAt, this.rooms.length) * (1 + this.rng.next() * CONFIG.scoreNoise);
+        return this.layout.score(cx - this.W / 2, cy - this.H / 2, lastAt, this.layoutIndex()) * (1 + this.rng.next() * CONFIG.scoreNoise);
       }
       const mx = this.sumX / this.cellCount;
       const my = this.sumY / this.cellCount;
@@ -1076,7 +1107,10 @@
       let kinds = allowSpine ? this.kinds : this.kinds.filter((k) => k !== 'spine');
       if (only) kinds = kinds.filter((k) => only.includes(k));
       if (kinds.length === 0) return null;
-      const winding = this.layout ? this.layout.winding : 1; // (a cavern's passages wind more)
+      // a type that is on but not used yet is favoured, so that every one turns up in the dungeon
+      const fresh = kinds.filter((k) => this.used[k] === 0);
+      if (fresh.length > 0 && fresh.length < kinds.length && this.rng.chance(CONFIG.freshKindChance)) kinds = fresh;
+      const winding = this.layout ? this.layout.winding : 1; // (1 unless a layout asks for more winding)
       return kinds[this.rng.weightedIndex(kinds.map((k) => CONFIG.hallKindWeights[k] * (k === 'curly' ? winding : 1)))];
     }
 
@@ -1103,7 +1137,7 @@
       const { rng, rooms } = this;
       if (this.radial) return rooms[0]; // (the hub)
       // a ring is built one room after another round the circle, so each hangs off the one before
-      if (this.layout && this.layout.closes && rooms.length > 1 && rng.chance(0.85)) return rooms[rooms.length - 1];
+      if (this.layout && (this.layout.closes || this.layout.chain) && rooms.length > 1 && rng.chance(0.85)) return rooms[rooms.length - 1];
       if (rooms.length > 1 && rng.chance(CONFIG.chainChance)) return rooms[rooms.length - 1];
       const weights = rooms.map((r) => 1 / Math.pow(1 + r.degree, 1.5));
       return rooms[rng.weightedIndex(weights)];
@@ -1161,7 +1195,11 @@
       let kind = plan && plan.spine && spineOk && this.kinds.includes('spine') ? 'spine' : this.pickKind(spineOk);
       // (Main St. is a spine if spines are on, or else as straight and long a hallway as the types allow)
       // (and a branch off Main St. is a straight alley, short or a spine, out from the street)
-      if (plan && plan.alley) kind = ['short', 'spine'].filter((k) => this.kinds.includes(k))[0] && this.pickKind(spineOk, ['short', 'spine']) || kind;
+      // (a winding alley too, while that type has not turned up yet)
+      if (plan && plan.alley) {
+        const alleys = this.used.curly === 0 ? ['short', 'spine', 'curly'] : ['short', 'spine'];
+        kind = (alleys.filter((k) => this.kinds.includes(k))[0] && this.pickKind(spineOk, alleys)) || kind;
+      }
       if (plan && plan.street) kind = ['spine', 'short', 'curly'].find((k) => this.kinds.includes(k) && (k !== 'spine' || spineOk)) || kind;
       if (kind === null) return null; // every way of starting a hallway is switched off (or only a spine, with no room to spare)
       const allowId = fromHall ? -(parent.id + 1) : parent.id + 1;
@@ -1393,7 +1431,13 @@
       this.extraPlaced = 0;
       if (this.radial) return this.placeNextRadial(shape);
       if (this.main) return this.placeNextMain(shape);
-      const type = this.chooseType();
+      if (this.gauntlet) return this.placeNextGauntlet(shape);
+      let type = this.chooseType();
+      // Branching is on and nothing has branched yet: rooms are hung off hallways, and in time a hallway is started to hang one off
+      // (so that a type that is switched on turns up in the dungeon)
+      const late = this.rooms.length >= this.shapes.length - 3;
+      if (this.types.has('branching') && this.used.branching === 0 && this.halls.length === 0 && this.rooms.length >= this.shapes.length / 2 && hallwaysPossible(this.params)) type = 'hall';
+      const needBranch = this.types.has('branching') && this.used.branching === 0 && this.halls.length > 0;
       const other = type === 'door' ? 'hall' : 'door';
       // A spine needs a room to spare and rooms along its side, so where spines are the only hallways, a hallway
       // is harder to find than usual: a doorway is then the very last resort, after the long reaches below.
@@ -1407,10 +1451,11 @@
         const t = !spinesOnly && attempt >= 40 && attempt % 2 === 1 ? other : type;
         let room = null;
         if (t === 'door') {
-          room = this.tryDoor(parent, shape);
+          if (needBranch && rng.chance(late ? 1 : 0.3)) room = this.tryAttachToHall(shape);
+          if (!room) room = this.tryDoor(parent, shape);
         } else {
           // hang the room off an existing hallway that can take it (see attachableHalls), or start a new hallway from a room
-          if (this.halls.length > 0 && rng.chance(CONFIG.hallParentChance)) room = this.tryAttachToHall(shape);
+          if (this.halls.length > 0 && rng.chance(needBranch ? 1 : CONFIG.hallParentChance)) room = this.tryAttachToHall(shape);
           if (!room) room = this.tryHall(parent, shape, CONFIG.placementTries);
         }
         if (room) return 1 + this.extraPlaced;
@@ -1428,6 +1473,83 @@
         for (let attempt = 0; attempt < 60; attempt++) {
           if (this.tryDoor(this.pickParent(), shape)) return 1;
         }
+      }
+      return 0;
+    }
+
+    // ---- a gauntlet --------------------------------------------------------------
+
+    /**
+     * The next room of a gauntlet: always off the room before it, by a doorway or a hallway as the connection settings
+     * say (and the other kind when that is not possible), so the rooms form one chain. Only when the dungeon is too
+     * crowded for that does a room hang off an earlier one, so that no room is lost.
+     */
+    placeNextGauntlet(shape) {
+      const { rng } = this;
+      // (the path goes on from its latest room, never from a side room)
+      const last = this.rooms[this.pathEnd];
+      // with Branching on, sometimes a hallway forks to a room of its own, a dead end: the path carries on from where it was.
+      // (Never the last room, so that the path ends the dungeon)
+      // Until one has, it is likelier, and certain at the last chance: a type that is switched on has to turn up
+      const forked = this.used.branching > 0;
+      const chance = forked ? CONFIG.gauntletBranchChance : this.rooms.length >= this.shapes.length - 2 ? 1 : 0.5;
+      if (this.types.has('branching') && !this.lastWasBranch && this.rooms.length >= 2 && this.rooms.length < this.shapes.length - 1 && rng.chance(chance)) {
+        if (this.tryGauntletBranch(shape)) {
+          this.lastWasBranch = true;
+          return 1;
+        }
+      }
+      this.lastWasBranch = false;
+      const placed = this.placeGauntletRoom(shape, last);
+      if (placed) this.pathEnd = this.rooms.length - 1;
+      return placed;
+    }
+
+    /** The hallways a gauntlet's side room can fork from: those that serve two rooms so far (one fork each). */
+    forkableHalls() {
+      return this.halls.filter((h) => h.conn && h.conn.rooms.length === 2);
+    }
+
+    /** A side room off one of the latest hallways: a branch of the hallway, ending at a room of its own. */
+    tryGauntletBranch(shape) {
+      // (the latest few, or with none yet, any of them: wherever the path has been)
+      const pool = this.forkableHalls().slice(this.used.branching > 0 ? -3 : -8).reverse();
+      if (pool.length === 0) return null;
+      this.inBranch = true;
+      let room = null;
+      for (let attempt = 0; attempt < 24 && !room; attempt++) {
+        this.layoutTol = this.layout.tolerance(attempt);
+        for (const hall of pool) {
+          // drawn to the place in the layout where the hallway is (its later room, not counting side rooms before it)
+          const later = hall.conn.rooms[1];
+          this.branchIndex = later - [...this.branchRooms].filter((id) => id < later).length;
+          room = this.tryHall(hall, shape, CONFIG.placementTries);
+          if (room) break;
+        }
+      }
+      this.inBranch = false;
+      this.layoutTol = Infinity;
+      if (room) this.branchRooms.add(room.id);
+      return room;
+    }
+
+    /** The next room of the path itself, off the room `last`. */
+    placeGauntletRoom(shape, last) {
+      const { rng } = this;
+      let type = this.chooseType();
+      // with Branching on and no hallway yet to fork from, this link is a hallway (where the settings allow any)
+      if (this.types.has('branching') && this.used.branching === 0 && this.forkableHalls().length === 0 && this.shapes.length >= 4 && hallwaysPossible(this.params)) type = 'hall';
+      const other = type === 'door' ? 'hall' : 'door';
+      const build = (t, parent, tries, extra) => (t === 'door' ? this.tryDoor(parent, shape) : this.tryHall(parent, shape, tries, extra));
+      for (let attempt = 0; attempt < 80; attempt++) {
+        this.layoutTol = this.layout.tolerance(attempt);
+        const t = attempt >= 50 && attempt % 2 === 1 ? other : type;
+        if (build(t, last, CONFIG.placementTries, 0)) return 1;
+      }
+      this.layoutTol = Infinity;
+      for (let attempt = 0; attempt < 150; attempt++) {
+        const parent = attempt < 60 ? last : rng.pick(this.rooms.filter((r) => !this.branchRooms.has(r.id)));
+        if (build(attempt % 2 === 0 ? type : other, parent, 30, 2 + Math.floor(attempt / 3))) return 1;
       }
       return 0;
     }
@@ -1787,7 +1909,18 @@
         return scored.sort((u, v) => v.minD - u.minD);
       };
 
-      const chosen = [rng.pick(interior.length >= count ? interior : all)];
+      const chosen = [];
+      // (a spiral has its first two entrances at its two ends: the tip, and the middle where it began, if that is on the outside)
+      if (this.layout && this.layout.ends) {
+        for (const room of new Set([this.rooms[this.rooms.length - 1], this.rooms[0]])) {
+          if (chosen.length >= count) break;
+          const mine = all.filter((e) => e.room === room);
+          const mid = mine.filter((e) => e.interior);
+          const pool = mid.length > 0 ? mid : mine;
+          if (pool.length > 0) chosen.push(rng.pick(pool));
+        }
+      }
+      if (chosen.length === 0) chosen.push(rng.pick(interior.length >= count ? interior : all));
       while (chosen.length < count) {
         // Prefer edges in the middle of a wall (not next to a corner), but only while that
         // costs little spread: small rooms have few such edges, and they can all be on one wall.
@@ -1927,6 +2060,13 @@
 
       const full = new Set(); // rooms that cannot host another entrance
       let lap = new Set(); // rooms used in the current pass over the dungeon
+      // (a spiral has its first two entrances at its two ends: the tip, then the middle where it began)
+      const ends = this.layout && this.layout.ends ? [...new Set([this.rooms[this.rooms.length - 1], this.rooms[0]])] : [];
+      for (const room of ends) {
+        if (this.entrances.length >= count) break;
+        if (placeIn(room)) lap.add(room.id);
+        else full.add(room.id);
+      }
       while (this.entrances.length < count) {
         const pool = this.rooms.filter((r) => !full.has(r.id) && !lap.has(r.id));
         if (pool.length === 0) {
@@ -2165,6 +2305,29 @@
    * @param {string|number} [raw.seed]   omit for a random dungeon
    * @returns the dungeon model (plain JSON-serialisable data)
    */
+  /**
+   * Make sure each room shape that is switched on is used by at least one room: for a shape that no room has, one room of a
+   * shape that has several is remade as it (the first it can be, as a room may be too small for some shapes). Done from a
+   * stream of numbers of its own, so the other rooms come out as they would have.
+   */
+  function ensureEachShape(rng, shapes, params) {
+    const count = {};
+    for (const s of shapes) count[s.kind] = (count[s.kind] || 0) + 1;
+    for (const kind of rng.shuffle(params.roomShapes.filter((k) => !count[k]))) {
+      for (const i of rng.shuffle(shapes.map((s, n) => n))) {
+        if (count[shapes[i].kind] < 2) continue; // (that would only lose another shape)
+        // (a shape can fall through at some sizes, so a few goes)
+        let made = null;
+        for (let t = 0; t < 4 && !(made && made.kind === kind); t++) made = DM.makeRoomShape(rng, shapes[i].area, [kind], params.minRoomWidth, params.minRoomLength);
+        if (made.kind !== kind) continue;
+        count[shapes[i].kind]--;
+        count[kind] = 1;
+        shapes[i] = made;
+        break;
+      }
+    }
+  }
+
   function generateDungeon(raw) {
     const v = validateParams(raw);
     if (!v.ok) throw new RangeError(Object.values(v.errors).join(' '));
@@ -2182,6 +2345,9 @@
       shapes.push(DM.makeRoomShape(rng, sampleArea(), params.roomShapes, minRoomWidth, minRoomLength));
     }
 
+    // every room shape that is switched on turns up at least once (where there are rooms enough, and a room big enough for it)
+    ensureEachShape(new DM.Rng(`${seed}:shapes`), shapes, params);
+
     // a radial dungeon has its biggest room in the middle, as the hub
     if (params.layout === 'radial') {
       let big = 0;
@@ -2191,15 +2357,31 @@
       shapes.unshift(...shapes.splice(big, 1));
     }
 
-    const b = new Builder(params, rng, shapes);
-    b.placeFirst(shapes[0]);
-    for (let i = 1; i < shapes.length; ) {
-      const placed = b.placeNext(shapes[i]); // (2 when a new spine brought a room with it)
-      if (placed === 0) {
-        b.warnings.push(`Could only fit ${i} of ${shapes.length} rooms.`);
-        break;
+    const buildRooms = (r) => {
+      const builder = new Builder(params, r, shapes);
+      builder.placeFirst(shapes[0]);
+      for (let i = 1; i < shapes.length; ) {
+        const placed = builder.placeNext(shapes[i]); // (2 when a new spine brought a room with it)
+        if (placed === 0) {
+          builder.warnings.push(`Could only fit ${i} of ${shapes.length} rooms.`);
+          break;
+        }
+        i += placed;
       }
-      i += placed;
+      return builder;
+    };
+    // Every hallway type that is switched on should turn up in the dungeon (where hallways can occur at all). The builder leans
+    // that way, but where it did not manage, the dungeon is built again from other numbers (a few times, then the best of them)
+    const missingTypes = (builder) => {
+      if (!hallwaysPossible(params)) return 0;
+      const wanted = [...builder.kinds, ...(builder.types.has('branching') ? ['branching'] : [])];
+      return wanted.filter((k) => builder.used[k] === 0).length;
+    };
+    const rank = (builder) => (builder.warnings.length > 0 ? 1000 : 0) + missingTypes(builder);
+    let b = buildRooms(rng);
+    for (let k = 1; k <= CONFIG.typeRetries && missingTypes(b) > 0; k++) {
+      const again = buildRooms(new DM.Rng(`${seed}:retry${k}`));
+      if (rank(again) < rank(b)) b = again;
     }
 
     // A room that none of the shapes switched on will fit (too small, or too narrow for the
@@ -2214,7 +2396,7 @@
     if (b.layout && b.layout.closes) b.closeLoop();
 
     // (a radial dungeon has no other doorways: every room is reached by a hallway from the hub)
-    const extra = b.radial || b.main ? 0 : Math.round((b.rooms.length - 1) * CONFIG.extraConnectionFraction);
+    const extra = b.radial || b.main || b.gauntlet ? 0 : Math.round((b.rooms.length - 1) * CONFIG.extraConnectionFraction);
     for (let i = 0; i < extra; i++) if (!b.addExtraConnection()) break;
 
     b.placeEntrances(params.entrances);

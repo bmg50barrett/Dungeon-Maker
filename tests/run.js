@@ -275,6 +275,8 @@ function checkDungeon(dun, ctx) {
 
   // --- hallway types: nothing that is switched off was used
   const hallTypesOn = new Set(dun.params.hallTypes);
+  // (a gauntlet has no spines, so with only spines (and Branching) on it builds short hallways: the one allowed exception)
+  if (dun.params.layout === 'gauntlet' && !dun.params.hallTypes.some((k) => k === 'short' || k === 'curly')) hallTypesOn.add('short');
   const hallCounts = dun.stats.hallTypeCounts;
   for (const t of DM.HALL_TYPES) {
     if (typeof hallCounts[t] !== 'number') fail(ctx, `stats.hallTypeCounts has no count for ${t}`);
@@ -1396,7 +1398,7 @@ console.log('== overall layout');
   // The layout is a lean towards a shape, so it is judged on how a batch of dungeons come out, and every one of them
   // still has to be a good dungeon (checkDungeon holds each to all the rules: rooms, hallways, spacing).
   const base = { roomCount: 12, avgRoomSize: 30, sizeVariance: 30, entrances: 2, connectionType: 'hall', connectionRandomness: 14 };
-  const LAYOUT_NAMES = ['random', 'cathedral', 'ring', 'cavern', 'radial', 'mainst', 'square', 'long', 'wide'];
+  const LAYOUT_NAMES = ['random', 'cathedral', 'ring', 'spiral', 'gauntlet', 'radial', 'mainst', 'square', 'long', 'wide'];
   if (JSON.stringify(DM.LAYOUTS) !== JSON.stringify(LAYOUT_NAMES)) fail('layout', `the layouts are ${DM.LAYOUTS}`);
   if (DM.DEFAULT_LAYOUT !== 'random') fail('layout', 'the default layout is not random');
 
@@ -1636,6 +1638,30 @@ console.log('== overall layout');
     if (!(area(4) > 2 * area(1))) fail('width', 'a width of 4 should give far more hallway than a width of 1');
   }
 
+  // a spiral puts its first two entrances at its two ends: the tip (the last room) and where it began (the first room)
+  {
+    for (const count of [6, 14, 25]) {
+      let tip = 0;
+      let both = 0;
+      const tries = 20;
+      for (let s = 0; s < tries; s++) {
+        const dun = DM.generateDungeon({ ...base, roomCount: count, layout: 'spiral', entrances: 3, edgeEntrancesOnly: false, seed: `spiral-${count}-${s}` });
+        checkDungeon(dun, `spiral ${count}`);
+        const rooms = dun.entrances.map((e) => e.room);
+        if (rooms.includes(count - 1)) tip++;
+        if (rooms.slice(0, 2).sort().join() === [0, count - 1].sort().join()) both++;
+      }
+      if (both < tries) fail('layout', `spiral ${count}: entrances anywhere, but only ${both} of ${tries} have the first two at the two ends`);
+      let edgeTip = 0;
+      for (let s = 0; s < tries; s++) {
+        const dun = DM.generateDungeon({ ...base, roomCount: count, layout: 'spiral', entrances: 2, edgeEntrancesOnly: true, seed: `spiral-edge-${count}-${s}` });
+        checkDungeon(dun, `spiral edge ${count}`);
+        if (dun.entrances.some((e) => e.room === count - 1)) edgeTip++;
+      }
+      if (edgeTip / tries < 0.85) fail('layout', `spiral ${count}: only ${edgeTip} of ${tries} have an entrance at the tip`);
+    }
+  }
+
   // a ring is the one place hallways run in a circle, and its closing hallway is a short one: with Short switched off it closes by doorway or not at all
   for (let s = 0; s < 20; s++) {
     const dun = DM.generateDungeon({ ...base, roomCount: 14, layout: 'ring', hallTypes: ['spine'], connectionRandomness: 0, seed: `ring-nohall${s}` });
@@ -1643,22 +1669,87 @@ console.log('== overall layout');
     for (const h of dun.halls) if (h.kind !== 'spine') fail('layout', 'a closing hallway of a kind that is switched off');
   }
   // only a ring runs its hallways in a circle: with every other layout the hallways alone join the rooms as a tree
-  for (const name of ['cathedral', 'cavern', 'radial', 'mainst', 'square', 'long', 'wide']) {
+  for (const name of ['cathedral', 'spiral', 'gauntlet', 'radial', 'mainst', 'square', 'long', 'wide']) {
     for (let s = 0; s < 10; s++) {
       const dun = DM.generateDungeon({ ...base, layout: name, seed: `noloop-${name}${s}` });
       if (dun.stats.hallLinks > dun.rooms.length - 1) fail('layout', `${name}: hallways made a loop`);
     }
   }
-  // winding passages: a cavern picks curly hallways more often than usual
-  const curlies = (name) => {
-    let n = 0;
-    for (let s = 0; s < 40; s++) n += DM.generateDungeon({ ...base, hallTypes: ['short', 'spine', 'curly', 'branching'], layout: name, seed: `wind${s}` }).stats.hallTypeCounts.curly || 0;
-    return n;
-  };
-  const cavernCurly = curlies('cavern');
-  const squareCurly = curlies('square');
-  console.log(`  curly hallways in 40 dungeons: cavern ${cavernCurly}, square ${squareCurly}`);
-  if (cavernCurly <= squareCurly) fail('layout', `a cavern should have more curly hallways than a square one (${cavernCurly} against ${squareCurly})`);
+  // a gauntlet is a single chain: every room joined to the next, no hallway serving three rooms, no room with more than two links
+  // (with Branching off: it is Branching that lets a hallway fork to a side room, see below)
+  for (const count of [3, 8, 20]) {
+    for (let s = 0; s < 15; s++) {
+      const dun = DM.generateDungeon({ ...base, roomCount: count, layout: 'gauntlet', hallTypes: ['short', 'curly'], seed: `gauntlet-${count}-${s}` });
+      checkDungeon(dun, `gauntlet ${count}`);
+      if (dun.connections.length !== count - 1) fail('layout', `gauntlet ${count}: ${dun.connections.length} connections`);
+      if (dun.connections.some((c) => c.rooms.length !== 2)) fail('layout', `gauntlet ${count}: a connection serves more than two rooms`);
+      // the first two entrances are in the first and the last room
+      const gEnds = dun.entrances.slice(0, 2).map((e) => e.room).sort();
+      if (count > 3 && dun.entrances.length >= 2 && dun.warnings.length === 0) {
+        const anywhere = DM.generateDungeon({ ...base, roomCount: count, layout: 'gauntlet', hallTypes: ['short', 'curly'], edgeEntrancesOnly: false, seed: `gauntlet-${count}-${s}` });
+        if (anywhere.entrances.slice(0, 2).map((e) => e.room).sort().join() !== [0, count - 1].join()) fail('layout', `gauntlet ${count}: with entrances anywhere, the first two are not in the first and last rooms`);
+      }
+      if (gEnds.length !== new Set(gEnds).size) fail('layout', 'gauntlet: two entrances in one room at the ends');
+      const degree = new Map();
+      for (const c of dun.connections) for (const r of c.rooms) degree.set(r, (degree.get(r) || 0) + 1);
+      if ([...degree.values()].some((n) => n > 2)) fail('layout', `gauntlet ${count}: a room has more than two links`);
+    }
+  }
+  // a gauntlet with Branching on: a hallway can fork to a side room that is a dead end (one room, no more) while the path goes on,
+  // and the last room is still the end of the path
+  let forks = 0;
+  for (const count of [4, 8, 20]) {
+    for (let s = 0; s < 15; s++) {
+      const dun = DM.generateDungeon({ ...base, roomCount: count, layout: 'gauntlet', hallTypes: ['short', 'curly', 'branching'], seed: `gauntlet-branch-${count}-${s}` });
+      checkDungeon(dun, `gauntlet with branches ${count}`);
+      const links = new Map();
+      for (const c of dun.connections) for (const r of c.rooms) links.set(r, (links.get(r) || 0) + 1);
+      for (const c of dun.connections) {
+        if (c.rooms.length > 3) fail('layout', `gauntlet ${count}: a hallway serves ${c.rooms.length} rooms`);
+        if (c.rooms.length === 3) {
+          forks++;
+          const side = c.rooms[2];
+          if (links.get(side) !== 1) fail('layout', `gauntlet ${count}: a side room is not a dead end`);
+          if (side === count - 1) fail('layout', `gauntlet ${count}: the last room is a side room`);
+        }
+      }
+      if (dun.connections.length < count - 1 - dun.connections.filter((c) => c.rooms.length === 3).length) fail('layout', `gauntlet ${count}: rooms are left out of the chain`);
+    }
+  }
+  if (forks === 0) fail('layout', 'gauntlet: Branching on never made a side room');
+
+  // whatever is switched on turns up: every room shape that is on has a room, and every hallway type that is on has a hallway (with
+  // rooms and hallways enough for that, and for a gauntlet without spines, which it has none of)
+  {
+    const lay = ['random', 'cathedral', 'ring', 'spiral', 'gauntlet', 'square', 'long', 'wide'];
+    let runs = 0;
+    let gaps = 0;
+    for (const layout of lay) {
+      for (let s = 0; s < 25; s++) {
+        const r = new DM.Rng(`turns-up-${layout}${s}`);
+        const pick = (all) => {
+          const chosen = all.filter(() => r.next() < 0.5);
+          return chosen.length > 0 ? chosen : [r.pick(all)];
+        };
+        const p = { ...base, roomCount: r.int(15, 30), avgRoomSize: 30, layout, connectionType: r.pick(['hall', 'door']), connectionRandomness: r.pick([0, 25]), roomShapes: pick(DM.SHAPE_KINDS), hallTypes: pick(DM.HALL_TYPES).concat(r.pick(DM.HALL_KINDS)).filter((k, i, all) => all.indexOf(k) === i), seed: `turns-up-${layout}${s}` };
+        const dun = DM.generateDungeon(p);
+        if (dun.warnings.some((w) => /Could only fit/.test(w))) continue;
+        runs++;
+        for (const k of p.roomShapes) if (!dun.stats.shapeCounts[k]) { gaps++; fail('layout', `${layout}: room shape ${k} is on but no room has it (${p.roomShapes})`); }
+        for (const k of p.hallTypes) {
+          if (!DM.hallwaysPossible(p) || (layout === 'gauntlet' && k === 'spine')) continue;
+          if (!dun.stats.hallTypeCounts[k]) { gaps++; fail('layout', `${layout}: hallway type ${k} is on but none was used (${p.hallTypes}, ${p.connectionType} ${p.connectionRandomness}%)`); }
+        }
+      }
+    }
+    console.log(`  every shape and hallway type that is on turns up: ${runs} dungeons, ${gaps} missing`);
+  }
+  // (a gauntlet with Branching on and mostly doorways: still a hallway forks to a side room)
+  for (let s = 0; s < 30; s++) {
+    const dun = DM.generateDungeon({ ...base, roomCount: 20, layout: 'gauntlet', hallTypes: ['short', 'branching'], connectionType: 'door', connectionRandomness: 25, roomShapes: ['rect', 'chamfer'], seed: `gauntlet-forks-${s}` });
+    if (!dun.connections.some((c) => c.rooms.length === 3)) fail('layout', 'gauntlet with Branching on has no fork');
+    if (!dun.stats.shapeCounts.chamfer) fail('layout', 'gauntlet with Chamfered on has no chamfered room');
+  }
 
   // the shapes themselves (layout.js on its own): the start is inside, far away is not, and each is the shape it says
   let n = 0.3;
@@ -1679,7 +1770,6 @@ console.log('== overall layout');
   if (!ring.closes || !(ring.outside(0, 0, 0) > 5)) fail('layout', 'a ring should close and have an empty middle');
   const cross = DM.makeLayout('cathedral', info);
   if (cross.outside(0, 0) !== 0 || cross.outside(30, 30) === 0) fail('layout', 'the cross should include its crossing and not its corners');
-  if (!(DM.makeLayout('cavern', info).winding > 1)) fail('layout', 'a cavern should favour winding hallways');
 }
 
 console.log('== hallway scaling');
@@ -1785,9 +1875,9 @@ console.log('== page layout');
     return col;
   };
   const expected = {
-    layout: ['name="layout"', 'name="spacing"'],
+    layout: ['name="layout"', 'name="spacing"', 'id="entrances"', 'id="edgeEntrancesOnly"'],
     rooms: ['id="roomCount"', 'id="avgRoomSize"', 'id="minRoomWidth"', 'id="minRoomLength"', 'id="sizeVariance"', 'name="roomShape"'],
-    hallways: ['name="connectionType"', 'id="connectionRandomness"', 'name="hallType"', 'name="hallDoors"', 'id="entrances"', 'id="edgeEntrancesOnly"'],
+    hallways: ['name="connectionType"', 'id="connectionRandomness"', 'name="hallType"', 'id="hallWidth"', 'name="hallDoors"'],
     generate: ['id="seed"', 'id="generate"', 'id="generateRandom"', 'id="summary"'],
     display: ['name="labelPosition"', 'id="showGrid"', 'id="showLabels"', 'id="colorPickers"', 'id="resetColors"'],
   };
