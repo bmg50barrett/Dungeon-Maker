@@ -1070,16 +1070,16 @@ console.log('== share and export');
   if (!capOne.startsWith('Seed solo · 1 room · ') || capOne.includes('1 rooms')) fail('share', `caption "${capOne}"`);
   if (!capMany.startsWith('Seed abc · 12 rooms · ') || !capMany.endsWith(`${many.width}×${many.height} squares (${many.width * 5}×${many.height * 5} ft)`)) fail('share', `caption "${capMany}"`);
 
-  // the page: buttons in the generate column, the script loaded in order, a print layout, and nothing sent anywhere
+  // the page: buttons in the export column, the script loaded in order, a print layout, and nothing sent anywhere
   const html = read('index.html');
   const css = read('styles.css');
   const appJs = read('src', 'app.js');
   const at = (s) => html.indexOf(`src/${s}.js`);
   if (!(at('palette') > 0 && at('palette') < at('share') && at('share') < at('app'))) fail('share', 'share.js must be loaded after palette.js and before app.js');
   const blade = (name) => html.slice(html.indexOf(`data-blade="${name}"`), html.indexOf('<main class="stage">'));
-  const generateColumn = html.slice(html.indexOf('data-blade="generate"'), html.indexOf('data-blade="display"'));
+  const generateColumn = html.slice(html.indexOf('data-blade="export"'), html.indexOf('data-blade="display"'));
   for (const id of ['copyLink', 'downloadPng', 'downloadJson', 'printMap', 'exportLegend', 'exportStatus', 'shareUrl']) {
-    if (!generateColumn.includes(`id="${id}"`)) fail('share', `#${id} should be in the generate column`);
+    if (!generateColumn.includes(`id="${id}"`)) fail('share', `#${id} should be in the export column`);
   }
   if (!/id="exportLegend"[^>]*\schecked/.test(generateColumn)) fail('share', 'the legend should be on the picture unless it is switched off');
   if (!/<input[^>]*id="shareUrl"[^>]*readonly/.test(generateColumn)) fail('share', 'the link box should be read-only');
@@ -1150,7 +1150,7 @@ console.log('== remembered settings');
   const resetAt = app.indexOf("$('resetSettings').addEventListener");
   const resetBody = app.slice(resetAt, app.indexOf('\n  });', resetAt));
   for (const need of ['applyForm(', 'applyDisplay(', 'localStorage.removeItem(SETTINGS_KEY)', 'generate()']) if (!resetBody.includes(need)) fail('settings', `Reset all does not do ${need}`);
-  if (!/id="resetSettings"/.test(html.slice(html.indexOf('data-blade="generate"'), html.indexOf('data-blade="display"')))) fail('settings', 'Reset all belongs in the generate column');
+  if (!/id="resetSettings"/.test(html.slice(html.indexOf('data-blade="export"'), html.indexOf('data-blade="display"')))) fail('settings', 'Reset all belongs in the export column');
   console.log('  done');
 }
 
@@ -1958,7 +1958,7 @@ console.log('== page layout');
 
   // the inputs are split into five collapsible columns: layout (with room spacing), rooms, hallways (with entrances), seed / generation / results, then display
   const blades = [...html.matchAll(/<section class="blade" id="blade-([a-z]+)" data-blade="([a-z]+)"/g)];
-  if (JSON.stringify(blades.map((m) => m[2])) !== JSON.stringify(['layout', 'rooms', 'hallways', 'generate', 'display'])) fail('layout', `columns are [${blades.map((m) => m[2])}]`);
+  if (JSON.stringify(blades.map((m) => m[2])) !== JSON.stringify(['layout', 'rooms', 'hallways', 'export', 'display'])) fail('layout', `columns are [${blades.map((m) => m[2])}]`);
   for (const [, id, name] of blades) {
     if (id !== name) fail('layout', `column ${name} has id blade-${id}`);
     if (!html.includes(`aria-controls="blade-${name}-body"`) || !html.includes(`id="blade-${name}-body"`)) fail('layout', `the toggle of column ${name} does not control its body`);
@@ -1975,11 +1975,20 @@ console.log('== page layout');
     layout: ['name="layout"', 'name="spacing"', 'id="levels"', 'id="levelStairs"', 'id="entrances"', 'id="edgeEntrancesOnly"'],
     rooms: ['id="roomCount"', 'id="avgRoomSize"', 'id="minRoomWidth"', 'id="minRoomLength"', 'id="sizeVariance"', 'name="roomShape"'],
     hallways: ['name="connectionType"', 'id="connectionRandomness"', 'name="hallType"', 'id="hallWidth"', 'name="hallDoors"'],
-    generate: ['id="seed"', 'id="generate"', 'id="generateRandom"', 'id="summary"'],
+    export: ['id="seed"', 'id="summary"'],
     display: ['name="labelPosition"', 'id="showGrid"', 'id="showLabels"', 'id="colorPickers"', 'id="resetColors"'],
   };
   for (const [col, needles] of Object.entries(expected)) {
     for (const needle of needles) if (columnOf(needle) !== col) fail('layout', `${needle} should be in the ${col} column, not ${columnOf(needle)}`);
+  }
+  // the buttons that build a dungeon sit above the map, beside the level tabs, with Regenerate level; Re-generate still submits the form
+  {
+    const bar = html.slice(html.indexOf('<div class="map-bar">'), html.indexOf('<div class="map-frame">'));
+    if (bar.length < 20 || html.indexOf('<div class="map-bar">') < stageAt) fail('layout', 'the build buttons are not in the bar above the map');
+    const order = ['id="levelTabs"', 'id="regenLevel"', 'id="generate"', 'id="generateRandom"'].map((x) => bar.indexOf(x));
+    if (order.some((x, i) => x < 0 || (i > 0 && x < order[i - 1]))) fail('layout', 'the bar above the map should hold the level tabs, then Regenerate level, Re-generate dungeon and, last, Generate with random seed');
+    if (!/<button type="submit" form="params" id="generate"/.test(bar)) fail('layout', 'Re-generate dungeon must submit the form from outside it');
+    if (!/id="regenLevel"[^>]*hidden/.test(bar)) fail('layout', 'Regenerate level should start hidden (a single level has nothing to regenerate)');
   }
   // room spacing: a choice of exactly the spacings the generator knows, compact on first, with a hint that gives its real distances
   {
@@ -2138,10 +2147,10 @@ console.log('== brand style (Duckweed’s Aeldara)');
   if (!/<div class="map-frame"><div class="map-frame-inner">\s*<div class="map-area">\s*<canvas id="map"/.test(html)) fail('brand', 'the map canvas should sit inside the double frame');
   if (!/<header class="map-head">\s*<div class="map-head-name">\s*<h1 class="map-title">/.test(html)) fail('brand', 'the title should sit in the header that carries the 2pt rule');
 
-  // selections are wine: the segment chosen and Re-generate are filled, the random seed button is an outline, chips on show a gold diamond, swatches are square with a gold outline on the one chosen
+  // selections are wine: the segment chosen and Generate with random seed are filled, Re-generate is an outline, chips on show a gold diamond, swatches are square with a gold outline on the one chosen
   if (!/background:\s*var\(--fill\)/.test(rule('.seg-options input:checked + label'))) fail('brand', 'the segment chosen should be filled wine');
-  if (!/background:\s*var\(--fill\)/.test(rule('#generate')) || !/color:\s*var\(--on-fill\)/.test(rule('#generate'))) fail('brand', 'Re-generate should be filled wine (rose-wine with dark text in Dark)');
-  if (!/background:\s*transparent/.test(rule('#generateRandom')) || !/border:\s*1px solid var\(--wine\)/.test(rule('#generateRandom'))) fail('brand', 'the random seed button should be a wine outline');
+  if (!/background:\s*var\(--fill\)/.test(rule('#generateRandom')) || !/color:\s*var\(--on-fill\)/.test(rule('#generateRandom'))) fail('brand', 'Generate with random seed should be filled wine (rose-wine with dark text in Dark)');
+  if (!/background:\s*transparent/.test(rule('#generate')) || !/border:\s*1px solid var\(--wine\)/.test(rule('#generate'))) fail('brand', 'Re-generate dungeon should be a wine outline');
   if (!/content:\s*'\\25C6'/.test(rule('.chip-body::before'))) fail('brand', 'a chip should carry a diamond');
   if (!/color:\s*var\(--gold\)/.test(rule('.chip input:checked + .chip-body::before'))) fail('brand', 'the diamond on a chip that is on should be gold');
   if (!/outline:\s*var\(--stroke-frame-outer\) solid var\(--gold\)|outline:\s*1\.5pt solid var\(--gold\)/.test(noComments.match(/\.swatch input:checked \+ \.dot,\s*\.swatch\.custom\.active \.dot\s*\{[^}]*\}/)[0])) fail('brand', 'the swatch chosen should have a gold outline');

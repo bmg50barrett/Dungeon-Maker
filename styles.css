@@ -378,25 +378,22 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
   line-height: 1.2;
   cursor: pointer;
 }
-/* Re-generate: filled wine (rose-wine with dark text in the dark theme) */
-#generate {
+/* Generate with random seed, the main button: filled wine (rose-wine with dark text in the dark theme) */
+#generateRandom {
   color: var(--on-fill);
   background: var(--fill);
   border: 1px solid var(--fill);
 }
-#generate:hover { color: var(--paper); background: var(--ink); border-color: var(--ink); }
-#generate:disabled, #generateRandom:disabled { opacity: 0.6; cursor: progress; }
+#generateRandom:hover { color: var(--paper); background: var(--ink); border-color: var(--ink); }
 
-/* the random seed: a wine outline */
-#generateRandom {
-  margin-top: 10px;
-  font-size: 18px;
+/* Re-generate dungeon: a wine outline */
+#generate {
   color: var(--heading);
   background: transparent;
   border: 1px solid var(--wine);
 }
-#generateRandom:hover { background: var(--tint); }
-#generateRandom:disabled:hover { background: transparent; }
+#generate:hover { background: var(--tint); }
+#generate:disabled:hover { background: transparent; }
 
 .summary { margin: 22px 0 0; font-size: 15px; line-height: 1.35; }
 .summary:empty { display: none; }
@@ -480,7 +477,9 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
 /* ---- levels ------------------------------------------------------------------ */
 /* the level tabs are a segmented control, like the other choices: a wine outline with a rule between the options (the borders
    overlap, so a row of tabs that wraps keeps its outline), the level on show filled in wine */
-.level-tabs { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0 16px; margin: 8px 0 10px; } /* (8px clear of the gold rule under the title) */
+/* the bar above the map: the level tabs at the left, the buttons that build a dungeon at the right */
+.map-bar { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 16px; margin: 8px 0 10px; } /* (8px clear of the gold rule under the title) */
+.level-tabs { display: flex; flex-wrap: wrap; align-items: flex-start; }
 .level-tabs[hidden] { display: none; }
 .level-tabs-bar { display: flex; flex-wrap: wrap; }
 .level-tabs-bar button {
@@ -491,15 +490,18 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
 .level-tabs-bar button:hover { background: var(--tint); }
 .level-tabs-bar button[aria-pressed='true'] { color: var(--on-fill); background: var(--fill); border-color: var(--wine); font-weight: 600; }
 .level-tabs-bar button:focus-visible { position: relative; outline: 2px solid var(--focus); outline-offset: 2px; }
-/* Regenerate level: like the random-seed button, a wine outline in the engraved small caps of the main buttons */
-.level-tabs .level-tabs-regen {
-  margin-left: auto; min-height: var(--tap); padding: 8px 16px;
-  font-family: var(--font-display); font-size: 18px; font-weight: 400; line-height: 1.2; cursor: pointer;
-  color: var(--heading); background: transparent; border: 1px solid var(--wine);
+/* the build buttons, at the right of the bar: Generate with random seed, last, is filled wine, the other two are wine outlines (all in
+   the engraved small caps of the main buttons; #generate and #generateRandom get their colors from the rules for the main buttons) */
+.map-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-left: auto; }
+.map-actions #generate, .map-actions #generateRandom, .map-actions #regenLevel {
+  display: block; width: auto; min-height: var(--tap); margin: 0; padding: 6px 14px;
+  font-family: var(--font-display); font-size: 17px; font-weight: 400; line-height: 1.2; cursor: pointer;
 }
-.level-tabs .level-tabs-regen:hover { background: var(--tint); }
-.level-tabs .level-tabs-regen:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.level-tabs .level-tabs-regen[hidden] { display: none; }
+.map-actions.busy button { opacity: 0.6; cursor: progress; }
+.map-actions #regenLevel { color: var(--heading); background: transparent; border: 1px solid var(--wine); }
+.map-actions #regenLevel:hover { background: var(--tint); }
+.map-actions #regenLevel:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.map-actions #regenLevel[hidden] { display: none; }
 .all-levels {
   position: absolute; inset: 0; overflow: auto; z-index: 3; padding: 12px; background: var(--map-bg);
   display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-content: start;
@@ -841,7 +843,7 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
   /* a dungeon of several levels: one page for each, the first in #printImage and the rest after it */
   .print-extra { display: block; width: 100%; height: auto; max-height: 100vh; object-fit: contain; break-after: page; }
   #printImage[src]:last-child, .print-extra:last-child { break-after: auto; }
-  .level-tabs, .all-levels { display: none !important; }
+  .map-bar, .level-tabs, .all-levels { display: none !important; }
 }
 
 .toolbar button[hidden] { display: none; }

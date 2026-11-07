@@ -26,8 +26,8 @@ Duckweed's Aeldara is a printed-book look: parchment, ink, and two accents, wine
   else; IM Fell English italic for hint lines.
 - **Rules of the house**: square corners everywhere, no all caps (small caps instead), no shadows. A column or
   section heading has a 1pt gold rule under it, the title a 2pt one. The map sits in a double gold frame
-  (a 1.5pt line, then a 0.5pt line 5pt inside it). The segment chosen in a choice and Re-generate are filled wine
-  (rose-wine with dark text in Dark); the random-seed button is a wine outline; a chip that is on shows a gold
+  (a 1.5pt line, then a 0.5pt line 5pt inside it). The segment chosen in a choice and Generate with random seed are filled wine
+  (rose-wine with dark text in Dark); Re-generate dungeon is a wine outline; a chip that is on shows a gold
   diamond; color swatches are square with a gold outline on the one chosen; a dropdown is an input's square box with a wine
   triangle, drawn in CSS. Every input, dropdown and button is at least 44px tall. The brand has no icon set, so the little shape pictures on the chips are hidden: the diamond is
   the only mark.
@@ -308,7 +308,7 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
     remove them and add new ones (the MCP server's `move_stair` keeps the letter).
   - The edits are made to the dungeon on the page, so **Picture (PNG)**, **Data (JSON)** and **Print**
     have them (the picture never shows edit mode's rings or a stroke's preview), and the results in the
-    Generate column (hallway count, footprint and so on) follow them. **Copy link** does not: a link holds
+    Export column (hallway count, footprint and so on) follow them. **Copy link** does not: a link holds
     the settings and rebuilds the dungeon from them, so it gives the doors and hallways the generator made;
     the status line under the share buttons says so once something has been changed.
   - **Undo and Redo** (the counter-clockwise and clockwise arrow buttons left of the zoom buttons, or **Ctrl+Z** and **Ctrl+Y**; **Ctrl+Shift+Z**
@@ -330,7 +330,7 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
     never asks.
 - The inputs are in five columns side by side: **Layout** (the overall layout and room spacing), **Rooms** (count, sizes, shapes),
   **Hallways** (connection type, randomization, hallway types, doors, entrances),
-  **Generate** (seed, the buttons and the results) and **Display** (theme, label position, the
+  **Export** (seed, the results, share and export, settings) and **Display** (theme, label position, the
   grid and room-number switches, and colors). Display only changes how the map is
   drawn (and, for the theme, the page around it), so it applies at once. Click a
   column's title bar to collapse it to a thin strip and give the map more room, and
@@ -355,7 +355,7 @@ theme is about the viewer, not the dungeon, so a share link does not hold it and
 - A **share link** opened in the address bar wins over what is remembered, and does not
   replace it: your own settings come back next time you open the page without a link. (Once
   you change something while a link's settings are showing, the whole set is remembered.)
-- **Reset all** (the Settings section at the bottom of the Generate column) puts every
+- **Reset all** (the Settings section at the bottom of the Export column) puts every
   input, switch and color back to how the page first comes, forgets what was kept, and builds
   a new dungeon.
 - The settings are stored in the browser's `localStorage` under `dungeonMaker.settings`,
@@ -394,7 +394,7 @@ are reached by stairs only.
   square where stairs lead to another level, and an entrance cannot be put on one. Entrances stay on level 1 (adding
   and removing them is the MCP server's). The **All** view is for looking: Edit mode goes off there. The MCP server's
   `edit_dungeon` takes a `level` too, and has `add_stair`, `move_stair` and `remove_stair` for the stairs, and `add_room`, `move_room` and `delete_room` for the rooms.
-- **Regenerate level** (at the right of the level tabs, on a single level's tab) builds the level on the map again from
+- **Regenerate level** (at the right above the map, the first of the three build buttons, before **Re-generate dungeon** and **Generate with random seed**, on a single level's tab) builds the level on the map again from
   other random numbers, and leaves the others as they are. It has the dungeon's settings (room count, layout and so
   on); its rooms are numbered from 1 and have no names. The stairs to the levels next to it stay where they still fit
   on the new floor, and others are placed again on squares that work for both; if the new floor cannot be joined to
@@ -405,7 +405,7 @@ are reached by stairs only.
 
 ## Share and export
 
-At the bottom of the Generate column. All of it is made in the page: nothing is uploaded.
+At the bottom of the Export column (Share & export). All of it is made in the page: nothing is uploaded.
 
 - **Copy link** copies a link that opens this exact dungeon. It holds the inputs, the seed
   that was really used (even if the seed box was blank) and how the map is drawn: label

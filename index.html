@@ -214,23 +214,20 @@
           </div>
         </section>
 
-        <!-- column 4: seed, generate, results (summary) -->
-        <section class="blade" id="blade-generate" data-blade="generate">
+        <!-- column 4: seed, results (summary), share and export, settings. (The buttons that build a dungeon are above the map.) -->
+        <section class="blade" id="blade-export" data-blade="export">
           <h2 class="blade-head">
-            <button type="button" class="blade-toggle" aria-expanded="true" aria-controls="blade-generate-body" title="Collapse Generate">
-              <span class="blade-title">Generate</span>
+            <button type="button" class="blade-toggle" aria-expanded="true" aria-controls="blade-export-body" title="Collapse Export">
+              <span class="blade-title">Export</span>
               <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </h2>
-          <div class="blade-body" id="blade-generate-body">
+          <div class="blade-body" id="blade-export-body">
             <div class="field">
               <label for="seed">Seed <span class="optional">(optional)</span></label>
               <input id="seed" name="seed" type="text" placeholder="blank = random">
               <p class="hint">Same inputs + same seed = same dungeon.</p>
             </div>
-
-            <button type="submit" id="generate">Re-generate dungeon</button>
-            <button type="button" id="generateRandom" title="Ignores the seed field, builds a new random dungeon and puts its seed in the field">Generate with random seed</button>
 
             <section id="summary" class="summary" aria-live="polite"></section>
 
@@ -334,7 +331,15 @@
         </div>
       </header>
       <!-- a dungeon of several levels: one button for each floor, and one for all of them side by side (shown by app.js) -->
-      <nav class="level-tabs" id="levelTabs" aria-label="Levels" hidden></nav>
+      <div class="map-bar">
+        <nav class="level-tabs" id="levelTabs" aria-label="Levels" hidden></nav>
+        <!-- the buttons that build a dungeon (Re-generate dungeon is the form's submit button, though it sits outside the form); the last, the main one, is filled -->
+        <div class="map-actions" id="mapActions">
+          <button type="button" id="regenLevel" title="Build the level on the map again, from other random numbers; the other levels stay as they are, and stairs are kept where they still fit" hidden>Regenerate level</button>
+          <button type="submit" form="params" id="generate">Re-generate dungeon</button>
+          <button type="button" id="generateRandom" title="Ignores the seed field, builds a new random dungeon and puts its seed in the field">Generate with random seed</button>
+        </div>
+      </div>
       <!-- the map sits in a double gold frame, like a plate in a printed book -->
       <div class="map-frame"><div class="map-frame-inner">
       <div class="map-area">

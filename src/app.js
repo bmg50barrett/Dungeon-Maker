@@ -681,23 +681,16 @@
   function buildLevelTabs(n) {
     const bar = $('levelTabs');
     bar.textContent = '';
-    // the level buttons and All are one segmented control; Regenerate level stands apart from it
+    // the level buttons and All are one segmented control (Regenerate level, with the other buttons that build, is beside it)
     const group = document.createElement('div');
     group.className = 'level-tabs-bar';
     for (let i = 1; i <= n; i++) group.append(levelButton(n <= 6 ? `Level ${i}` : String(i), i, `Show level ${i}`));
     group.append(levelButton('All', 'all', 'Show every level side by side'));
     bar.append(group);
     // builds the level on the map again (not for the All view)
-    const again = document.createElement('button');
-    again.type = 'button';
-    again.id = 'regenLevel';
-    again.className = 'level-tabs-regen';
-    again.textContent = 'Regenerate level';
-    again.title = 'Build the level on the map again, from other random numbers; the other levels stay as they are, and stairs are kept where they still fit';
-    again.hidden = viewLevel === 'all';
-    again.addEventListener('click', regenerateLevel);
-    bar.append(again);
+    $('regenLevel').hidden = viewLevel === 'all';
   }
+  $('regenLevel').addEventListener('click', () => regenerateLevel());
 
   /** Build the level on the map again (DM.regenerateLevel), asking first if it was changed by hand. */
   function regenerateLevel() {
@@ -720,8 +713,7 @@
       showSummary(d, builtMs);
       if (namePanelOpen()) showRoomNames(d);
       $('canvasHint').textContent = `Level ${n} built again${res.kept ? `, with ${res.kept} stair${res.kept === 1 ? '' : 's'} kept` : ''}.`;
-      const next = $('levelTabs').querySelector('.level-tabs-regen');
-      if (next) next.focus();
+      $('regenLevel').focus();
     };
     if (floorStates(d)[n - 1] === floorsAsBuilt[n - 1]) return go();
     askToDiscardEdits({
@@ -766,6 +758,7 @@
     const all = multi && viewLevel === 'all';
     $('levelTabs').hidden = !multi;
     if (multi) buildLevelTabs(n);
+    else $('regenLevel').hidden = true;
     $('exportScope').hidden = !multi;
     // (Edit mode works on the level on the map; the all-levels view is for looking, and its pictures are not editable)
     if (all && $('editMode').getAttribute('aria-pressed') === 'true') setEditMode(false);
@@ -812,7 +805,14 @@
 
     const clicked = randomSeed ? $('generateRandom') : $('generate');
     for (const b of generateButtons) b.disabled = true;
-    clicked.textContent = 'Generating…';
+    // The busy look (a dimmed bar, "Generating…" on the button pressed) is only for a build big enough to be seen taking a
+    // while: on a small one it would be on screen for a few milliseconds, and flash. The buttons keep their width either way.
+    const slow = (check.params.roomCount || 0) * (check.params.levels || 1) >= 80;
+    if (slow) {
+      for (const b of generateButtons) b.style.minWidth = `${b.offsetWidth}px`;
+      clicked.textContent = 'Generating…';
+      $('mapActions').classList.add('busy');
+    }
     // let the browser paint the busy state before the (synchronous) generation runs
     setTimeout(() => {
       try {
@@ -839,9 +839,11 @@
         generateButtons.forEach((b, i) => {
           b.disabled = false;
           b.textContent = generateLabels[i];
+          b.style.minWidth = '';
         });
+        $('mapActions').classList.remove('busy');
       }
-    }, 20);
+    }, slow ? 20 : 0);
   }
 
   $('params').addEventListener('submit', (e) => {
