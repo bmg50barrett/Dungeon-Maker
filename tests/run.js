@@ -2095,8 +2095,25 @@ console.log('== page layout');
   if (html.includes('class="app-title"') || html.includes('class="sub"')) fail('layout', 'the old header (title and subtitle) is still in the column panel');
   // the map (with its buttons and legend) fills what is left under the title, so the title never covers the dungeon
   const mapAreaAt = html.indexOf('class="map-area"');
-  for (const needle of ['id="map"', 'class="toolbar"', 'id="legend"', 'class="canvas-hint"']) {
+  for (const needle of ['id="map"', 'class="canvas-hint"']) {
     if (!(html.indexOf(needle) > mapAreaAt && mapAreaAt > titleAt)) fail('layout', `${needle} should be inside the map area, under the title`);
+  }
+  // the buttons are above the framed map and the legend below it (on a computer they lie over its corners, on a phone they are beside it, not on it)
+  {
+    const stackAt = html.indexOf('class="map-stack"');
+    const frameAt = html.indexOf('<div class="map-frame">');
+    const toolbarAt = html.indexOf('<div class="toolbar">');
+    const legendAt2 = html.indexOf('id="legend"');
+    const frameEnd = html.indexOf('</div></div>', frameAt);
+    if (!(titleAt < stackAt && stackAt < toolbarAt && toolbarAt < frameAt && frameEnd < legendAt2 && legendAt2 < html.indexOf('class="canvas-hint"'))) fail('layout', 'the buttons should come before the framed map, and the legend after it, all inside the map stack under the title');
+    const scss = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
+    const hasCss = (re) => re.test(scss.replace(/\/\*[^]*?\*\//g, ''));
+    if (!hasCss(/\.toolbar \{[^}]*position:\s*absolute/) || !hasCss(/\.legend \{[^}]*position:\s*absolute/)) fail('layout', 'on a computer the buttons and legend should lie over the map');
+    const phone = (scss.replace(/\/\*[^]*?\*\//g, '').match(/@media \(max-width: 760px\) \{([^]*?)\n\}\n/) || [])[1] || '';
+    if (!/\.toolbar \{[^}]*position:\s*static/.test(phone) || !/\.legend \{[^}]*position:\s*static/.test(phone)) fail('layout', 'on a phone the buttons and legend should be above and below the map, not over it');
+    if (!/\.map-frame \{[^}]*height:\s*60vh/.test(phone)) fail('layout', 'on a phone the map is a small picture, 60% of the screen high');
+    if (!/\.toolbar-row, \.edit-tools \{[^}]*flex-flow:\s*row wrap/.test(phone)) fail('layout', 'on a phone the buttons above the map are a wrapping row');
+    if (!/showing-all', all\)/.test(appJs) || !/mapStack/.test(appJs)) fail('layout', 'the All view should hide the buttons and legend, which are around the map');
   }
   const stageCss = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
   if (!/\.stage\s*\{[^}]*flex-direction:\s*column/.test(stageCss) || !/\.map-area\s*\{[^}]*position:\s*relative/.test(stageCss)) fail('layout', 'styles.css does not stack the title above the map area');
@@ -4049,7 +4066,7 @@ console.log('== edit mode');
   for (const id of ['legendHall', 'legendDoor', 'legendLocked', 'legendSecret', 'legendEntrance', 'legendStairsEntrance', 'legendLevelStairs']) if (!new RegExp(`<li id="${id}" hidden>`).test(html)) fail('edit', `the legend line ${id} is missing, or shown for maps with none`);
   for (const sel of ["\\.edit-toggle\\[aria-pressed='true'\\]", '\\.sw-locked', '\\.sw-secret', '#discardDialog', '#map\\.over-door', '\\.legend li\\[hidden\\]']) if (!new RegExp(sel).test(css)) fail('edit', `styles.css has no ${sel}`);
   if (!/\.toolbar\s*\{[^}]*z-index:\s*2/.test(css)) fail('edit', 'the toolbar must sit above the legend card, or the card can cover the Edit button');
-  if (!/@media \(max-width: 760px\)[^]*?\.toolbar-row,\s*\.edit-tools\s*\{\s*flex-direction:\s*column/.test(css)) fail('edit', 'on a narrow screen the toolbar should stack, so the Edit button does not run under the legend');
+  if (!/@media \(max-width: 760px\)[^]*?\.toolbar-row,\s*\.edit-tools\s*\{\s*flex-flow:\s*row wrap/.test(css)) fail('edit', 'on a narrow screen the toolbar should be a wrapping row above the map');
   // every way of building a new dungeon asks first (the first one, at page load, has nothing to lose)
   if (!/\$\('params'\)\.addEventListener\('submit',[^]*?ifEditsDiscarded\(\(\) => generate\(\{ fillSeed: true \}\)\)/.test(app)) fail('edit', 'Generate Dungeon does not ask before losing edits');
   if (!/\$\('generateRandom'\)\.addEventListener\('click', \(\) => ifEditsDiscarded\(/.test(app)) fail('edit', 'Random Dungeon does not ask before losing edits');

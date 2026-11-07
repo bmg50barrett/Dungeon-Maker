@@ -345,7 +345,9 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
   screen the columns stack and collapse like an accordion.
 - The **legend** is a small card in the bottom right corner of the map, not in a column, so it
   stays in view however many columns are collapsed. Click its title to fold it away if it
-  is covering part of the dungeon, and again to bring it back.
+  is covering part of the dungeon, and again to bring it back. On a phone (a screen under 760 pixels wide) the
+  map is a small picture, 60% of the screen high, and nothing lies over it: its buttons (Edit, Room names, undo,
+  redo, zoom, Fit, and the Edit tools) are in a row above it, and the legend is below it.
 
 ## Remembered settings
 

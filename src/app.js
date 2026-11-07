@@ -834,6 +834,7 @@
     $('stairsTool').hidden = !multi;
     if (!multi && renderer.editTool === 'stairs') setEditTool('door');
     mapArea.classList.toggle('showing-all', all);
+    $('mapStack').classList.toggle('showing-all', all); // (the buttons and legend are around the map, not in it)
     $('allLevels').hidden = !all;
     if (all) buildGallery(d);
     else $('allLevels').textContent = '';
