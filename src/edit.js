@@ -16,7 +16,13 @@
  *     (or a side door) to the next, or to a dead end.
  *   - deleteHall  a whole hallway, by its id.
  *   - addEntrance / removeEntrance  ways in from outside (a door in an outer wall, or stairs on a floor).
+ *   - addStair / moveStair / removeStair  stairs between two floors of a dungeon of several levels: one square that is a room square
+ *     on both, with no door or entrance on it and no other stairs. Each pair of floors keeps at least one stair.
  *   - editState  one text for everything Edit mode can change, to tell whether anything was.
+ *
+ * A dungeon of several levels is edited one floor at a time: the functions here take the floor as DM.floorView(dungeon, level)
+ * gives it. The floors share one map, so when the map changes size every floor moves together, and so do the stairs (fitMap).
+ * Entrances are on level 1 only, and nothing is opened or put on a square where stairs lead to another level.
  *
  * A hallway drawn here may serve fewer than two rooms (a dead end serves one, a loose piece none),
  * and may have more than one opening into the same room.
@@ -92,6 +98,7 @@
     // an end of the hallway that is heading into a room's wall opens the wall (an end is where the stroke
     // starts, ends or comes to a room); a stroke only running along a wall opens nothing
     const taken = new Set(d.connections.flatMap((c) => c.openings.map((o) => `${o.x},${o.y},${o.d}`)));
+    const stairs = new Set((d.stairs || []).map((s) => key(s.x, s.y))); // no door into a square where stairs lead to another level
     for (const e of d.entrances) if (e.kind !== 'stairs') taken.add(`${e.x},${e.y},${e.d}`);
     const openings = [];
     const last = stroke.length - 1;
@@ -112,7 +119,7 @@
         const nx = at[0] + DX[side];
         const ny = at[1] + DY[side];
         const room = rooms.get(key(nx, ny));
-        if (room === undefined) continue;
+        if (room === undefined || stairs.has(key(nx, ny))) continue;
         const edge = `${nx},${ny},${OPP[side]}`;
         if (taken.has(edge)) continue;
         taken.add(edge);
@@ -216,6 +223,7 @@
 
   /** Make the map just big enough for its rooms and hallways, top left at (0, 0). Returns how far everything moved. */
   function fitMap(d) {
+    if (d._model) return fitLevels(d);
     const b = spanOf(d, hallSquares(d));
     const dx = -b.x0;
     const dy = -b.y0;
@@ -234,6 +242,46 @@
     }
     d.width = b.x1 - b.x0 + 1;
     d.height = b.y1 - b.y0 + 1;
+    return { dx, dy };
+  }
+
+  /**
+   * The same for a floor of a dungeon of several levels: the map is as small as it can be round the rooms and hallways of every floor,
+   * and when its top left moves, every floor and every stair moves with it. (The new hallways of the floor are first put in the dungeon.)
+   */
+  function fitLevels(d) {
+    const root = d._model;
+    const own = d.level > 1 ? root.floors[d.level - 2] : root;
+    own.halls = d.halls;
+    own.connections = d.connections;
+    const floors = [root, ...root.floors];
+    const b = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+    const grow = ([x, y]) => {
+      b.x0 = Math.min(b.x0, x);
+      b.y0 = Math.min(b.y0, y);
+      b.x1 = Math.max(b.x1, x);
+      b.y1 = Math.max(b.y1, y);
+    };
+    for (const f of floors) {
+      for (const r of f.rooms) r.cells.forEach(grow);
+      for (const h of f.halls) h.cells.forEach(grow);
+    }
+    const dx = -b.x0;
+    const dy = -b.y0;
+    for (const f of floors) DM.moveFloor(f, dx, dy);
+    for (const s of root.stairs) {
+      s.x += dx;
+      s.y += dy;
+    }
+    root.width = b.x1 - b.x0 + 1;
+    root.height = b.y1 - b.y0 + 1;
+    for (const f of root.floors) {
+      f.width = root.width;
+      f.height = root.height;
+    }
+    d.width = root.width;
+    d.height = root.height;
+    d.stairs = DM.floorStairs(root, d.level);
     return { dx, dy };
   }
 
@@ -300,6 +348,105 @@
     return { ok: true, removed: hall.cells.map(([x, y]) => [x, y]), ...rebuild(d, squares, hallOpenings(d)) };
   }
 
+  // ---- stairs between levels ---------------------------------------------------------------------------------
+
+  const floorOf = (root, n) => (n === 1 ? root : root.floors[n - 2]);
+
+  /** The room of floor `f` that has square (x, y), or null. */
+  function roomAt(f, x, y) {
+    return f.rooms.find((r) => r.cells.some(([cx, cy]) => cx === x && cy === y)) || null;
+  }
+
+  /** The stair on level `level` at square (x, y), or null. */
+  function stairAt(d, level, x, y) {
+    const root = d._model || d;
+    return (root.stairs || []).find((s) => s.x === x && s.y === y && (s.upper === level || s.lower === level)) || null;
+  }
+
+  /** Is anything at square (x, y) of floor `f` that a stair must not be on: a doorway, an opening of a hallway, an entrance? */
+  function busy(f, x, y) {
+    for (const c of f.connections) {
+      for (const o of c.openings) {
+        if (o.x === x && o.y === y) return true;
+        if (c.type === 'door' && o.x + DX[o.d] === x && o.y + DY[o.d] === y) return true; // the room on the other side of a doorway
+      }
+    }
+    return f.entrances.some((e) => e.x === x && e.y === y);
+  }
+
+  /**
+   * Could stairs between level `upper` and the one below it go at square (x, y)? The square has to be a room square on both floors, with no
+   * doorway, opening or entrance on it, and not already used by stairs on either floor. `except` is a stair that is being moved (its own
+   * square does not count against it). Returns { ok, upperRoom, lowerRoom } or { ok: false, reason }.
+   */
+  function stairProblem(d, upper, x, y, except) {
+    const root = d._model || d;
+    const n = root.levels || 1;
+    if (!(n > 1)) return { ok: false, reason: 'this dungeon has only one level.' };
+    if (!Number.isInteger(upper) || upper < 1 || upper >= n) return { ok: false, reason: `there are no stairs between level ${upper} and level ${upper + 1}.` };
+    const rooms = [];
+    for (const level of [upper, upper + 1]) {
+      const f = floorOf(root, level);
+      const room = roomAt(f, x, y);
+      if (!room) return { ok: false, reason: `(${x},${y}) is not a room square on level ${level}: stairs need a room square on both levels.` };
+      if (busy(f, x, y)) return { ok: false, reason: `there is a door or an entrance at (${x},${y}) on level ${level}.` };
+      rooms.push(room.id);
+    }
+    const other = (root.stairs || []).find((s) => s !== except && s.x === x && s.y === y && s.upper >= upper - 1 && s.upper <= upper + 1);
+    if (other) return { ok: false, reason: `stairs ${other.letter} already use (${x},${y}) on level ${other.upper === upper + 1 ? upper + 1 : upper}.` };
+    return { ok: true, upperRoom: rooms[0], lowerRoom: rooms[1] };
+  }
+
+  /** Stairs are kept in order of the level they leave, then their letters; ids are their places in the list. */
+  function tidyStairs(root, d) {
+    const order = (s) => [s.upper, s.letter.length, s.letter];
+    root.stairs.sort((a, b) => {
+      const [ua, la, ta] = order(a);
+      const [ub, lb, tb] = order(b);
+      return ua - ub || la - lb || (ta < tb ? -1 : ta > tb ? 1 : 0);
+    });
+    root.stairs.forEach((s, i) => (s.id = i));
+    root.stats.stairs = root.stairs.length;
+    if (d && d._model) d.stairs = DM.floorStairs(root, d.level);
+  }
+
+  /** Put stairs between level `upper` and the one below it at square (x, y). Returns { ok, stair } or { ok: false, reason }. */
+  function addStair(d, upper, x, y) {
+    const root = d._model || d;
+    const p = stairProblem(d, upper, x, y);
+    if (!p.ok) return p;
+    const used = new Set(root.stairs.map((s) => s.letter));
+    let k = 0;
+    while (used.has(DM.stairLetter(k))) k++;
+    const stair = { id: root.stairs.length, letter: DM.stairLetter(k), x, y, upper, lower: upper + 1, upperRoom: p.upperRoom, lowerRoom: p.lowerRoom };
+    root.stairs.push(stair);
+    tidyStairs(root, d);
+    return { ok: true, stair };
+  }
+
+  /** Take away the stairs with this letter. Each pair of floors keeps at least one. Returns { ok, stair } or { ok: false, reason }. */
+  function removeStair(d, letter) {
+    const root = d._model || d;
+    const stair = (root.stairs || []).find((s) => s.letter === letter);
+    if (!stair) return { ok: false, reason: `there are no stairs ${letter}.` };
+    if (root.stairs.filter((s) => s.upper === stair.upper).length === 1) return { ok: false, reason: `they are the only stairs between level ${stair.upper} and level ${stair.lower}, and every level must stay reachable: add others first.` };
+    root.stairs.splice(root.stairs.indexOf(stair), 1);
+    tidyStairs(root, d);
+    return { ok: true, stair };
+  }
+
+  /** Move the stairs with this letter to square (x, y), between the same two floors. Returns { ok, stair } or { ok: false, reason }. */
+  function moveStair(d, letter, x, y) {
+    const root = d._model || d;
+    const stair = (root.stairs || []).find((s) => s.letter === letter);
+    if (!stair) return { ok: false, reason: `there are no stairs ${letter}.` };
+    const p = stairProblem(d, stair.upper, x, y, stair);
+    if (!p.ok) return p;
+    Object.assign(stair, { x, y, upperRoom: p.upperRoom, lowerRoom: p.lowerRoom });
+    tidyStairs(root, d);
+    return { ok: true, stair };
+  }
+
   /** Number the entrances E1, E2, ... in their order, and bring the entrance counts in `stats` up to date. */
   function renumberEntrances(d) {
     d.entrances.forEach((e, i) => {
@@ -317,10 +464,12 @@
    * room floor at (x, y), climbing toward side dir. Returns { ok, entrance } or { ok: false, reason }.
    */
   function addEntrance(d, kind, x, y, dir) {
+    if (d.level > 1) return { ok: false, reason: 'only level 1 has entrances from outside; the floors below are reached by stairs.' };
     const rooms = roomSquares(d);
     const halls = hallSquares(d);
     const room = rooms.get(key(x, y));
     if (room === undefined) return { ok: false, reason: `(${x},${y}) is not a room square.` };
+    if ((d.stairs || []).some((s) => s.x === x && s.y === y)) return { ok: false, reason: `stairs lead to another level at (${x},${y}).` };
     if (kind === 'stairs') {
       if (d.entrances.some((e) => e.kind === 'stairs' && e.x === x && e.y === y)) return { ok: false, reason: `there are already stairs at (${x},${y}).` };
     } else {
@@ -381,6 +530,12 @@
    * their texts are.
    */
   function editState(d) {
+    const root = d._model || d;
+    if (root.levels > 1) return [...[root, ...root.floors].map(floorState), root.stairs.map((s) => `${s.letter}${s.x},${s.y}`).join(';')].join('||');
+    return floorState(root);
+  }
+
+  function floorState(d) {
     const cells = d.halls.flatMap((h) => h.cells.map(([x, y]) => key(x, y))).sort();
     const doors = d.connections.flatMap((c) => c.openings.map((o) => `${o.x},${o.y},${o.d},${o.style}`)).sort();
     const numbers = d.rooms.map((r) => `${r.label}${r.name ? `:${r.name}` : ''}`).join(',');
@@ -396,6 +551,11 @@
   DM.deleteHallStretch = deleteHallStretch;
   DM.deleteHall = deleteHall;
   DM.addEntrance = addEntrance;
+  DM.stairProblem = stairProblem;
+  DM.stairAt = stairAt;
+  DM.addStair = addStair;
+  DM.moveStair = moveStair;
+  DM.removeStair = removeStair;
   DM.removeEntrance = removeEntrance;
   DM.editState = editState;
 })();

@@ -137,7 +137,7 @@ function describeLevels(d, { id, edited } = {}) {
   lines.push(`${title} (seed ${d.seed}${edited ? ', edited by hand in this session' : ''}): ${count(n, 'level')} of ${count(d.rooms.length, 'room')} each (${count(rooms.length, 'room')} in all), ${d.width}×${d.height} squares (${d.width * ft}×${d.height * ft} ft) on every level.`);
   lines.push(`One square is ${ft} ft. North is up. Squares are written (x,y), counted from the top left corner (0,0): x grows to the east, y to the south. Every level has the same size of map, and a square (x,y) is the same place on every level.`);
   lines.push('Level 1 is the top, with the entrances from outside; stairs lead down to level 2, and so on. Rooms are numbered by level and number as on the map: "2-5" is room 5 of level 2.');
-  lines.push('Dungeons of several levels cannot be changed with edit_dungeon yet.');
+  lines.push('edit_dungeon changes one level at a time: give the "level" of each edit. The doors and hallways of a level are written as (x,y) squares of the shared map, and if a hallway makes the map bigger every level and every stair moves with it.');
   for (const w of d.warnings) lines.push(`Note: ${w}`);
 
   lines.push('', 'STAIRS (each is one square, in a room, at the same (x,y) on the two levels it joins)');

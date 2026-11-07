@@ -269,6 +269,12 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
     neighbours, or a side door into a room. **Click to delete the stretch**; its doors go with it, and what is
     left is re-counted, so deleting a junction can split one hallway into several. A whole hallway can be
     removed this way, generated ones included. Room numbers are not renumbered after an edit.
+  - **Stairs** (only with several levels). Hover a room square: it lights up if stairs can go there, and the tag says
+    what a click does. **Click** to put stairs *down* to the next level (on the last level, up to the one above;
+    **Shift-click** goes the other way). A square works when it is a room square on both of the levels the stairs
+    join, with no door, opening or entrance on it and no other stairs. **Click stairs to remove them**; each pair of
+    levels keeps at least one, so every level can be reached. A new stair gets the next free letter. To move stairs,
+    remove them and add new ones (the MCP server's `move_stair` keeps the letter).
   - The edits are made to the dungeon on the page, so **Picture (PNG)**, **Data (JSON)** and **Print**
     have them (the picture never shows edit mode's rings or a stroke's preview), and the results in the
     Generate column (hallway count, footprint and so on) follow them. **Copy link** does not: a link holds
@@ -340,8 +346,12 @@ are reached by stairs only.
   there opens it. Room names are per room, and the legend and key are per level. **Picture (PNG)** and
   **Print** ask what to hold: all levels (a stacked picture, one printed page for each level) or only the
   level on the map.
-- **Edit mode is for dungeons of one level for now**; it is not offered on several levels. The MCP server's
-  `edit_dungeon` likewise refuses them.
+- **Edit mode works on the level on the map** (doors, hallways and room names, as on one level); pick another level's
+  tab and the same tool edits that one. The levels share one map, so a hallway that makes it bigger moves every level
+  and every stair with it, and the map shrinks to fit all the levels together. No hallway is given a door into a
+  square where stairs lead to another level, and an entrance cannot be put on one. Entrances stay on level 1 (adding
+  and removing them is the MCP server's). The **All** view is for looking: Edit mode goes off there. The MCP server's
+  `edit_dungeon` takes a `level` too, and has `add_stair`, `move_stair` and `remove_stair` for the stairs.
 - A share link holds `levels` and `lstairs` (stairs between levels), and rebuilds every floor from them.
 
 ## Share and export
@@ -424,7 +434,7 @@ the map, then writes the content for each room by the numbers printed on it.
 | `generate_dungeon` | Makes a dungeon from any of the page's settings (all optional, with the page's starting values) and a seed. Answers with the picture and a description of every room, door, hallway and entrance. `levels` (1-20) and `levelStairs` (1-10) make a dungeon of several floors: the description then lists the stairs, then each level in turn, with rooms named like `2-5`, and the picture shows every level one above the other. |
 | `open_dungeon` | Opens a dungeon saved as **Data (JSON)**, from the page or from `save_dungeon`. A bare file name is looked for in the maps folder. |
 | `describe_dungeon` | The description alone: each room by its number on the map, with its shape, size in feet and place on the map, its doors and what they lead to. |
-| `edit_dungeon` | A list of edits: change a door (door, locked, secret, no door), draw a hallway through some squares, delete a stretch of hallway. The rules are Edit mode's. |
+| `edit_dungeon` | A list of edits: change a door (door, locked, secret, no door), draw a hallway through some squares, delete a stretch of hallway, add and remove entrances, renumber and name rooms, and (several levels) add, move and remove stairs. The rules are Edit mode's. |
 | `draw_map` | The picture alone, with the legend, grid, room numbers, number position and colors as chosen. For a dungeon of several levels, `level` draws just that one (the default is all, one above the other). |
 | `save_dungeon` | Writes the picture (`.png`) and the data (`.json`) to the maps folder. A name already used gets `-2`, `-3`, ... unless `overwrite` is set. |
 | `list_dungeons` | The dungeons in use, and the saved maps. |
@@ -439,7 +449,7 @@ Things to know:
   what stays. As with the page, a seed no longer gives the dungeon once it has been edited, so save the data.
 - If a hallway reaches past the top or left edge the map grows and every square's coordinates move; the
   answer says by how much, and hallways are numbered again (H1, H2, ...).
-- Dungeons of several levels cannot be changed with `edit_dungeon` yet. Entrance doors cannot be changed, as in Edit mode. Nothing is sent anywhere: the server runs on your
+- On a dungeon of several levels `edit_dungeon` works one level at a time: give `level` once for the call or in each edit (it is needed), and `room` is the number on that level's map (the 5 of 2-5). Entrances can only be added on level 1. A hallway that makes the map bigger moves every level and every stair, and the answer says by how much. Entrance doors cannot be changed, as in Edit mode. Nothing is sent anywhere: the server runs on your
   computer and Claude only gets what the tools answer.
 
 `node tests/mcp.js` checks the tools, the protocol and the real process (after `npm install` in `mcp/`).
@@ -522,6 +532,8 @@ and then rebuilds `halls`, `connections`, the map's size (squares of the map shi
 left, so the rooms and entrances move with them) and `stats`. `DM.editState(dungeon)` is a canonical
 text of the hallway squares and every opening's style, in an order that does not depend on how the
 dungeon got there: the page compares it with the state as built to tell whether anything has been edited.
+
+On a dungeon of several levels the edit functions take one floor, `DM.floorView(dungeon, level)`, which shares its rooms, openings and entrances with the dungeon and knows the dungeon it came from; when the map has to change size they move every floor and every stair together (`DM.moveFloor`), and `DM.editState` covers every floor.
 
 Coordinates start at (0, 0) top-left, y grows downward. Cell `(x, y)` covers the
 square `[x, x+1] x [y, y+1]`. `d` is a side of the cell: 0 = N, 1 = E, 2 = S, 3 = W.

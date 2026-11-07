@@ -2632,11 +2632,18 @@
     return out;
   }
 
-  /** The model of one floor (level `n`, from 1), as a model of a dungeon of its own, plus its stairs and its level; for a single level, the model. */
+  /**
+   * The model of one floor (level `n`, from 1), as a model of a dungeon of its own, plus its stairs and its level; for a single level, the model.
+   * Its rooms, entrances and stats are the floor's own, so changing a room or a door changes the dungeon. It also knows the dungeon it
+   * is a view of (`_model`, which does not show when it is copied or written out), so that Edit mode, which can change the size of the map
+   * and so move every floor, can do that (see edit.js).
+   */
   function floorView(model, n = 1) {
     if (levelCount(model) === 1) return model;
     const own = n > 1 ? model.floors[n - 2] : {};
-    return { ...model, ...own, floors: undefined, level: n, stairs: floorStairs(model, n) };
+    const view = { ...model, ...own, floors: undefined, level: n, stairs: floorStairs(model, n) };
+    Object.defineProperty(view, '_model', { value: model, enumerable: false, writable: true });
+    return view;
   }
 
   function generateDungeon(raw) {
@@ -2656,6 +2663,7 @@
   DM.levelCount = levelCount;
   DM.allRooms = allRooms;
   DM.floorView = floorView;
+  DM.moveFloor = moveFloor;
   DM.floorStairs = floorStairs;
   DM.stairLetter = stairLetter;
 

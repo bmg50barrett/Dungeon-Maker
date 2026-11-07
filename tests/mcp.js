@@ -239,9 +239,100 @@ console.log('== levels');
   const bad = (a) => toolError(() => tools.generate_dungeon.run({ picture: false, ...a }));
   if (!bad({ levels: 0 }) || !bad({ levels: 21 }) || !bad({ levelStairs: 0 }) || !bad({ levelStairs: 11 }) || !bad({ levels: 2.5 })) fail('levels', 'levels outside 1 to 20 or stairs outside 1 to 10 were accepted');
 
-  // edits are for one level only, for now
-  const err = toolError(() => tools.edit_dungeon.run({ id: 'd1', edits: [{ type: 'door', x: 0, y: 0, side: 'N', state: 'open' }], picture: false }));
-  if (!err || !/several levels/.test(err.message)) fail('levels', `edit_dungeon on a dungeon of several levels: ${err && err.message}`);
+  // edits are made one level at a time
+  {
+    const fails = (args, re, what) => {
+      const err = toolError(() => tools.edit_dungeon.run({ id: 'd1', picture: false, ...args }));
+      if (!err || !re.test(err.message)) fail('levels', `${what}: ${err && err.message}`);
+    };
+    const level2 = DM.floorView(d, 2);
+    const level3 = DM.floorView(d, 3);
+    fails({ edits: [{ type: 'name_room', room: 1, name: 'Hall' }] }, /3 levels: say which/, 'an edit with no level on a dungeon of three levels');
+    fails({ edits: [{ type: 'name_room', room: 1, name: 'Hall', level: 4 }] }, /no level 4/, 'an edit of level 4');
+    fails({ level: 0, edits: [{ type: 'name_room', room: 1, name: 'Hall' }] }, /whole number/, 'level 0');
+    fails({ edits: [{ type: 'add_entrance', level: 2, x: 0, y: 0, side: 'N' }] }, /level 1/, 'an entrance on level 2');
+
+    // a name on level 2 and another on level 3 (a level for the whole call, and one of its own), the same number on both
+    const named = tools.edit_dungeon.run({ id: 'd1', level: 2, edits: [{ type: 'name_room', room: 1, name: 'Cistern' }, { type: 'name_room', level: 3, room: 1, name: 'Crypt' }], picture: false });
+    if (level2.rooms.find((r) => r.label === 1).name !== 'Cistern' || level3.rooms.find((r) => r.label === 1).name !== 'Crypt') fail('levels', 'the names went to the wrong rooms');
+    if (DM.floorView(d, 1).rooms.some((r) => r.name)) fail('levels', 'a name went to level 1');
+    if (!/room 2-1 is now named "Cistern"/.test(named.text) || !/room 3-1 is now named "Crypt"/.test(named.text)) fail('levels', `the answer does not say which rooms: ${named.text}`);
+    if (!/Room 2-1 \(Cistern\)/.test(named.text)) fail('levels', 'the description does not show the name beside the room');
+    if (!store.isEdited(store.get('d1'))) fail('levels', 'a dungeon with a room named on level 2 is not counted as edited');
+
+    // a door on level 2, by its square and side as the description gives them
+    const opening = level2.connections.flatMap((c) => c.openings)[0];
+    const door = tools.edit_dungeon.run({ id: 'd1', level: 2, edits: [{ type: 'door', x: opening.x, y: opening.y, side: 'NESW'[opening.d], state: 'secret' }], picture: false });
+    if (opening.style !== 'secret' || !/became secret door|already a secret door/.test(door.text)) fail('levels', `a door on level 2: ${door.text}`);
+
+    // a hallway drawn out past the top left of level 3: the whole map grows, and every level and every stair moves with it
+    const before = JSON.stringify([d, ...d.floors].map((f) => f.rooms.map((r) => r.cells[0])));
+    const stairsBefore = d.stairs.map((s) => [s.x, s.y]);
+    const from = level3.rooms[0].cells[0];
+    const drawn = tools.edit_dungeon.run({ id: 'd1', level: 3, edits: [{ type: 'draw_hallway', points: [from, [-4, from[1]]] }], picture: false });
+    const m = /every square has moved by \(\+(\d+),\+0\)/.exec(drawn.text);
+    if (!m) fail('levels', `a hallway past the left edge: ${drawn.text}`);
+    else {
+      const dx = Number(m[1]);
+      const want = JSON.stringify(JSON.parse(before).map((lv) => lv.map(([x, y]) => [x + dx, y])));
+      if (JSON.stringify([d, ...d.floors].map((f) => f.rooms.map((r) => r.cells[0]))) !== want) fail('levels', 'the levels did not all move with the map');
+      if (d.stairs.some((s, i) => s.x !== stairsBefore[i][0] + dx)) fail('levels', 'the stairs did not move with the map');
+      for (const s of d.stairs) {
+        for (const [lv, room] of [[s.upper, s.upperRoom], [s.lower, s.lowerRoom]]) if (!DM.floorView(d, lv).rooms[room].cells.some(([x, y]) => x === s.x && y === s.y)) fail('levels', `stair ${s.letter} is no longer on a room square of level ${lv}`);
+      }
+    }
+    if (!/==== LEVEL 3 of 3 ====/.test(drawn.text) || !/Hallways are numbered again/.test(drawn.text)) fail('levels', 'the answer after a hallway on level 3 is not the new description');
+
+    // deleting that hallway by its number, on its own level
+    const h = DM.floorView(d, 3).halls.length;
+    const gone = tools.edit_dungeon.run({ id: 'd1', level: 3, edits: [{ type: 'delete_hallway', hall: h }], picture: false });
+    if (DM.floorView(d, 3).halls.length !== h - 1 || !/deleted hallway/.test(gone.text)) fail('levels', `deleting a hallway on level 3: ${gone.text}`);
+
+
+    // stairs: add one, move it, remove it; the last of a pair stays
+    {
+      const dm2 = DM;
+      const free = (upper) => {
+        for (let y = 0; y < d.height; y++) for (let x = 0; x < d.width; x++) if (dm2.stairProblem(d, upper, x, y).ok) return [x, y];
+        return null;
+      };
+      const count = d.stairs.length;
+      const at = free(1);
+      if (!at) fail('levels', 'no square for a new stair');
+      else {
+        const added = tools.edit_dungeon.run({ id: 'd1', edits: [{ type: 'add_stair', level: 1, x: at[0], y: at[1] }], picture: false });
+        const stair = d.stairs.find((s) => s.x === at[0] && s.y === at[1] && s.upper === 1);
+        if (!stair || d.stairs.length !== count + 1 || !/added stairs [A-Z]+ at/.test(added.text)) fail('levels', `add_stair: ${added.text}`);
+        if (stair && !new RegExp(`${stair.letter}: at \\(${at[0]},${at[1]}\\)`).test(added.text)) fail('levels', 'the description does not list the new stair');
+        const to = (() => {
+          for (let y = 0; y < d.height; y++) for (let x = 0; x < d.width; x++) if ((x !== at[0] || y !== at[1]) && dm2.stairProblem(d, 1, x, y, stair).ok) return [x, y];
+          return null;
+        })();
+        if (stair && to) {
+          const moved = tools.edit_dungeon.run({ id: 'd1', edits: [{ type: 'move_stair', stair: stair.letter.toLowerCase(), x: to[0], y: to[1] }], picture: false });
+          if (stair.x !== to[0] || stair.y !== to[1] || !/are now at/.test(moved.text)) fail('levels', `move_stair: ${moved.text}`);
+        }
+        if (stair) {
+          const gone = tools.edit_dungeon.run({ id: 'd1', edits: [{ type: 'remove_stair', stair: stair.letter }], picture: false });
+          if (d.stairs.length !== count || d.stairs.some((s) => s.letter === stair.letter) || !/removed stairs/.test(gone.text)) fail('levels', `remove_stair: ${gone.text}`);
+        }
+        // the only stair of a pair cannot be removed; a bad square and a bad letter are said so
+        const only = d.stairs.find((s) => d.stairs.filter((o) => o.upper === s.upper).length === 1);
+        const lone = only ? toolError(() => tools.edit_dungeon.run({ id: 'd1', edits: [{ type: 'remove_stair', stair: only.letter }], picture: false })) : null;
+        if (only && (!lone || !/only stairs/.test(lone.message))) fail('levels', `removing the only stair: ${lone && lone.message}`);
+        for (const [edit, re] of [[{ type: 'add_stair', level: 1, x: -3, y: -3 }, /not a room square/], [{ type: 'remove_stair', stair: 'QQQ' }, /no stairs QQQ/], [{ type: 'remove_stair' }, /letter/], [{ type: 'add_stair', level: 3, x: 0, y: 0 }, /no stairs between level 3/]]) {
+          const err = toolError(() => tools.edit_dungeon.run({ id: 'd1', edits: [edit], picture: false }));
+          if (!err || !re.test(err.message)) fail('levels', `${JSON.stringify(edit)} should fail mentioning ${re}: ${err && err.message}`);
+        }
+      }
+    }
+
+    // a hallway cannot be given a door into the square of a stair: plan one beside the stair
+    const stair = d.stairs.find((s) => s.upper === 1);
+    const f1 = DM.floorView(d, 1);
+    const around = [[0, -1], [1, 0], [0, 1], [-1, 0]].map(([dx, dy]) => [stair.x + dx, stair.y + dy]).filter(([x, y]) => !f1.rooms[stair.upperRoom].cells.some(([cx, cy]) => cx === x && cy === y));
+    for (const sq of around) if (DM.planHallway(f1, [sq]).openings.some((o) => o.x === stair.x && o.y === stair.y)) fail('levels', 'a hallway was given a door into a stair square');
+  }
 
   // listed, saved, opened again: the same dungeon with all its levels
   if (!/3 levels of 8 rooms/.test(tools.list_dungeons.run({}).text)) fail('levels', 'list_dungeons does not say how many levels');

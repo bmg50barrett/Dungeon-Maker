@@ -454,6 +454,7 @@
     draw: 'Drag to draw a hallway · hold Space to pan',
     drawTouch: 'Drag to draw a hallway · pick Doors to pan',
     erase: 'Click a stretch of hallway to delete it',
+    stairs: 'Click a room square to add stairs down (Shift-click: up) · click stairs to remove them',
   };
 
   /** What the hint says for a tool: a touch screen has no Space key, so there it says how else to pan. */
@@ -483,6 +484,14 @@
   for (const b of $('editTools').querySelectorAll('button')) b.addEventListener('click', () => setEditTool(b.dataset.tool));
   renderer.onDoorChange = updateDoorLegend;
   // hallways were drawn or deleted: the legend, and the counts and footprint in the summary, follow
+  renderer.onStairChange = () => {
+    updateDoorLegend();
+    showSummary(DM.current, builtMs);
+  };
+  // a click the stairs tool could not use: say why, in the hint under the map, until the next tool or the next click
+  renderer.onNote = (text) => {
+    $('canvasHint').textContent = text;
+  };
   renderer.onLayoutChange = () => {
     updateDoorLegend();
     showSummary(DM.current, builtMs);
@@ -556,8 +565,11 @@
     $('levelTabs').hidden = !multi;
     if (multi) buildLevelTabs(n);
     $('exportScope').hidden = !multi;
-    $('editMode').hidden = multi;
-    if (multi && $('editMode').getAttribute('aria-pressed') === 'true') setEditMode(false);
+    // (Edit mode works on the level on the map; the all-levels view is for looking, and its pictures are not editable)
+    if (all && $('editMode').getAttribute('aria-pressed') === 'true') setEditMode(false);
+    // the Stairs tool is for dungeons of several levels
+    $('stairsTool').hidden = !multi;
+    if (!multi && renderer.editTool === 'stairs') setEditTool('door');
     mapArea.classList.toggle('showing-all', all);
     $('allLevels').hidden = !all;
     if (all) buildGallery(d);

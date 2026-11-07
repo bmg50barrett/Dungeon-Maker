@@ -246,11 +246,17 @@ function createTools({ store = new Store() } = {}) {
       '- "remove_entrance": remove an entrance. Give "entrance", its number (2 for E2). At least one entrance must remain, and entrances are numbered E1, E2, ... again afterwards. To move an entrance, add the new one first, then remove the old one.\n' +
       '- "renumber_room": change a room\'s number. Give "room" (its number on the map now) and "number" (the number it should have). Numbers always stay 1 to N, so the room that had that number takes the old one of this room (they swap). Later renumber_room edits in the same call see the numbers as the earlier ones left them.\n' +
       '- "name_room": give a room a name. Give "room" (its number on the map) and "name", e.g. "Foyer". The map still shows numbers; a key under the picture lists "number - name" for every named room, and the description shows the name beside the number. An empty name removes it. A room keeps its name if it is renumbered.\n' +
+      'A dungeon of several levels is edited one level at a time: give "level" with each edit (or once, at the top, for all of them). Rooms, hallways, doors and entrances of an edit are those of that level, and "room" is the number on that level\'s map (the 5 of 2-5). ' +
+      'Only level 1 has entrances. All levels share one map, so if a hallway makes it bigger every level moves together, and so do the stairs; no door can be put on a square where stairs lead to another level.\n' +
+      '- "add_stair": put stairs between two levels of a dungeon of several levels. Give "level" (the upper one: the stairs join it and the level below), and "x" and "y": a square that is a room square on both levels, with no door, opening or entrance on it and no other stairs. They get the next free letter.\n' +
+      '- "move_stair": move stairs to another square. Give "stair" (its letter, A for the stairs marked A) and "x" and "y" (the new square, with the same conditions as add_stair; it stays between the same two levels). No "level" is needed.\n' +
+      '- "remove_stair": remove stairs. Give "stair" (the letter). Each pair of levels keeps at least one stair, so every level can be reached.\n' +
       'Coordinates in one call are all read against the map as it was before the call. If a hallway reaches past the top or left edge, the map grows and every coordinate moves; the answer says so and gives the new description.',
     inputSchema: {
       type: 'object',
       properties: {
         id: ID,
+        level: int(1, 20, 'A dungeon of several levels: the level the edits are made to, unless an edit gives its own "level".'),
         edits: {
           type: 'array',
           minItems: 1,
@@ -258,7 +264,9 @@ function createTools({ store = new Store() } = {}) {
           items: {
             type: 'object',
             properties: {
-              type: { type: 'string', enum: ['door', 'draw_hallway', 'delete_hallway', 'add_entrance', 'remove_entrance', 'renumber_room', 'name_room'] },
+              type: { type: 'string', enum: ['door', 'draw_hallway', 'delete_hallway', 'add_entrance', 'remove_entrance', 'renumber_room', 'name_room', 'add_stair', 'move_stair', 'remove_stair'] },
+              stair: { type: 'string', description: 'move_stair, remove_stair: the stairs\' letter (A, B, ...), as in the description' },
+              level: int(1, 20, 'A dungeon of several levels: the level this edit is made to (default: the "level" at the top).'),
               name: { type: 'string', description: `name_room: the room's name (up to ${MAX_NAME} characters); empty text removes it` },
               hall: { type: 'integer', description: 'delete_hallway: the hallway\'s number (3 for H3), to delete all of it' },
               kind: { type: 'string', enum: ['door', 'stairs'], description: 'add_entrance: a door in an outer wall (default) or stairs on the floor' },
@@ -281,22 +289,29 @@ function createTools({ store = new Store() } = {}) {
     },
     annotations: { title: 'Edit a dungeon', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     run(args) {
-      only(args, ['id', 'edits', 'picture'], 'edit_dungeon');
+      only(args, ['id', 'level', 'edits', 'picture'], 'edit_dungeon');
       const picture = wantsPicture(args);
       if (!Array.isArray(args.edits) || args.edits.length === 0) throw new ToolError('"edits" must be a list with at least one edit.');
       if (args.edits.length > MAX_EDITS) throw new ToolError(`At most ${MAX_EDITS} edits at a time.`);
       const item = store.get(args.id);
       const d = item.dungeon;
-      if (dm().levelCount(d) > 1) throw new ToolError('This dungeon has several levels, and dungeons of several levels cannot be changed with edit_dungeon yet. Make a new one with generate_dungeon, or one level at a time.');
+      const levels = dm().levelCount(d);
+      if (args.level !== undefined && (!Number.isInteger(args.level) || args.level < 1)) throw new ToolError('"level" must be a whole number from 1.');
       const shift = { x: 0, y: 0 }; // how far the map has moved so far in this call
-      const snap = { hallCells: d.halls.map((h) => h.cells[0]) }; // a square of each hallway, to find it again by its H number
+      // a square of each hallway of each level, to find it again by its H number
+      const snap = { hallCells: Array.from({ length: levels }, (_, i) => dm().floorView(d, i + 1).halls.map((h) => h.cells[0])) };
       const report = [];
       let done = 0;
       let hallwaysChanged = false;
       args.edits.forEach((edit, i) => {
         try {
           if (!isObject(edit)) throw new ToolError('an edit must be an object with a "type".');
-          report.push(`${i + 1}. ${applyEdit(d, edit, shift, snap)}`);
+          const level = edit.level !== undefined ? edit.level : args.level;
+          const needsLevel = edit.type !== 'move_stair' && edit.type !== 'remove_stair';
+          if (levels > 1 && needsLevel && level === undefined) throw new ToolError(`this dungeon has ${levels} levels: say which one with "level".`);
+          if (level !== undefined && (!Number.isInteger(level) || level < 1 || level > levels)) throw new ToolError(`this dungeon has ${levels === 1 ? 'one level' : `${levels} levels`}, so there is no level ${level}.`);
+          // the floor as it is now (the map may have moved since the last edit)
+          report.push(`${i + 1}. ${applyEdit(dm().floorView(d, level || 1), edit, shift, snap)}`);
           done++;
           if (edit.type === 'draw_hallway' || edit.type === 'delete_hallway') hallwaysChanged = true;
         } catch (err) {
@@ -389,7 +404,8 @@ function findOpening(d, x, y, dir) {
 /** Make one edit; returns a line saying what was done, or throws a ToolError. `shift` follows how far the map moves. */
 function applyEdit(d, edit, shift, snap) {
   const dm = load();
-  const label = (roomId) => d.rooms[roomId].label;
+  const label = (roomId) => dm.roomTag(d.rooms[roomId]);
+  const floorNo = (d.level || 1) - 1;
   switch (edit.type) {
     case 'door': {
       const x = needInt(edit.x, 'x');
@@ -430,7 +446,7 @@ function applyEdit(d, edit, shift, snap) {
       if (edit.hall !== undefined) {
         // whole hallway, by the H number it had before this call
         const n = needInt(edit.hall, 'hall');
-        const at = snap && snap.hallCells[n - 1];
+        const at = snap && snap.hallCells[floorNo][n - 1];
         if (!at) throw new ToolError(`there is no hallway H${n}.`);
         const now = d.halls.find((h) => h.cells.some(([cx, cy]) => cx === at[0] + shift.x && cy === at[1] + shift.y));
         if (!now) throw new ToolError(`hallway H${n} is already gone.`);
@@ -470,17 +486,17 @@ function applyEdit(d, edit, shift, snap) {
     case 'name_room': {
       const num = needInt(edit.room, 'room');
       const r = d.rooms.find((x) => x.label === num);
-      if (!r) throw new ToolError(`there is no room ${num}. Rooms are numbered 1 to ${d.rooms.length}, as printed on the map.`);
+      if (!r) throw new ToolError(`there is no room ${num}${d.level ? ` on level ${d.level}` : ''}. Rooms are numbered 1 to ${d.rooms.length}, as printed on the map.`);
       if (typeof edit.name !== 'string') throw new ToolError('"name" must be text (an empty one removes the name).');
       // eslint-disable-next-line no-control-regex
       const name = edit.name.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
       if (name.length > MAX_NAME) throw new ToolError(`a room name can be at most ${MAX_NAME} characters (this one is ${name.length}).`);
       if (name === '') {
         delete r.name;
-        return `room ${num} no longer has a name.`;
+        return `room ${dm.roomTag(r)} no longer has a name.`;
       }
       r.name = name;
-      return `room ${num} is now named "${name}".`;
+      return `room ${dm.roomTag(r)} is now named "${name}".`;
     }
     case 'renumber_room': {
       const from = needInt(edit.room, 'room');
@@ -491,14 +507,40 @@ function applyEdit(d, edit, shift, snap) {
       }
       const a = d.rooms.find((r) => r.label === from);
       const b = d.rooms.find((r) => r.label === to);
-      if (a === b) return `room ${from} already has number ${to}.`;
+      if (a === b) return `room ${d.level ? `${d.level}-` : ''}${from} already has number ${to}.`;
       // rooms keep numbers 1..N with no repeats, so the room that had the number takes the other's
       a.label = to;
       b.label = from;
-      return `room ${from} is now room ${to}, and the room that was ${to} is now ${from}.`;
+      const tag = (k) => (d.level ? `${d.level}-${k}` : String(k));
+      return `room ${tag(from)} is now room ${tag(to)}, and the room that was ${tag(to)} is now ${tag(from)}.`;
+    }
+    case 'add_stair': {
+      const upper = d.level || 1;
+      const x = needInt(edit.x, 'x');
+      const y = needInt(edit.y, 'y');
+      const res = dm.addStair(d, upper, x + shift.x, y + shift.y);
+      if (!res.ok) throw new ToolError(`no stairs at (${x},${y}): ${res.reason}`);
+      const s = res.stair;
+      const tag = (lv, id) => dm.roomTag(dm.floorView(d._model || d, lv).rooms[id]);
+      return `added stairs ${s.letter} at (${x},${y}): room ${tag(s.upper, s.upperRoom)} on level ${s.upper} down to room ${tag(s.lower, s.lowerRoom)} on level ${s.lower}.`;
+    }
+    case 'move_stair':
+    case 'remove_stair': {
+      if (typeof edit.stair !== 'string' || !/^[A-Za-z]+$/.test(edit.stair)) throw new ToolError('"stair" must be the stairs\' letter, such as A.');
+      const letter = edit.stair.toUpperCase();
+      if (edit.type === 'remove_stair') {
+        const res = dm.removeStair(d, letter);
+        if (!res.ok) throw new ToolError(`cannot remove stairs ${letter}: ${res.reason}`);
+        return `removed stairs ${letter} (they joined level ${res.stair.upper} and level ${res.stair.lower}).`;
+      }
+      const x = needInt(edit.x, 'x');
+      const y = needInt(edit.y, 'y');
+      const res = dm.moveStair(d, letter, x + shift.x, y + shift.y);
+      if (!res.ok) throw new ToolError(`cannot move stairs ${letter} to (${x},${y}): ${res.reason}`);
+      return `stairs ${letter} are now at (${x},${y}).`;
     }
     default:
-      throw new ToolError(`"type" must be one of: door, draw_hallway, delete_hallway, add_entrance, remove_entrance, renumber_room, name_room.`);
+      throw new ToolError(`"type" must be one of: door, draw_hallway, delete_hallway, add_entrance, remove_entrance, renumber_room, name_room, add_stair, move_stair, remove_stair.`);
   }
 }
 

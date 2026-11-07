@@ -2478,6 +2478,199 @@ console.log('== hallway editing');
   console.log('  done');
 }
 
+console.log('== editing several levels');
+{
+  const ok = (cond, msg) => cond || fail('lvedit', msg);
+  const base = { roomCount: 8, avgRoomSize: 20, sizeVariance: 30, entrances: 2, connectionType: 'hall', levels: 3, levelStairs: 2 };
+  const key = (x, y) => `${x},${y}`;
+  // everything that has to hold for a dungeon of several levels, edited or not
+  const check = (dun, ctx) => {
+    const floors = [dun, ...dun.floors];
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const grow = (x, y) => {
+      x0 = Math.min(x0, x);
+      y0 = Math.min(y0, y);
+      x1 = Math.max(x1, x);
+      y1 = Math.max(y1, y);
+    };
+    floors.forEach((f, n) => {
+      const used = new Set();
+      const use = (x, y) => {
+        if (used.has(key(x, y))) fail(ctx, `level ${n + 1}: (${x},${y}) is used twice`);
+        used.add(key(x, y));
+        grow(x, y);
+      };
+      for (const r of f.rooms) for (const [x, y] of r.cells) use(x, y);
+      f.halls.forEach((h, i) => {
+        ok(h.id === i, `${ctx}: level ${n + 1} hall ${i} has id ${h.id}`);
+        for (const [x, y] of h.cells) use(x, y);
+      });
+      ok(f.width === dun.width && f.height === dun.height, `${ctx}: level ${n + 1} is not in the one box`);
+      f.connections.forEach((c, i) => ok(c.id === i, `${ctx}: level ${n + 1} connection ${i} has id ${c.id}`));
+      ok((n === 0) === (f.entrances.length > 0), `${ctx}: level ${n + 1} has ${f.entrances.length} entrances`);
+    });
+    ok(x0 === 0 && y0 === 0 && x1 === dun.width - 1 && y1 === dun.height - 1, `${ctx}: the map is ${dun.width} x ${dun.height} but the squares reach ${x0},${y0} to ${x1},${y1}`);
+    for (const st of dun.stairs) {
+      for (const [level, room] of [[st.upper, st.upperRoom], [st.lower, st.lowerRoom]]) {
+        const f = DM.floorView(dun, level);
+        ok(f.rooms[room].cells.some(([x, y]) => x === st.x && y === st.y), `${ctx}: stair ${st.letter} is not in room ${room} of level ${level}`);
+        for (const c of f.connections) for (const o of c.openings) if (o.x === st.x && o.y === st.y) fail(ctx, `stair ${st.letter} has a door into it on level ${level}`);
+      }
+    }
+  };
+  const firstCells = (dun) => JSON.stringify([dun, ...dun.floors].map((f) => f.rooms.map((r) => r.cells[0])));
+
+  let strokes = 0;
+  let moved = 0;
+  for (let i = 0; i < 20; i++) {
+    const dun = DM.generateDungeon({ ...base, layout: ['random', 'gauntlet', 'wide'][i % 3], seed: `lvedit-${i}` });
+    const ctx = `lvedit ${i}`;
+    check(dun, ctx);
+    const was = DM.editState(dun);
+    const peek = DM.floorView(dun, 2);
+    ok(peek._model === dun && !Object.keys(peek).includes('_model') && !JSON.stringify(peek).includes('_model'), 'a floor view should know its dungeon without showing it');
+    for (let op = 0; op < 8; op++) {
+      const level = 1 + ((i + op) % 3);
+      const view = DM.floorView(dun, level);
+      const before = firstCells(dun);
+      const stairsBefore = dun.stairs.map((st) => [st.x, st.y]);
+      let res;
+      if (op % 4 === 3 && view.halls.length > 0) {
+        res = DM.deleteHall(view, view.halls[0].id);
+      } else {
+        // a stroke from a room out past the top left of the map, so that the map has to grow, or one across the middle
+        const from = view.rooms[op % view.rooms.length].cells[0];
+        const to = op % 2 === 0 ? [-3 - op, -2] : [from[0] + 4, from[1] + 2];
+        res = DM.addHallway(view, [from, ...DM.walkCells(from, to)]);
+        strokes++;
+      }
+      if (!res.ok) continue;
+      if (res.dx || res.dy) {
+        moved++;
+        // every room on every level, and every stair, moved the same way
+        const want = JSON.stringify(JSON.parse(before).map((lv) => lv.map(([x, y]) => [x + res.dx, y + res.dy])));
+        ok(firstCells(dun) === want, `${ctx} op ${op}: the floors did not all move by (${res.dx},${res.dy})`);
+        dun.stairs.forEach((st, k) => ok(st.x === stairsBefore[k][0] + res.dx && st.y === stairsBefore[k][1] + res.dy, `${ctx}: stair ${st.letter} did not move with the map`));
+      }
+      check(dun, `${ctx} op ${op}`);
+      // the new hallways are the floor's own
+      ok(DM.floorView(dun, level).halls === (level > 1 ? dun.floors[level - 2].halls : dun.halls), `${ctx}: the new hallways are not in the dungeon`);
+    }
+    ok(DM.editState(dun) !== was, `${ctx}: edits did not show in the edit state`);
+    // written as data it is the edited dungeon
+    ok(JSON.stringify(JSON.parse(DM.dungeonJson(dun))) === JSON.stringify(dun), `${ctx}: the data does not hold the edited dungeon`);
+  }
+  console.log(`  ${strokes} strokes on 20 dungeons of 3 levels (and deletions), the map moved ${moved} times`);
+
+  // a door changed on level 2 shows in the dungeon, and is an edit; a room name too
+  {
+    const dun = DM.generateDungeon({ ...base, seed: 'lvedit-door' });
+    const was = DM.editState(dun);
+    const floor = DM.floorView(dun, 2);
+    const op = floor.connections.flatMap((c) => c.openings)[0];
+    op.style = op.style === 'locked' ? 'door' : 'locked';
+    ok(DM.editState(dun) !== was, 'a changed door on level 2 is not an edit');
+    const again = DM.editState(dun);
+    DM.floorView(dun, 3).rooms[0].name = 'Vault';
+    ok(DM.editState(dun) !== again, 'a name on level 3 is not an edit');
+  }
+
+  // entrances are on level 1 only, and nothing is put on a stair square
+  {
+    const dun = DM.generateDungeon({ ...base, seed: 'lvedit-ent' });
+    const room = DM.floorView(dun, 2).rooms[0];
+    const r = DM.addEntrance(DM.floorView(dun, 2), 'stairs', room.cells[0][0], room.cells[0][1], 0);
+    ok(!r.ok && /level 1/.test(r.reason), `an entrance on level 2: ${JSON.stringify(r)}`);
+    const st = dun.stairs.find((x) => x.upper === 1);
+    const r2 = DM.addEntrance(DM.floorView(dun, 1), 'stairs', st.x, st.y, 0);
+    ok(!r2.ok && /another level/.test(r2.reason), `an entrance on a stair: ${JSON.stringify(r2)}`);
+    // a hallway square beside a stair's room square makes no door into the stair square
+    const f1 = DM.floorView(dun, 1);
+    const stairRoom = f1.rooms[st.upperRoom];
+    for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+      const x = st.x + dx;
+      const y = st.y + dy;
+      if (stairRoom.cells.some(([cx, cy]) => cx === x && cy === y)) continue;
+      const plan = DM.planHallway(f1, [[x, y]]);
+      ok(!plan.openings.some((o) => o.x === st.x && o.y === st.y), 'a hallway planned a door into a stair square');
+    }
+  }
+  // editing the stairs themselves
+  {
+    let added = 0, moves = 0, removed = 0, refused = 0;
+    for (let i = 0; i < 20; i++) {
+      const dun = DM.generateDungeon({ ...base, levelStairs: 1 + (i % 3), layout: ['random', 'gauntlet', 'wide'][i % 3], seed: `lvstair-${i}` });
+      const ctx = `lvstair ${i}`;
+      const was = DM.editState(dun);
+      const spots = (upper, except) => {
+        const out = [];
+        for (let y = 0; y < dun.height; y++) for (let x = 0; x < dun.width; x++) if (DM.stairProblem(dun, upper, x, y, except).ok) out.push([x, y]);
+        return out;
+      };
+      // a stair between each pair of levels, on a square that works
+      for (const upper of [1, 2]) {
+        const where = spots(upper);
+        if (where.length === 0) continue;
+        const [x, y] = where[Math.floor(where.length / 2)];
+        const view = DM.floorView(dun, upper);
+        const res = DM.addStair(view, upper, x, y);
+        ok(res.ok, `${ctx}: a square that works was refused: ${JSON.stringify(res)}`);
+        if (!res.ok) continue;
+        added++;
+        ok(dun.stairs.some((s) => s.letter === res.stair.letter && s.x === x && s.y === y && s.upper === upper && s.lower === upper + 1), `${ctx}: the new stair is not in the dungeon`);
+        ok(new Set(dun.stairs.map((s) => s.letter)).size === dun.stairs.length, `${ctx}: stair letters repeat`);
+        ok(dun.stairs.every((s, k) => s.id === k) && dun.stats.stairs === dun.stairs.length, `${ctx}: stair ids or the count are wrong`);
+        ok(view.stairs.some((s) => s.letter === res.stair.letter), `${ctx}: the floor view does not list the new stair`);
+        check(dun, `${ctx} added`);
+        // the same square is taken now, on this pair of levels and the next one that shares a floor
+        ok(!DM.stairProblem(dun, upper, x, y).ok, `${ctx}: two stairs on one square`);
+        // move it somewhere else
+        const elsewhere = spots(upper, res.stair).find(([sx, sy]) => sx !== x || sy !== y);
+        if (elsewhere) {
+          const mv = DM.moveStair(view, res.stair.letter, elsewhere[0], elsewhere[1]);
+          ok(mv.ok && mv.stair.x === elsewhere[0] && mv.stair.upper === upper, `${ctx}: moving a stair failed: ${JSON.stringify(mv)}`);
+          moves++;
+          check(dun, `${ctx} moved`);
+        }
+      }
+      // a square that is not a room square on both floors is refused, with a reason; so is anything out of range
+      const bad = DM.stairProblem(dun, 1, -1, -1);
+      ok(!bad.ok && /not a room square/.test(bad.reason), `${ctx}: a square outside the map: ${JSON.stringify(bad)}`);
+      ok(!DM.stairProblem(dun, 3, 0, 0).ok && !DM.stairProblem(dun, 0, 0, 0).ok, `${ctx}: levels out of range`);
+      ok(!DM.addStair(DM.floorView(dun, 1), 1, -1, -1).ok, `${ctx}: stairs were added outside the rooms`);
+      // a door or an entrance square is refused
+      const f1 = DM.floorView(dun, 1);
+      const entrance = f1.entrances[0];
+      ok(!DM.stairProblem(dun, 1, entrance.x, entrance.y).ok, `${ctx}: stairs on an entrance`);
+      const doorway = f1.connections.flatMap((c) => c.openings)[0];
+      if (doorway) ok(!DM.stairProblem(dun, 1, doorway.x, doorway.y).ok, `${ctx}: stairs on a doorway`);
+      // remove: down to one on a pair, then refused
+      for (const upper of [1, 2]) {
+        for (;;) {
+          const on = dun.stairs.filter((s) => s.upper === upper);
+          const res = DM.removeStair(DM.floorView(dun, upper), on[0].letter);
+          if (on.length > 1) {
+            ok(res.ok, `${ctx}: a stair that can go was refused: ${JSON.stringify(res)}`);
+            removed++;
+          } else {
+            ok(!res.ok && /only stairs/.test(res.reason), `${ctx}: the last stair of a pair was removed: ${JSON.stringify(res)}`);
+            refused++;
+            break;
+          }
+        }
+        check(dun, `${ctx} removed`);
+      }
+      ok(!DM.removeStair(dun, 'ZZZ').ok && !DM.moveStair(dun, 'ZZZ', 0, 0).ok, `${ctx}: stairs that do not exist were found`);
+      ok(DM.editState(dun) !== was, `${ctx}: stair edits did not show in the edit state`);
+      ok(JSON.stringify(JSON.parse(DM.dungeonJson(dun))) === JSON.stringify(dun), `${ctx}: the data does not hold the edited stairs`);
+    }
+    const flat = DM.generateDungeon({ ...base, levels: 1, seed: 'flat' });
+    ok(!DM.addStair(flat, 1, 0, 0).ok, 'stairs were added to a dungeon of one level');
+    console.log(`  stairs: ${added} added, ${moves} moved, ${removed} removed, ${refused} last ones kept, on 20 dungeons`);
+  }
+  console.log('  done');
+}
+
 console.log('== edit mode');
 {
   const fs = require('fs');

@@ -86,9 +86,9 @@
       this.requestDraw();
     }
 
-    /** The tool of edit mode: 'door' (the first one), 'draw' or 'erase'. */
+    /** The tool of edit mode: 'door' (the first one), 'draw', 'erase' or 'stairs' (stairs between levels). */
     setEditTool(tool) {
-      this.editTool = ['door', 'draw', 'erase'].includes(tool) ? tool : 'door';
+      this.editTool = ['door', 'draw', 'erase', 'stairs'].includes(tool) ? tool : 'door';
       this._stroke = null;
       this._clearHover();
       this.requestDraw();
@@ -98,6 +98,7 @@
       this._hover = null;
       this._hoverCell = null;
       this._hoverStretch = null;
+      this._hoverStair = null;
       this._cursor();
     }
 
@@ -107,7 +108,7 @@
       const tool = this.editMode ? this.editTool : '';
       cl.toggle('over-door', tool === 'door' && !!this._hover);
       cl.toggle('tool-draw', tool === 'draw' && !this._space);
-      cl.toggle('over-hall', tool === 'erase' && !!this._hoverStretch);
+      cl.toggle('over-hall', (tool === 'erase' && !!this._hoverStretch) || (tool === 'stairs' && !!this._hoverStair && this._hoverStair.can));
     }
 
     /**
@@ -317,7 +318,7 @@
       c.addEventListener('pointerenter', () => (this._inside = true));
       c.addEventListener('pointerleave', () => {
         this._inside = false;
-        if (this._hover || this._hoverCell || this._hoverStretch) {
+        if (this._hover || this._hoverCell || this._hoverStretch || this._hoverStair) {
           this._clearHover();
           this.requestDraw();
         }
@@ -372,6 +373,12 @@
         const hit = this._doorAt(e.clientX - rect.left, e.clientY - rect.top);
         if (hit === this._hover) return;
         this._hover = hit;
+      } else if (this.editTool === 'stairs') {
+        const cell = this._cellAt(e);
+        if (this._hoverCell && this._hoverCell[0] === cell[0] && this._hoverCell[1] === cell[1] && this._hoverShift === e.shiftKey) return;
+        this._hoverCell = cell;
+        this._hoverShift = e.shiftKey;
+        this._hoverStair = this._stairPlan(cell, e.shiftKey);
       } else {
         const cell = this._cellAt(e);
         if (this._hoverCell && this._hoverCell[0] === cell[0] && this._hoverCell[1] === cell[1]) return;
@@ -390,6 +397,20 @@
         if (res.ok) this._layoutChanged(res, 'erase');
         return;
       }
+      if (this.editTool === 'stairs') {
+        const plan = this._stairPlan(this._cellAt(e), e.shiftKey);
+        if (!plan) return;
+        const [x, y] = this._cellAt(e);
+        const res = !plan.can ? { ok: false, reason: plan.text } : plan.kind === 'remove' ? DM.removeStair(this.dungeon, plan.stair.letter) : DM.addStair(this.dungeon, plan.upper, x, y);
+        if (res.ok) {
+          this._hoverStair = null;
+          this.refreshModel();
+          if (this.onStairChange) this.onStairChange({ kind: plan.kind, stair: res.stair });
+        } else if (this.onNote) {
+          this.onNote(res.reason.charAt(0).toUpperCase() + res.reason.slice(1));
+        }
+        return;
+      }
       if (this.editTool !== 'door') return;
       const rect = this.canvas.getBoundingClientRect();
       const hit = this._doorAt(e.clientX - rect.left, e.clientY - rect.top);
@@ -400,6 +421,31 @@
       this._hover = hit;
       this.refreshDoors();
       if (this.onDoorChange) this.onDoorChange({ opening, from, to: opening.style });
+    }
+
+    /**
+     * What a click on square `cell` would do with the stairs tool, for a floor of a dungeon of several levels: { kind: 'remove', stair }
+     * where there are stairs, else { kind: 'add', upper } for stairs down (up with shift held, or down from the last level), with `can`
+     * (whether it would work) and `text` (what to tell the user). Null away from the rooms.
+     */
+    _stairPlan(cell, shift) {
+      const d = this.dungeon;
+      if (!d || !d._model) return null;
+      const [x, y] = cell;
+      if (!d.rooms.some((r) => r.cells.some(([cx, cy]) => cx === x && cy === y))) return null;
+      const level = d.level;
+      const have = DM.stairAt(d, level, x, y);
+      if (have) {
+        const only = d._model.stairs.filter((st) => st.upper === have.upper).length === 1;
+        if (only) return { kind: 'remove', stair: have, can: false, text: `These are the only stairs between level ${have.upper} and level ${have.lower}: add others first` };
+        return { kind: 'remove', stair: have, can: true, text: `Click to remove stairs ${have.letter}` };
+      }
+      const n = d._model.levels;
+      const up = level === n || (shift && level > 1);
+      const upper = up ? level - 1 : level;
+      const p = DM.stairProblem(d, upper, x, y);
+      if (!p.ok) return { kind: 'add', upper, can: false, text: p.reason };
+      return { kind: 'add', upper, can: true, text: `Click to add stairs ${up ? 'up to' : 'down to'} level ${up ? level - 1 : level + 1}` };
     }
 
     // ---- drawing hallways ---------------------------------------------------
@@ -703,6 +749,10 @@
       if (edit && this.editTool === 'erase' && this._hoverStretch && this._hoverCell) {
         this._drawTip((this._hoverCell[0] + 0.5) * s + view.tx, this._hoverCell[1] * s + view.ty - 14, 'Click to delete this stretch');
       }
+      if (edit && this.editTool === 'stairs' && this._hoverStair && this._hoverCell) {
+        const text = this._hoverStair.text.charAt(0).toUpperCase() + this._hoverStair.text.slice(1);
+        this._drawTip((this._hoverCell[0] + 0.5) * s + view.tx, this._hoverCell[1] * s + view.ty - 14, text);
+      }
       if (scaleBar) this._drawScaleBar();
     }
 
@@ -828,6 +878,13 @@
         }
       } else if (this.editTool === 'draw' && this._hoverCell) {
         ctx.globalAlpha = 0.7;
+        ctx.lineWidth = 2 * px;
+        outline([this._hoverCell]);
+        ctx.globalAlpha = 1;
+      }
+      if (this.editTool === 'stairs' && this._hoverCell && this._hoverStair) {
+        ctx.globalAlpha = this._hoverStair.can ? 0.45 : 0.2;
+        if (this._hoverStair.can) ctx.fillRect(this._hoverCell[0], this._hoverCell[1], 1, 1);
         ctx.lineWidth = 2 * px;
         outline([this._hoverCell]);
         ctx.globalAlpha = 1;
