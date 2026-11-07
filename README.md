@@ -333,8 +333,8 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
   **Export** (seed, the results, share and export, settings) and **Display** (theme, label position, the
   grid and room-number switches, and colors). Display only changes how the map is
   drawn (and, for the theme, the page around it), so it applies at once. Click a
-  column's title bar to collapse it to a thin strip and give the map more room, and
-  click the strip to open it again. Which columns are collapsed is remembered; on a first visit Display starts collapsed. A
+  column's title bar to collapse it into a tab in one narrow bar at the left (the collapsed columns stack there, in the same order) and give the map more room, and
+  click its tab to open it again (each column has a small picture beside its title: two rooms for Layout, a room for Rooms, a hallway's two walls for Hallways, an arrow out of a tray for Export, a screen for Display); the open columns stay side by side, in their usual order, beside the bar. Which columns are collapsed is remembered; on a first visit Display starts collapsed. A
   collapsed column opens by itself if one of its inputs has an error. On a narrow
   screen the columns stack and collapse like an accordion.
 - The **legend** is a small card in the bottom right corner of the map, not in a column, so it

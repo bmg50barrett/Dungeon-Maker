@@ -103,17 +103,31 @@ body {
   border-right: 1px solid var(--tint);
 }
 
-/* the five columns sit side by side and are each as tall as the window */
-.blades { display: flex; flex: 1; min-height: 0; overflow-x: auto; }
+/* The columns are a grid. The open ones sit side by side, each as tall as the window, in their usual order (columns 2 to 6).
+   The folded ones are not left where they were: they all stack, in the same order, in one narrow bar at the left (column 1),
+   so folding a column gives its room back to the map instead of leaving a strip behind. The last row takes what is left. */
+.blades {
+  display: grid;
+  grid-template-columns: auto repeat(5, auto);
+  grid-template-rows: repeat(5, max-content) minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
 .blade {
   display: flex;
-  flex: none;
   flex-direction: column;
   width: 300px;
   min-height: 0;
-  border-right: 1px solid var(--tint);
+  border-left: 1px solid var(--tint);
+  grid-row: 1 / -1;
 }
-.blade:last-child { border-right: 0; }
+.blade.collapsed { grid-row: auto; grid-column: 1; border-left: 0; }
+.blade:nth-child(1):not(.collapsed) { grid-column: 2; }
+.blade:nth-child(2):not(.collapsed) { grid-column: 3; }
+.blade:nth-child(3):not(.collapsed) { grid-column: 4; }
+.blade:nth-child(4):not(.collapsed) { grid-column: 5; }
+.blade:nth-child(5):not(.collapsed) { grid-column: 6; }
 .blade[data-blade="display"], .blade[data-blade="layout"] { width: 268px; } /* little in them, so they take less of the map's room */
 /* opening and closing a column slides it (the map grows or shrinks beside it) and fades its title in the new place */
 .blade { overflow: hidden; transition: width 0.22s ease; }
@@ -146,7 +160,12 @@ body {
   animation: bladeTitleA 0.25s ease;
 }
 .blade-toggle:hover { color: var(--ink); }
-.blade-toggle svg { flex: none; width: 14px; height: 14px; color: var(--muted); }
+.blade-toggle .blade-chevron { flex: none; width: 14px; height: 14px; color: var(--muted); margin-left: auto; }
+/* the picture beside each column's title: an outline in the title's color */
+.blade-toggle .blade-icon {
+  flex: none; width: 22px; height: 22px; margin-right: 10px;
+  fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: square; stroke-linejoin: miter;
+}
 .blade-toggle:focus-visible { outline-offset: -2px; }
 
 .blade-body {
@@ -159,21 +178,23 @@ body {
   padding: 20px 16px 28px;
 }
 
-/* collapsed: a thin strip with the title running down it; click it to open the column again */
+/* collapsed: a short tab in the bar at the left, with the title running down it; click it to open the column again */
 .blade.collapsed { width: 48px; }
 /* the body is not removed but kept at its full width and clipped by the narrowing column, so the slide never reflows the text */
-.blade.collapsed .blade-body { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.15s ease, visibility 0s 0.22s; }
+.blade.collapsed .blade-body { flex: none; height: 0; padding: 0; overflow: hidden; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.15s ease, visibility 0s 0.22s; } /* (no height, so a tab in the bar is only as tall as its title) */
 .blade.collapsed .blade-head { flex: 1; min-height: 0; margin: 0; border-bottom: 0; }
 .blade.collapsed .blade-toggle {
   flex-direction: column;
   justify-content: flex-start;
   gap: 14px;
   height: 100%;
-  padding: 14px 0;
+  padding: 14px 0 22px;
   font-size: 20px;
 }
 .blade.collapsed .blade-title { writing-mode: vertical-rl; }
-.blade.collapsed .blade-toggle svg { order: -1; transform: rotate(180deg); } /* arrow above the title */
+/* in the bar at the left: the arrow, then the picture, then the title running down */
+.blade.collapsed .blade-toggle .blade-chevron { order: -2; transform: rotate(180deg); margin-left: 0; }
+.blade.collapsed .blade-toggle .blade-icon { order: -1; margin-right: 0; }
 
 .field { margin: 0 0 20px; padding: 0; border: 0; }
 .field label, .field legend {
@@ -815,17 +836,18 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
 
   /* on a narrow screen the columns stack, and collapse like an accordion */
   .blades { display: block; overflow: visible; }
-  .blade, .blade.collapsed, .blade[data-blade] { width: auto; border-right: 0; border-bottom: 1px solid var(--tint); }
+  .blade, .blade.collapsed, .blade[data-blade] { width: auto; border-left: 0; border-right: 0; border-bottom: 1px solid var(--tint); }
   .blade { overflow: visible; transition: none; }
   .blade-body { overflow: visible; min-width: 0; }
   .blade[data-blade] .blade-body { min-width: 0; }
   /* stacked, a closed column simply drops out (only its title fades), as there is no width to slide */
   .blade.collapsed .blade-body { display: none; }
-  .blade-toggle svg { transform: rotate(90deg); }
+  .blade-toggle .blade-chevron { transform: rotate(90deg); }
   .blade.collapsed .blade-head { flex: none; margin: 0 16px; border-bottom: var(--stroke-section) solid var(--gold); }
   .blade.collapsed .blade-toggle { flex-direction: row; justify-content: space-between; height: auto; padding: 8px 0 6px; font-size: 24px; }
   .blade.collapsed .blade-title { writing-mode: horizontal-tb; }
-  .blade.collapsed .blade-toggle svg { order: 0; transform: rotate(-90deg); }
+  .blade.collapsed .blade-toggle .blade-chevron { order: 0; transform: rotate(-90deg); margin-left: auto; }
+  .blade.collapsed .blade-toggle .blade-icon { order: 0; margin-right: 10px; }
 }
 
 /* ---- printing -------------------------------------------------------------- */
