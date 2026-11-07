@@ -217,10 +217,10 @@ input[type='number'], input[type='text'] {
   background: var(--field);
   border: 1px solid var(--write-in);
 }
-/* a unit to the right of a number box (the percent sign after Room size variance) */
-.with-suffix { display: flex; align-items: center; gap: 10px; }
-.with-suffix input { flex: 1; min-width: 0; }
-.suffix { flex: none; font-size: 17px; font-weight: 600; color: var(--muted); }
+/* a unit inside the right end of a number box (the percent sign after Room size variance), left of the box's up/down arrows */
+.with-suffix { position: relative; }
+.with-suffix input { padding-right: 62px; }
+.suffix { position: absolute; top: 0; right: 32px; height: var(--tap); display: flex; align-items: center; font-size: 17px; font-weight: 600; color: var(--muted); pointer-events: none; }
 /* a dropdown (the overall layout): an input's box with a small wine triangle, drawn here since the brand has no icon set */
 select {
   appearance: none;

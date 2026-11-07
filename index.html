@@ -115,7 +115,10 @@
 
             <div class="field">
               <label for="avgRoomSize">Average room size</label>
-              <input id="avgRoomSize" aria-describedby="sizeHint err-avgRoomSize" name="avgRoomSize" type="number" min="1" max="999" step="1" value="30" inputmode="numeric">
+              <div class="with-suffix">
+                <input id="avgRoomSize" aria-describedby="sizeHint err-avgRoomSize" name="avgRoomSize" type="number" min="1" max="999" step="1" value="30" inputmode="numeric">
+                <span class="suffix" aria-hidden="true">sq.</span>
+              </div>
               <p class="tip" role="tooltip" id="sizeHint">1&ndash;999 squares</p>
               <p class="error" id="err-avgRoomSize" role="alert"></p>
             </div>
@@ -125,12 +128,18 @@
               <div class="pair-inputs">
                 <div>
                   <label for="minRoomWidth">Width <span class="optional">(across)</span></label>
-                  <input id="minRoomWidth" aria-describedby="minSizeHint err-minRoomWidth" name="minRoomWidth" type="number" min="1" max="30" step="1" value="3" inputmode="numeric">
+                  <div class="with-suffix">
+                    <input id="minRoomWidth" aria-describedby="minSizeHint err-minRoomWidth" name="minRoomWidth" type="number" min="1" max="30" step="1" value="3" inputmode="numeric">
+                    <span class="suffix" aria-hidden="true">sq.</span>
+                  </div>
                 </div>
                 <span class="times" aria-hidden="true">&times;</span>
                 <div>
                   <label for="minRoomLength">Length <span class="optional">(down)</span></label>
-                  <input id="minRoomLength" aria-describedby="minSizeHint err-minRoomLength" name="minRoomLength" type="number" min="1" max="30" step="1" value="3" inputmode="numeric">
+                  <div class="with-suffix">
+                    <input id="minRoomLength" aria-describedby="minSizeHint err-minRoomLength" name="minRoomLength" type="number" min="1" max="30" step="1" value="3" inputmode="numeric">
+                    <span class="suffix" aria-hidden="true">sq.</span>
+                  </div>
                 </div>
               </div>
               <p class="tip" role="tooltip" id="minSizeHint">Every room is at least 3 wide × 3 long (15×15 ft)</p>
@@ -187,15 +196,21 @@
             </div>
 
             <div class="field">
-              <label for="connectionRandomness">Connection randomization (%)</label>
-              <input id="connectionRandomness" aria-describedby="randomnessHint err-connectionRandomness" name="connectionRandomness" type="number" min="0" max="100" step="1" value="14" inputmode="numeric">
+              <label for="connectionRandomness">Connection randomization</label>
+              <div class="with-suffix">
+                <input id="connectionRandomness" aria-describedby="randomnessHint err-connectionRandomness" name="connectionRandomness" type="number" min="0" max="100" step="1" value="14" inputmode="numeric">
+                <span class="suffix" aria-hidden="true">%</span>
+              </div>
               <p class="tip" role="tooltip" id="randomnessHint">Chance a connection uses the other type (0&ndash;100)</p>
               <p class="error" id="err-connectionRandomness" role="alert"></p>
             </div>
 
             <div class="field">
               <label for="hallWidth">Hallway width</label>
-              <input id="hallWidth" aria-describedby="hallWidthHint err-hallWidth" name="hallWidth" type="number" min="1" max="10" step="1" value="1" inputmode="numeric">
+              <div class="with-suffix">
+                <input id="hallWidth" aria-describedby="hallWidthHint err-hallWidth" name="hallWidth" type="number" min="1" max="10" step="1" value="1" inputmode="numeric">
+                <span class="suffix" aria-hidden="true">sq.</span>
+              </div>
               <p class="tip" role="tooltip" id="hallWidthHint">Squares across, 1&ndash;10 (hallways drawn by hand are always 1)</p>
               <p class="error" id="err-hallWidth" role="alert"></p>
             </div>
