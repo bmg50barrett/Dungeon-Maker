@@ -458,17 +458,27 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
 #printImage { display: none; }
 
 /* ---- levels ------------------------------------------------------------------ */
-.level-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
+/* the level tabs are a segmented control, like the other choices: a wine outline with a rule between the options (the borders
+   overlap, so a row of tabs that wraps keeps its outline), the level on show filled in wine */
+.level-tabs { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0 16px; margin: 0 0 10px; }
 .level-tabs[hidden] { display: none; }
-.level-tabs button {
-  font-family: var(--font-text); font-size: 15px; line-height: 1; padding: 6px 10px; min-width: 38px; cursor: pointer;
-  color: var(--heading); background: var(--card); border: 1px solid var(--wine); border-radius: 0;
+.level-tabs-bar { display: flex; flex-wrap: wrap; }
+.level-tabs-bar button {
+  min-height: var(--tap); min-width: 56px; margin: 0 -1px -1px 0; padding: 6px 16px;
+  font-family: var(--font-text); font-size: 15px; font-weight: 400; line-height: 1.2; cursor: pointer;
+  color: var(--ink); background: transparent; border: 1px solid var(--wine);
 }
-.level-tabs button:hover { background: var(--tint); }
-.level-tabs button[aria-pressed='true'] { color: var(--on-fill); background: var(--fill); border-color: var(--fill); }
-.level-tabs button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.level-tabs .level-tabs-all { margin-left: 8px; }
-.level-tabs .level-tabs-regen { margin-left: auto; }
+.level-tabs-bar button:hover { background: var(--tint); }
+.level-tabs-bar button[aria-pressed='true'] { color: var(--on-fill); background: var(--fill); border-color: var(--wine); font-weight: 600; }
+.level-tabs-bar button:focus-visible { position: relative; outline: 2px solid var(--focus); outline-offset: 2px; }
+/* Regenerate level: like the random-seed button, a wine outline in the engraved small caps of the main buttons */
+.level-tabs .level-tabs-regen {
+  margin-left: auto; min-height: var(--tap); padding: 8px 16px;
+  font-family: var(--font-display); font-size: 18px; font-weight: 400; line-height: 1.2; cursor: pointer;
+  color: var(--heading); background: transparent; border: 1px solid var(--wine);
+}
+.level-tabs .level-tabs-regen:hover { background: var(--tint); }
+.level-tabs .level-tabs-regen:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .level-tabs .level-tabs-regen[hidden] { display: none; }
 .all-levels {
   position: absolute; inset: 0; overflow: auto; z-index: 3; padding: 12px; background: var(--map-bg);
@@ -479,9 +489,7 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
 .all-levels figcaption { font-family: var(--font-text); font-weight: 700; margin: 0 0 4px; color: var(--c-wall); }
 .all-levels canvas { display: block; width: 100%; height: auto; cursor: pointer; }
 .map-area.showing-all .toolbar, .map-area.showing-all .legend, .map-area.showing-all .room-panel { display: none; }
-.export-scope { border: 0; margin: 6px 0 0; padding: 0; }
 .export-scope[hidden] { display: none; }
-.export-scope legend { font-size: 13px; padding: 0; margin-bottom: 2px; }
 
 /* the legend sits on the map, in the bottom right corner: a card with a gold rule above and below, like a table in the handouts */
 .legend {

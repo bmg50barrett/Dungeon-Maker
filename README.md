@@ -342,6 +342,9 @@ are reached by stairs only.
 - Rooms are numbered by level and number: room 5 of level 2 is **2-5**. Stairs are drawn as a stair symbol
   with an arrow, down (↓) or up (↑), and a letter that is the same at both ends (↓A on the upper
   floor, ↑A on the lower).
+- A room's number keeps clear of the badge of a stair: where its usual place, the middle of the room, would run into one, the number
+  goes on the next best square of the room that does not, and goes back to the middle if the stair is moved or removed
+  (a room with no such square keeps the middle).
 - On the page, tabs above the map pick a level, and **All** shows every level side by side. Clicking a level
   there opens it. Room names are per room, and the legend and key are per level. **Picture (PNG)** and
   **Print** ask what to hold: all levels (a stacked picture, one printed page for each level) or only the

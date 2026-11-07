@@ -2619,6 +2619,7 @@
     model.warnings = [...model.warnings, ...warnings];
     model.stats.levels = params.levels;
     model.stats.stairs = stairs.length;
+    for (let level = 1; level <= params.levels; level++) settleLabels(level === 1 ? model : model.floors[level - 2], floorStairs(model, level));
     return model;
   }
 
@@ -2660,6 +2661,57 @@
       f.height = root.height;
     }
     return { dx, dy };
+  }
+
+  /**
+   * The cells of a room in the order its number would like them: the middle first, by the same ranking as the generator's roomLabelCell
+   * (a cell with floor all round, then the most floor beside it, then nearest the middle of the room).
+   */
+  function labelCandidates(cells) {
+    const set = new Set(cells.map((c) => `${c[0]},${c[1]}`));
+    const cx = cells.reduce((n, c) => n + c[0] + 0.5, 0) / cells.length;
+    const cy = cells.reduce((n, c) => n + c[1] + 0.5, 0) / cells.length;
+    const keyed = cells.map((c) => {
+      let around = 0;
+      let sides = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if ((dx || dy) && set.has(`${c[0] + dx},${c[1] + dy}`)) {
+            around++;
+            if (!dx || !dy) sides++;
+          }
+        }
+      }
+      return { c, key: [around === 8 ? 0 : 1, -sides, -around, (c[0] + 0.5 - cx) ** 2 + (c[1] + 0.5 - cy) ** 2] };
+    });
+    keyed.sort((a, b) => a.key[0] - b.key[0] || a.key[1] - b.key[1] || a.key[2] - b.key[2] || a.key[3] - b.key[3]);
+    return keyed.map((k) => k.c);
+  }
+
+  // the badge of stairs on the map is about this big, in squares (it is drawn at a size of its own, so this is for the usual zoom)
+  const STAIR_BADGE_W = 1.2;
+  const STAIR_BADGE_H = 0.8;
+
+  /** Would the number of this room, written on `cell`, run into the badge of any of these stairs ([{ x, y }])? */
+  function labelHitsStair(room, cell, stairs) {
+    const size = DM.labelSize(room);
+    const w = 0.62 * size * DM.roomTag(room).length; // (an estimate of the width of the text, as in placeOutsideLabels)
+    for (const s of stairs) {
+      if (Math.abs(s.x - cell[0]) < (w + STAIR_BADGE_W) / 2 && Math.abs(s.y - cell[1]) < (size + STAIR_BADGE_H) / 2) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Keep the numbers of a floor's rooms clear of the badges of its stairs. A number goes on the room's middle cell; where that would run
+   * into a stair, it goes on the next best cell that does not (and back to the middle when the stair is gone). A room with no such cell
+   * keeps the one it has. `f` is a floor ({ rooms }), `stairs` the stairs on it ([{ x, y }], as DM.floorStairs gives them).
+   */
+  function settleLabels(f, stairs) {
+    for (const r of f.rooms) {
+      const free = labelCandidates(r.cells).find((c) => !labelHitsStair(r, c, stairs));
+      if (free) r.labelCell = [free[0], free[1]];
+    }
   }
 
   /**
@@ -2787,6 +2839,7 @@
     }
     model.stairs = stairs;
     tidyStairs(model);
+    for (let level = Math.max(1, n - 1); level <= Math.min(levels, n + 1); level++) settleLabels(floorObj(level), floorStairs(model, level));
 
     // warnings that were about this floor are replaced by the new floor's
     const stale = (w) => new RegExp(`^Level ${n}: `).test(w) || pairs.some((p) => w.startsWith(`No stair could be placed between level ${p.upper} and`) || w.startsWith(`Levels ${p.upper} and ${p.upper + 1} could only get`));
@@ -2846,6 +2899,9 @@
   DM.floorView = floorView;
   DM.moveFloor = moveFloor;
   DM.tidyStairs = tidyStairs;
+  DM.settleLabels = settleLabels;
+  DM.labelHitsStair = labelHitsStair;
+  DM.labelCandidates = labelCandidates;
   DM.fitLevelsBox = fitLevelsBox;
   DM.regenerateLevel = regenerateLevel;
   DM.floorStairs = floorStairs;

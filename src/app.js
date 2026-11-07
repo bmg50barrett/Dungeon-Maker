@@ -531,10 +531,12 @@
   function buildLevelTabs(n) {
     const bar = $('levelTabs');
     bar.textContent = '';
-    for (let i = 1; i <= n; i++) bar.append(levelButton(n <= 6 ? `Level ${i}` : String(i), i, `Show level ${i}`));
-    const all = levelButton('All', 'all', 'Show every level side by side');
-    all.classList.add('level-tabs-all');
-    bar.append(all);
+    // the level buttons and All are one segmented control; Regenerate level stands apart from it
+    const group = document.createElement('div');
+    group.className = 'level-tabs-bar';
+    for (let i = 1; i <= n; i++) group.append(levelButton(n <= 6 ? `Level ${i}` : String(i), i, `Show level ${i}`));
+    group.append(levelButton('All', 'all', 'Show every level side by side'));
+    bar.append(group);
     // builds the level on the map again (not for the All view)
     const again = document.createElement('button');
     again.type = 'button';

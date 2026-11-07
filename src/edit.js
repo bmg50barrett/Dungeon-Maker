@@ -376,6 +376,8 @@
   /** Keep the stairs in order, with ids that are their places (and the floor view, if given one, up to date). */
   function tidyStairs(root, d) {
     DM.tidyStairs(root);
+    // (the numbers of rooms keep clear of the stairs' badges, and go back to the middle where a stair was taken away)
+    for (let level = 1; level <= root.levels; level++) DM.settleLabels(floorOf(root, level), DM.floorStairs(root, level));
     if (d && d._model) d.stairs = DM.floorStairs(root, d.level);
   }
 

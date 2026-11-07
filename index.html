@@ -255,10 +255,15 @@
               </div>
               <label class="check"><input type="checkbox" id="exportLegend" checked> Legend and details on the picture and printout</label>
               <!-- a dungeon of several levels: what the picture and the printout hold (shown by app.js) -->
-              <fieldset class="export-scope" id="exportScope" hidden>
+              <fieldset class="field segmented export-scope" id="exportScope" hidden>
                 <legend>Picture and printout hold</legend>
-                <label class="check"><input type="radio" name="exportScope" value="all" checked> All levels (one picture, one page each)</label>
-                <label class="check"><input type="radio" name="exportScope" value="this"> Only the level on the map</label>
+                <div class="seg-options">
+                  <input type="radio" id="scope-all" name="exportScope" value="all" checked>
+                  <label for="scope-all">All levels</label>
+                  <input type="radio" id="scope-this" name="exportScope" value="this">
+                  <label for="scope-this">This level</label>
+                </div>
+                <p class="hint">All levels: one picture, one printed page each. This level: only the level on the map.</p>
               </fieldset>
               <input type="text" id="shareUrl" readonly hidden aria-label="Link to this dungeon">
               <p class="hint" id="exportStatus" role="status" aria-live="polite"></p>

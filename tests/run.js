@@ -74,7 +74,7 @@ function checkDungeon(dun, ctx) {
     {
       const floor = new Set(r.cells.map((c) => `${c[0]},${c[1]}`));
       const surrounded = ([x, y]) => [-1, 0, 1].every((dy) => [-1, 0, 1].every((dx) => floor.has(`${x + dx},${y + dy}`)));
-      if (r.cells.some(surrounded) && !surrounded(r.labelCell)) fail(ctx, `room ${r.id} (${r.kind}): the number is beside a wall although the room has a cell with floor all round`);
+      if (r.cells.some((c) => surrounded(c) && !DM.labelHitsStair(r, c, dun.stairs || [])) && !surrounded(r.labelCell)) fail(ctx, `room ${r.id} (${r.kind}): the number is beside a wall although the room has a cell with floor all round`);
     }
   }
   const labels = dun.rooms.map((r) => r.label).sort((a, b) => a - b);
@@ -1827,7 +1827,7 @@ console.log('== overall layout');
             const again = DM.generateDungeon({ ...lvBase, layout, levels, levelStairs: stairs, seed: seedText });
             if (JSON.stringify(again) !== JSON.stringify(dun)) fail('levels', `${ctx}: the same seed gave another dungeon`);
             const alone = DM.generateDungeon({ ...lvBase, layout, seed: seedText });
-            const strip = (rooms) => JSON.stringify(rooms.map((r) => ({ ...r, level: undefined })));
+            const strip = (rooms) => JSON.stringify(rooms.map((r) => ({ ...r, level: undefined, labelCell: undefined })));
             if (strip(alone.rooms) !== strip(dun.rooms)) fail('levels', `${ctx}: level 1 is not the dungeon of one level`);
           }
         }
@@ -2517,6 +2517,13 @@ console.log('== editing several levels');
         for (const c of f.connections) for (const o of c.openings) if (o.x === st.x && o.y === st.y) fail(ctx, `stair ${st.letter} has a door into it on level ${level}`);
       }
     }
+    // a room's number is not under the badge of a stair, unless nothing in the room is clear of it
+    for (let level = 1; level <= dun.levels; level++) {
+      const f = DM.floorView(dun, level);
+      for (const r of f.rooms) {
+        if (DM.labelHitsStair(r, r.labelCell, f.stairs) && DM.labelCandidates(r.cells).some((c) => !DM.labelHitsStair(r, c, f.stairs))) fail(ctx, `the number of room ${level}-${r.label} is under a stair`);
+      }
+    }
   };
   const firstCells = (dun) => JSON.stringify([dun, ...dun.floors].map((f) => f.rooms.map((r) => r.cells[0])));
 
@@ -2595,6 +2602,39 @@ console.log('== editing several levels');
       ok(!plan.openings.some((o) => o.x === st.x && o.y === st.y), 'a hallway planned a door into a stair square');
     }
   }
+  // a room's number keeps clear of the badge of a stair, and goes back to the middle when the stair is gone
+  {
+    let tried = 0, moved = 0;
+    for (let i = 0; i < 20; i++) {
+      const dun = DM.generateDungeon({ ...base, levelStairs: 2, roomCount: 6, avgRoomSize: 40, seed: `lvlabel-${i}` });
+      const ctx = `lvlabel ${i}`;
+      const f1 = DM.floorView(dun, 1);
+      for (const r of f1.rooms) {
+        const [lx, ly] = r.labelCell;
+        const middle = r.labelCell.slice();
+        // a stair square beside the number (the next square across, or the one above)
+        const spot = [[lx + 1, ly], [lx - 1, ly], [lx, ly + 1], [lx, ly - 1]].find(([x, y]) => DM.stairProblem(dun, 1, x, y).ok);
+        if (!spot) continue;
+        tried++;
+        const added = DM.addStair(DM.floorView(dun, 1), 1, spot[0], spot[1]);
+        ok(added.ok, `${ctx}: a stair beside a number was refused`);
+        if (!added.ok) continue;
+        const now = DM.floorView(dun, 1);
+        const room = now.rooms[r.id];
+        const free = DM.labelCandidates(room.cells).some((c) => !DM.labelHitsStair(room, c, now.stairs));
+        ok(!free || !DM.labelHitsStair(room, room.labelCell, now.stairs), `${ctx}: the number of room ${r.label} is still under the stair badge`);
+        if (room.labelCell[0] !== middle[0] || room.labelCell[1] !== middle[1]) moved++;
+        check(dun, `${ctx} stair beside a number`);
+        const gone = DM.removeStair(DM.floorView(dun, 1), added.stair.letter);
+        ok(gone.ok, `${ctx}: the stair beside a number could not be removed`);
+        if (gone.ok) ok(DM.floorView(dun, 1).rooms[r.id].labelCell.join() === middle.join(), `${ctx}: the number of room ${r.label} did not go back to the middle`);
+        break;
+      }
+    }
+    ok(tried > 0 && moved > 0, `no number was ever moved for a stair (${tried} tried, ${moved} moved)`);
+    console.log(`  numbers and stairs: ${tried} stairs put beside a number, ${moved} numbers moved`);
+  }
+
   // editing the stairs themselves
   {
     let added = 0, moves = 0, removed = 0, refused = 0;
