@@ -13,8 +13,8 @@ const { ToolError } = require('./errors');
 const APP_DEFAULTS = {
   roomCount: 12,
   avgRoomSize: 30,
-  minRoomWidth: 1,
-  minRoomLength: 1,
+  minRoomWidth: 3,
+  minRoomLength: 3,
   sizeVariance: 30,
   spacing: 'compact',
   layout: 'random',
@@ -42,8 +42,8 @@ const int = (minimum, maximum, description) => ({ type: 'integer', minimum, maxi
 const SETTINGS = {
   roomCount: int(1, 99, 'How many rooms (default 12).'),
   avgRoomSize: int(1, 999, 'Average room size in squares of floor; one square is 5 ft by 5 ft, so 30 is about 750 sq ft (default 30).'),
-  minRoomWidth: int(1, 30, 'Least a room measures across the map (east-west), in squares (default 1: no minimum).'),
-  minRoomLength: int(1, 30, 'Least a room measures up and down the map (north-south), in squares (default 1: no minimum).'),
+  minRoomWidth: int(1, 30, 'Least a room measures across the map (east-west), in squares (default 3; 1 means no minimum).'),
+  minRoomLength: int(1, 30, 'Least a room measures up and down the map (north-south), in squares (default 3; 1 means no minimum).'),
   sizeVariance: int(0, 100, 'How much room sizes vary, as a percentage of the average (default 30).'),
   spacing: { type: 'string', enum: ['compact', 'normal', 'spaced'], description: 'How far apart rooms are: compact (rooms may touch; default), normal or spaced.' },
   layout: { type: 'string', enum: ['random', 'cathedral', 'ring', 'spiral', 'gauntlet', 'radial', 'mainst', 'square', 'long', 'wide'], description: 'The overall shape the dungeon leans towards: random (default, no shape), cathedral (a long nave crossed by a transept), ring (rooms circling an empty middle, closed into a loop), spiral (rooms winding outward from the first room to a tip; the first two entrances are at the two ends where they can be on the outside), gauntlet (one chain of rooms, each joined only to the next, snaking back and forth: no spines or loops; with Branching on, a hallway can fork to a single dead-end side room while the chain goes on), radial (the biggest room in the middle, every hallway running out from it like the spokes of a wheel and the other rooms along them; all hallways, no doorways between rooms unless hallways are switched off), mainst (Main St.: one very long straight hallway, up and down the map, with the rooms along its sides and on branches off it; all hallways), square, long (taller than wide) or wide (wider than tall).' },

@@ -480,7 +480,7 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
 /* ---- levels ------------------------------------------------------------------ */
 /* the level tabs are a segmented control, like the other choices: a wine outline with a rule between the options (the borders
    overlap, so a row of tabs that wraps keeps its outline), the level on show filled in wine */
-.level-tabs { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0 16px; margin: 0 0 10px; }
+.level-tabs { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0 16px; margin: 8px 0 10px; } /* (8px clear of the gold rule under the title) */
 .level-tabs[hidden] { display: none; }
 .level-tabs-bar { display: flex; flex-wrap: wrap; }
 .level-tabs-bar button {
