@@ -98,7 +98,8 @@ console.log('== defaults: the same as the page');
     if (num(id) !== APP_DEFAULTS[id]) fail('defaults', `${id} is ${APP_DEFAULTS[id]} here but ${num(id)} on the page`);
   }
   for (const name of ['spacing', 'connectionType', 'hallDoors']) {
-    const m = new RegExp(`name="${name}" value="(\\w+)" checked`).exec(html);
+    // a segmented choice (the one with `checked`) or a dropdown (the option with `selected`)
+    const m = new RegExp(`name="${name}" value="(\\w+)" checked`).exec(html) || new RegExp(`<select id="${name}Select"[^>]*>[\\s\\S]*?<option value="(\\w+)" selected`).exec(html);
     if (!m || m[1] !== APP_DEFAULTS[name]) fail('defaults', `${name} is ${APP_DEFAULTS[name]} here but ${m && m[1]} on the page`);
   }
   for (const [name, key] of [['roomShape', 'roomShapes'], ['hallType', 'hallTypes']]) {

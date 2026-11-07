@@ -706,7 +706,9 @@ console.log('== hallway doors');
 {
   // the page offers exactly the choices the generator knows, in the same order
   const html = require('fs').readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
-  const inPage = [...html.matchAll(/name="hallDoors"\s+value="([^"]+)"/g)].map((m) => m[1]);
+  const doorsSelect = (html.match(/<select id="hallDoorsSelect" name="hallDoors"[^>]*>([\s\S]*?)<\/select>/) || [])[1];
+  if (!doorsSelect) fail('hall doors', 'the hallway doors choice should be a select');
+  const inPage = [...(doorsSelect || '').matchAll(/<option value="([^"]+)"/g)].map((m) => m[1]);
   if (JSON.stringify(inPage) !== JSON.stringify(DM.HALL_DOORS)) fail('hall doors', `index.html offers [${inPage}] but the generator has [${DM.HALL_DOORS}]`);
 
   const base = { roomCount: 20, avgRoomSize: 30, sizeVariance: 30, entrances: 2, connectionType: 'hall', connectionRandomness: 0 };
@@ -1981,11 +1983,14 @@ console.log('== page layout');
   }
   // room spacing: a choice of exactly the spacings the generator knows, compact on first, with a hint that gives its real distances
   {
-    const radios = [...html.matchAll(/<input type="radio" id="spacing-([a-z]+)" name="spacing" value="([a-z]+)"([^>]*)>/g)];
-    if (JSON.stringify(radios.map((m) => m[2])) !== JSON.stringify(DM.SPACINGS)) fail('layout', `the page offers spacings [${radios.map((m) => m[2])}], the generator has [${DM.SPACINGS}]`);
-    if (radios.some((m) => m[1] !== m[2])) fail('layout', 'a spacing radio has an id that does not match its value');
-    if (radios.filter((m) => /\schecked/.test(m[3])).map((m) => m[2]).join() !== DM.DEFAULT_SPACING) fail('layout', `the page should start on ${DM.DEFAULT_SPACING} spacing`);
-    if (!html.includes('<legend>Room spacing</legend>') || !/<label for="spacing-spaced">Spread<\/label>/.test(html) || !/<label for="spacing-compact">Compact<\/label>/.test(html) || !/<label for="spacing-normal">Normal<\/label>/.test(html)) fail('layout', 'the spacing choice should read Compact / Normal / Spread under "Room spacing"');
+    const spacingSelect = (html.match(/<select id="spacingSelect" name="spacing"[^>]*>([\s\S]*?)<\/select>/) || [])[1];
+    if (!spacingSelect) fail('layout', 'room spacing should be a select');
+    const radios = [...(spacingSelect || '').matchAll(/<option value="([a-z]+)"([^>]*)>([^<]*)<\/option>/g)];
+    if (JSON.stringify(radios.map((m) => m[1])) !== JSON.stringify(DM.SPACINGS)) fail('layout', `the page offers spacings [${radios.map((m) => m[1])}], the generator has [${DM.SPACINGS}]`);
+    if (radios.filter((m) => /\sselected/.test(m[2])).map((m) => m[1]).join() !== DM.DEFAULT_SPACING) fail('layout', `the page should start on ${DM.DEFAULT_SPACING} spacing`);
+    if (radios.map((m) => m[3]).join() !== 'Compact,Normal,Spread' || !html.includes('<label for="spacingSelect">Room spacing</label>')) fail('layout', 'the spacing choice should read Compact / Normal / Spread under "Room spacing"');
+    if (!html.includes('<label for="hallDoorsSelect">Hallway doors</label>') || [...html.matchAll(/<option value="(?:none|less|more|all)"[^>]*>([^<]*)<\/option>/g)].map((m) => m[1]).join() !== 'None,Less,More,All') fail('layout', 'the hallway doors choice should read None / Less / More / All');
+    if (/type="radio" id="(spacing|doors)-/.test(html)) fail('layout', 'room spacing and hallway doors are still rows of segments');
     if (!html.includes('id="spacingHint"') || !html.includes('id="err-spacing"')) fail('layout', 'the spacing choice needs a hint and an error line');
     const hints = (appJs.match(/const SPACING_HINTS = \{[\s\S]*?\n  \};/) || [''])[0];
     for (const name of DM.SPACINGS) {
@@ -1993,25 +1998,31 @@ console.log('== page layout');
       const line = (hints.match(new RegExp(`${name}: '([^']*)'`)) || [])[1] || '';
       if (min === 0 ? !(/can touch/.test(line) && line.includes(`up to ${max} squares`)) : !(line.includes(`${min}–${max} squares`) && /rooms joined by a door, which touch/.test(line))) fail('layout', `the ${name} hint does not give its distances: "${line}"`);
     }
-    if (!/params\.spacing = document\.querySelector\('input\[name="spacing"\]:checked'\)\.value/.test(appJs)) fail('layout', 'app.js does not read the spacing');
-    if (!/if \(form\.spacing !== undefined\) setRadio\('spacing', form\.spacing\)/.test(appJs)) fail('layout', 'opening a link or restoring settings does not set the spacing');
+    if (!/params\.spacing = \$\('spacingSelect'\)\.value/.test(appJs) || !/params\.hallDoors = \$\('hallDoorsSelect'\)\.value/.test(appJs)) fail('layout', 'app.js does not read the spacing and the hallway doors');
+    if (!/if \(form\.spacing !== undefined\) setSelect\('spacingSelect', form\.spacing\)/.test(appJs) || !/if \(form\.hallDoors !== undefined\) setSelect\('hallDoorsSelect', form\.hallDoors\)/.test(appJs)) fail('layout', 'opening a link or restoring settings does not set the spacing and the hallway doors');
+    if (!/\$\('spacingSelect'\)\.addEventListener\('change', updateSpacingHint\)/.test(appJs) || !/\$\('hallDoorsSelect'\)\.addEventListener\('change', updateDoorsHint\)/.test(appJs)) fail('layout', 'choosing a spacing or hallway doors does not update its hint');
     if (!/showGroupError\('spacing'/.test(appJs)) fail('layout', 'a spacing error would not be shown');
-    if (!/\.seg-three\s*\{[^}]*repeat\(3, 1fr\)/.test(fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8'))) fail('layout', 'styles.css has no three-way segmented control');
   }
   // overall layout: a choice of exactly the layouts the generator knows, random on first, each with a hint, in the Layout column ahead of Rooms
   {
-    const radios = [...html.matchAll(/<input type="radio" name="layout" value="([a-z]+)"([^>]*)>/g)];
+    // a dropdown (a select), not a row of chips
+    const select = (html.match(/<select id="layoutSelect" name="layout"[^>]*>([\s\S]*?)<\/select>/) || [])[1];
+    if (!select) fail('layout', 'the overall layout should be a select');
+    const radios = [...(select || '').matchAll(/<option value="([a-z]+)"([^>]*)>([^<]*)<\/option>/g)];
     if (JSON.stringify(radios.map((m) => m[1])) !== JSON.stringify(DM.LAYOUTS)) fail('layout', `the page offers layouts [${radios.map((m) => m[1])}], the generator has [${DM.LAYOUTS}]`);
-    if (radios.filter((m) => /\schecked/.test(m[2])).map((m) => m[1]).join() !== DM.DEFAULT_LAYOUT) fail('layout', `the page should start on the ${DM.DEFAULT_LAYOUT} layout`);
-    for (const name of DM.LAYOUTS) {
-      if (!new RegExp(`value="${name}"[^>]*><span class="chip-body">${name === 'mainst' ? 'Main St.' : name[0].toUpperCase() + name.slice(1)}</span>`).test(html)) fail('layout', `the ${name} layout has no chip with its name`);
+    if (radios.filter((m) => /\sselected/.test(m[2])).map((m) => m[1]).join() !== DM.DEFAULT_LAYOUT) fail('layout', `the page should start on the ${DM.DEFAULT_LAYOUT} layout`);
+    for (const m of radios) {
+      const name = m[1];
+      if (m[3] !== (name === 'mainst' ? 'Main St.' : name[0].toUpperCase() + name.slice(1))) fail('layout', `the ${name} layout is called "${m[3]}"`);
     }
-    if (!html.includes('<legend>Overall layout</legend>') || !html.includes('id="layoutHint"') || !html.includes('id="err-layout"')) fail('layout', 'the layout choice needs a legend, a hint and an error line');
+    if (/name="layout" value=|class="chip"[^>]*><input type="radio" name="layout"/.test(html)) fail('layout', 'the overall layout is still a row of chips');
+    if (!html.includes('<label for="layoutSelect">Overall layout</label>') || !html.includes('id="layoutHint"') || !html.includes('id="err-layout"')) fail('layout', 'the layout choice needs a label, a hint and an error line');
     const hints = (appJs.match(/const LAYOUT_HINTS = \{[\s\S]*?\n  \};/) || [''])[0];
     for (const name of DM.LAYOUTS) if (!new RegExp(`${name}: '[^']{10,}'`).test(hints)) fail('layout', `the ${name} layout has no hint`);
     if (html.indexOf('name="layout"') > html.indexOf('name="spacing"')) fail('layout', 'the layout choice should come before room spacing');
-    if (!/params\.layout = document\.querySelector\('input\[name="layout"\]:checked'\)\.value/.test(appJs)) fail('layout', 'app.js does not read the layout');
-    if (!/if \(form\.layout !== undefined\) setRadio\('layout', form\.layout\)/.test(appJs)) fail('layout', 'opening a link or restoring settings does not set the layout');
+    if (!/params\.layout = \$\('layoutSelect'\)\.value/.test(appJs)) fail('layout', 'app.js does not read the layout');
+    if (!/if \(form\.layout !== undefined\) setSelect\('layoutSelect', form\.layout\)/.test(appJs)) fail('layout', 'opening a link or restoring settings does not set the layout');
+    if (!/\$\('layoutSelect'\)\.addEventListener\('change', updateLayoutHint\)/.test(appJs)) fail('layout', 'choosing a layout does not update its hint');
     if (!/showGroupError\('layout'/.test(appJs)) fail('layout', 'a layout error would not be shown');
     if (!/updateLayoutHint\(\);/.test(appJs)) fail('layout', 'the layout hint is never updated');
     // src/layout.js is loaded before the generator, which uses it
@@ -2131,6 +2142,9 @@ console.log('== brand style (Duckweed’s Aeldara)');
 
   // everything pressed or typed in is at least 44px tall
   if (!/height:\s*var\(--tap\)/.test(rule("input[type='number'], input[type='text']"))) fail('brand', 'inputs should be at least 44px tall');
+  // the dropdown is an input's box, square, with a wine arrow and no shadow
+  if (!/height:\s*var\(--tap\)/.test(rule('select')) || !/border:\s*1px solid var\(--write-in\)/.test(rule('select')) || !/border-radius:\s*0/.test(rule('select'))) fail('brand', 'a dropdown should be 44px tall with an input\'s square outline');
+  if (!/appearance:\s*none/.test(rule('select')) || !/var\(--wine\)/.test(rule('select')) || /box-shadow:\s*(?!inset)/.test(rule('select'))) fail('brand', 'a dropdown should draw its own wine arrow, with no shadow');
   for (const sel of ['.seg-options label', '.chip-body', '.link-btn', '.check', '#generate, #generateRandom', '.export-buttons button', '.legend-toggle', '.dialog-buttons button', '.color-field .swatch', '.toggle-field label.switch']) {
     if (!/(min-)?height:\s*var\(--tap\)/.test(rule(sel))) fail('brand', `${sel} should be at least 44px tall`);
   }

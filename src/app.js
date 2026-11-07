@@ -69,9 +69,9 @@
     params.edgeEntrancesOnly = $('edgeEntrancesOnly').checked;
     params.roomShapes = shapeBoxes().filter((box) => box.checked).map((box) => box.value);
     params.hallTypes = hallBoxes().filter((box) => box.checked).map((box) => box.value);
-    params.hallDoors = document.querySelector('input[name="hallDoors"]:checked').value;
-    params.spacing = document.querySelector('input[name="spacing"]:checked').value;
-    params.layout = document.querySelector('input[name="layout"]:checked').value;
+    params.hallDoors = $('hallDoorsSelect').value;
+    params.spacing = $('spacingSelect').value;
+    params.layout = $('layoutSelect').value;
     params.seed = $('seed').value;
     return params;
   }
@@ -127,7 +127,7 @@
   };
 
   function updateDoorsHint() {
-    const choice = document.querySelector('input[name="hallDoors"]:checked').value;
+    const choice = $('hallDoorsSelect').value;
     $('hallDoorsHint').textContent = hallwaysPossible() ? DOORS_HINTS[choice] : 'Not used: every connection is a doorway';
   }
 
@@ -151,11 +151,11 @@
   };
 
   function updateLayoutHint() {
-    $('layoutHint').textContent = LAYOUT_HINTS[document.querySelector('input[name="layout"]:checked').value];
+    $('layoutHint').textContent = LAYOUT_HINTS[$('layoutSelect').value] || '';
   }
 
   function updateSpacingHint() {
-    $('spacingHint').textContent = SPACING_HINTS[document.querySelector('input[name="spacing"]:checked').value];
+    $('spacingHint').textContent = SPACING_HINTS[$('spacingSelect').value] || '';
   }
 
   function updateHallTypesHint() {
@@ -780,9 +780,9 @@
     saveSettings();
   });
 
-  for (const radio of document.querySelectorAll('input[name="hallDoors"]')) radio.addEventListener('change', updateDoorsHint);
-  for (const radio of document.querySelectorAll('input[name="spacing"]')) radio.addEventListener('change', updateSpacingHint);
-  for (const radio of document.querySelectorAll('input[name="layout"]')) radio.addEventListener('change', updateLayoutHint);
+  $('hallDoorsSelect').addEventListener('change', updateDoorsHint);
+  $('spacingSelect').addEventListener('change', updateSpacingHint);
+  $('layoutSelect').addEventListener('change', updateLayoutHint);
   for (const box of hallBoxes()) box.addEventListener('change', updateHallTypesHint);
   $('hallTypesAll').addEventListener('click', () => {
     for (const box of hallBoxes()) box.checked = true;
@@ -939,6 +939,12 @@
 
   function radioValue(name) {
     return document.querySelector(`input[name="${name}"]:checked`).value;
+  }
+
+  /** Choose an option of a dropdown (a value it does not have is ignored). */
+  function setSelect(id, value) {
+    const select = $(id);
+    if (Array.from(select.options).some((o) => o.value === value)) select.value = value;
   }
 
   function setRadio(name, value) {
@@ -1156,9 +1162,9 @@
   function applyForm(form) {
     for (const f of FIELDS) if (form[f] !== undefined) $(f).value = String(form[f]);
     if (form.connectionType !== undefined) setRadio('connectionType', form.connectionType);
-    if (form.hallDoors !== undefined) setRadio('hallDoors', form.hallDoors);
-    if (form.spacing !== undefined) setRadio('spacing', form.spacing);
-    if (form.layout !== undefined) setRadio('layout', form.layout);
+    if (form.hallDoors !== undefined) setSelect('hallDoorsSelect', form.hallDoors);
+    if (form.spacing !== undefined) setSelect('spacingSelect', form.spacing);
+    if (form.layout !== undefined) setSelect('layoutSelect', form.layout);
     if (form.edgeEntrancesOnly !== undefined) $('edgeEntrancesOnly').checked = form.edgeEntrancesOnly;
     if (form.roomShapes !== undefined) for (const box of shapeBoxes()) box.checked = form.roomShapes.includes(box.value);
     if (form.hallTypes !== undefined) for (const box of hallBoxes()) box.checked = form.hallTypes.includes(box.value);

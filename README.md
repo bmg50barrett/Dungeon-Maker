@@ -28,21 +28,21 @@ Duckweed's Aeldara is a printed-book look: parchment, ink, and two accents, wine
   section heading has a 1pt gold rule under it, the title a 2pt one. The map sits in a double gold frame
   (a 1.5pt line, then a 0.5pt line 5pt inside it). The segment chosen in a choice and Re-generate are filled wine
   (rose-wine with dark text in Dark); the random-seed button is a wine outline; a chip that is on shows a gold
-  diamond; color swatches are square with a gold outline on the one chosen. Every input and button is at least
-  44px tall. The brand has no icon set, so the little shape pictures on the chips are hidden: the diamond is
+  diamond; color swatches are square with a gold outline on the one chosen; a dropdown is an input's square box with a wine
+  triangle, drawn in CSS. Every input, dropdown and button is at least 44px tall. The brand has no icon set, so the little shape pictures on the chips are hidden: the diamond is
   the only mark.
 
 ## Inputs
 
 | Input | Range | Meaning |
 |---|---|---|
-| Overall layout | Random / Cathedral / Ring / Spiral / Gauntlet / Radial / Main St. / Square / Long / Wide (default Random) | The shape the dungeon as a whole leans towards; see below |
+| Overall layout | A dropdown: Random / Cathedral / Ring / Spiral / Gauntlet / Radial / Main St. / Square / Long / Wide (default Random) | The shape the dungeon as a whole leans towards; see below. The line under the dropdown says what the one chosen does |
 | Room count | 1-99 | Number of rooms |
 | Average room size | 1-999 | Mean room area, in grid squares (1 square = 5 ft x 5 ft) |
 | Minimum room size: width and length | 1-30 each (default 1 x 1) | The least a room can measure across the map (width) and up and down it (length): 3 x 8 means every room is at least 3 wide and 8 long. 1 x 1 means no minimum |
 | Room size variance | 0-100 | Standard deviation of room area, as a % of the average |
 | Room shapes | at least one on (default on the page: Rectangle and Chamfered) | Which shapes rooms may take: rectangle, chamfered, L, T, U, H, Z, plus. Switch each on or off; rooms pick at random among the ones that are on, and every shape that is on is used by at least one room (given rooms enough, and one big enough for it) |
-| Room spacing | Compact / Normal / Spread (default Compact) | In the Layout column. How far apart rooms are; see below. Compact rooms can share walls and rooms a hallway joins are at most 4 squares apart; Normal rooms are 1-6 apart and never touch; Spread rooms are 2-12 apart and never touch. Spines are the exception to the furthest gap: they keep their own, longer length |
+| Room spacing | A dropdown: Compact / Normal / Spread (default Compact) | In the Layout column. How far apart rooms are; see below. Compact rooms can share walls and rooms a hallway joins are at most 4 squares apart; Normal rooms are 1-6 apart and never touch; Spread rooms are 2-12 apart and never touch. Spines are the exception to the furthest gap: they keep their own, longer length |
 | Label position | Inside / Outside (default Inside) | Where room numbers are drawn: on the room's middle square, or just beyond one of its walls without overlapping any room (see below). A display option: it changes at once, without regenerating |
 | Levels | 1-20 (default 1) | In the Layout column. How many floors the dungeon has; see *Levels and stairs* below |
 | Stairs between levels | 1-10 (default 1) | In the Layout column. How many stairs join each floor to the one below it. Only matters with more than one level |
@@ -52,7 +52,7 @@ Duckweed's Aeldara is a printed-book look: parchment, ink, and two accents, wine
 | Connection randomization | 0-100 (default 14) | % chance that a connection uses the other type. 14 is about 1 in 7; 0 never mixes; 50 is an even mix; 100 flips every connection |
 | Hallway types | short, spine, curly, branching (default on the page: Short, Spine and Branching) | Which kinds of hallway may be built; see below. At least one of short, spine and curly must be on wherever hallways can occur at all. Every type that is on is used at least once in the dungeon: the builder favours a type that has not turned up yet, and builds the dungeon again (a few times, from other numbers) if one still has not. This holds where hallways can occur at all and the dungeon has hallways enough; a Gauntlet has no spines, and Radial and Main St. have few hallways, so they cannot always manage it |
 | Hallway width | Whole number 1–10 (default 1) | How many squares across the generated hallways are. A wide hallway is a band that many squares across, with a full square at each bend; rooms still open onto it through a single door square, as before. The spacing rules stay the same, so the dungeon simply comes out bigger, and at wide settings a small or tightly packed dungeon may fit fewer rooms than asked for (the page says so). Hallways you draw yourself in Edit mode, or add with the MCP server's `edit_dungeon`, are always 1 wide |
-| Hallway doors | None / Less / More / All (default All on the page) | How many of a hallway's openings into rooms have a door rather than an open archway: none, about 1 in 3, about 2 in 3, or all. Doorway connections always have a door. Changing it only adds or removes doors: with the same seed the rooms and hallways stay put |
+| Hallway doors | A dropdown: None / Less / More / All (default All on the page) | How many of a hallway's openings into rooms have a door rather than an open archway: none, about 1 in 3, about 2 in 3, or all. Doorway connections always have a door. Changing it only adds or removes doors: with the same seed the rooms and hallways stay put |
 | Seed (optional) | any text | Same inputs + same seed = identical dungeon. If the box is blank when you press **Re-generate dungeon**, the seed that was used is put in the box, so you can keep it, change it or share it; the next Generate then rebuilds that same dungeon, so clear the box (or use **Generate with random seed**, which ignores whatever is in the box, builds a new dungeon and puts its seed in the box) for a new one. The first dungeon, drawn when the page opens, does not fill the box |
 
 Room areas follow a normal distribution centred on the average. A room cannot be

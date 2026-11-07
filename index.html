@@ -27,37 +27,34 @@
             </button>
           </h2>
           <div class="blade-body" id="blade-layout-body">
-            <fieldset class="field chip-group" id="layout">
-              <legend>Overall layout</legend>
-              <div class="chips">
-                <label class="chip" title="No shape in mind: rooms grow outward in any direction"><input type="radio" name="layout" value="random" checked><span class="chip-body">Random</span></label>
-                <label class="chip" title="A long nave crossed by a transept, like the floor plan of a church"><input type="radio" name="layout" value="cathedral"><span class="chip-body">Cathedral</span></label>
-                <label class="chip" title="Rooms circle a central courtyard and close into a loop"><input type="radio" name="layout" value="ring"><span class="chip-body">Ring</span></label>
-                <label class="chip" title="Rooms wind outward in a spiral; the first two entrances are at its two ends"><input type="radio" name="layout" value="spiral"><span class="chip-body">Spiral</span></label>
-                <label class="chip" title="One chain of rooms, each joined only to the next, winding back and forth like a snake (with Branching on, a hallway can fork to a one-room dead end); the first two entrances are at its two ends"><input type="radio" name="layout" value="gauntlet"><span class="chip-body">Gauntlet</span></label>
-                <label class="chip" title="A big central room with every hallway running out from it like the spokes of a wheel, and the other rooms along them"><input type="radio" name="layout" value="radial"><span class="chip-body">Radial</span></label>
-                <label class="chip" title="One very long straight hallway, running up and down the map, with every room and branch along it"><input type="radio" name="layout" value="mainst"><span class="chip-body">Main St.</span></label>
-                <label class="chip" title="Packed into a square footprint"><input type="radio" name="layout" value="square"><span class="chip-body">Square</span></label>
-                <label class="chip" title="A tall, narrow dungeon: longer up and down the map than across"><input type="radio" name="layout" value="long"><span class="chip-body">Long</span></label>
-                <label class="chip" title="A wide, shallow dungeon: longer across the map than up and down"><input type="radio" name="layout" value="wide"><span class="chip-body">Wide</span></label>
-              </div>
+            <div class="field select-field" id="layout">
+              <label for="layoutSelect">Overall layout</label>
+              <select id="layoutSelect" name="layout" aria-describedby="layoutHint err-layout">
+                <option value="random" selected title="No shape in mind: rooms grow outward in any direction">Random</option>
+                <option value="cathedral" title="A long nave crossed by a transept, like the floor plan of a church">Cathedral</option>
+                <option value="ring" title="Rooms circle a central courtyard and close into a loop">Ring</option>
+                <option value="spiral" title="Rooms wind outward in a spiral; the first two entrances are at its two ends">Spiral</option>
+                <option value="gauntlet" title="One chain of rooms, each joined only to the next, winding back and forth like a snake (with Branching on, a hallway can fork to a one-room dead end); the first two entrances are at its two ends">Gauntlet</option>
+                <option value="radial" title="A big central room with every hallway running out from it like the spokes of a wheel, and the other rooms along them">Radial</option>
+                <option value="mainst" title="One very long straight hallway, running up and down the map, with every room and branch along it">Main St.</option>
+                <option value="square" title="Packed into a square footprint">Square</option>
+                <option value="long" title="A tall, narrow dungeon: longer up and down the map than across">Long</option>
+                <option value="wide" title="A wide, shallow dungeon: longer across the map than up and down">Wide</option>
+              </select>
               <p class="hint" id="layoutHint">Rooms grow outward in any direction</p>
               <p class="error" id="err-layout" role="alert"></p>
-            </fieldset>
+            </div>
 
-            <fieldset class="field segmented" id="spacing">
-              <legend>Room spacing</legend>
-              <div class="seg-options seg-three">
-                <input type="radio" id="spacing-compact" name="spacing" value="compact" checked>
-                <label for="spacing-compact">Compact</label>
-                <input type="radio" id="spacing-normal" name="spacing" value="normal">
-                <label for="spacing-normal">Normal</label>
-                <input type="radio" id="spacing-spaced" name="spacing" value="spaced">
-                <label for="spacing-spaced">Spread</label>
-              </div>
+            <div class="field select-field" id="spacing">
+              <label for="spacingSelect">Room spacing</label>
+              <select id="spacingSelect" name="spacing" aria-describedby="spacingHint err-spacing">
+                <option value="compact" selected>Compact</option>
+                <option value="normal">Normal</option>
+                <option value="spaced">Spread</option>
+              </select>
               <p class="hint" id="spacingHint">Rooms can touch · rooms a hallway joins are up to 4 squares apart · spines run longer</p>
               <p class="error" id="err-spacing" role="alert"></p>
-            </fieldset>
+            </div>
 
             <div class="field">
               <label for="levels">Levels</label>
@@ -205,21 +202,17 @@
               <p class="error" id="err-hallTypes" role="alert"></p>
             </fieldset>
 
-            <fieldset class="field segmented" id="hallDoors">
-              <legend>Hallway doors</legend>
-              <div class="seg-options seg-four">
-                <input type="radio" id="doors-none" name="hallDoors" value="none">
-                <label for="doors-none">None</label>
-                <input type="radio" id="doors-less" name="hallDoors" value="less">
-                <label for="doors-less">Less</label>
-                <input type="radio" id="doors-more" name="hallDoors" value="more">
-                <label for="doors-more">More</label>
-                <input type="radio" id="doors-all" name="hallDoors" value="all" checked>
-                <label for="doors-all">All</label>
-              </div>
+            <div class="field select-field" id="hallDoors">
+              <label for="hallDoorsSelect">Hallway doors</label>
+              <select id="hallDoorsSelect" name="hallDoors" aria-describedby="hallDoorsHint err-hallDoors">
+                <option value="none">None</option>
+                <option value="less">Less</option>
+                <option value="more">More</option>
+                <option value="all" selected>All</option>
+              </select>
               <p class="hint" id="hallDoorsHint">About 1 in 3 hallway openings have a door</p>
               <p class="error" id="err-hallDoors" role="alert"></p>
-            </fieldset>
+            </div>
           </div>
         </section>
 
