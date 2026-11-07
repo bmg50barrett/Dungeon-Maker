@@ -614,6 +614,80 @@ console.log('== editing hallways');
 }
 
 // ---------------------------------------------------------------------------------------------------
+console.log('== editing rooms');
+{
+  const { tools, store, done } = freshTools();
+  const item = store.add(fixture());
+  const d = item.dungeon;
+  const run = (edits) => tools.edit_dungeon.run({ id: item.id, edits, picture: false });
+  const pristine = DM.editState(d);
+  const problem = (edit, re, why) => {
+    const err = toolError(() => run([edit]));
+    if (!err || !re.test(err.message)) fail('room', `${why} should fail mentioning ${re}: ${err && err.message}`);
+  };
+
+  // draw: two opposite corners, any way round; the map grows and the room gets the next number
+  const drew = run([{ type: 'add_room', x: 2, y: 5, x2: 0, y2: 4 }]);
+  const added = d.rooms[2];
+  if (!/drew room 3: 3 × 2 squares \(15 × 10 ft\) from \(0,4\)/.test(drew.text) || !added || added.label !== 3 || added.bbox.w !== 3 || added.bbox.h !== 2 || d.height !== 6) fail('room', `add_room: ${drew.text.split('\n').slice(0, 2).join(' | ')} (${d.rooms.length} rooms, height ${d.height})`);
+  if (!store.isEdited(item)) fail('room', 'drawing a room should count as an edit');
+  if (!/Room 3:/.test(drew.text)) fail('room', 'the description should list the new room');
+  problem({ type: 'add_room', x: 1, y: 1, x2: 4, y2: 1 }, /room/, 'a room drawn over a room');
+  problem({ type: 'add_room', x: 0, y: 0, x2: 1 }, /y2/, 'a missing corner');
+  problem({ type: 'add_room', x: 0, y: 8, x2: 80, y2: 8 }, /60/, 'a room wider than 60 squares');
+  problem({ type: 'add_room', x: -1, y: 1, x2: -1, y2: 1 }, /no room from/, 'a room on the square in front of an entrance');
+
+  // a hallway to it makes doors; moving the room takes them along while the hallway still meets them
+  run([{ type: 'draw_hallway', points: [[1, 3], [1, 3]] }]);
+  const hallsBefore = d.halls.length;
+  const slid = run([{ type: 'move_room', room: 3, dx: 4, dy: 0 }]);
+  if (!/moved room 3 by \(\+4,\+0\)/.test(slid.text) || d.rooms[2].bbox.x !== 4 || d.halls.length !== hallsBefore) fail('room', `move_room: ${slid.text.split('\n').slice(0, 2).join(' | ')}`);
+  problem({ type: 'move_room', room: 3, dx: 0, dy: -5 }, /cannot move room 3/, 'moving a room onto another room');
+  problem({ type: 'move_room', room: 9, dx: 1, dy: 0 }, /no room 9/, 'moving a room that is not there');
+  problem({ type: 'move_room', room: 3, dx: 1 }, /dy/, 'a move without dy');
+  problem({ type: 'move_room', room: 1, dx: 6, dy: 0 }, /cannot move room 1/, 'moving a room onto the room beside it');
+
+  // delete: later rooms are numbered again, and later edits in the same call see the new numbers
+  const gone = run([{ type: 'delete_room', room: 2 }, { type: 'name_room', room: 2, name: 'Cellar' }]);
+  if (d.rooms.length !== 2 || d.rooms.map((r) => r.label).join() !== '1,2' || d.rooms[1].name !== 'Cellar' || !/deleted room 2/.test(gone.text) || !/numbered again/.test(gone.text)) fail('room', `delete_room: ${gone.text.split('\n').slice(0, 3).join(' | ')}`);
+  problem({ type: 'delete_room', room: 1 }, /(only entrance|entrance)/, 'deleting the room with the only entrance');
+  problem({ type: 'delete_room', room: 7 }, /no room 7/, 'deleting a room that is not there');
+  problem({ type: 'delete_room' }, /room/, 'deleting without a room number');
+
+  // in a batch the edits that work are kept and the one that fails is reported; every call can be undone
+  const mixed = run([{ type: 'add_room', x: 0, y: 8, x2: 1, y2: 9 }, { type: 'delete_room', room: 1 }]);
+  if (!/1 of 2 edits made/.test(mixed.text) || !/2. FAILED, nothing changed: cannot delete room 1/.test(mixed.text) || d.rooms.length !== 3) fail('room', `a batch with one refusal: ${mixed.text.split('\n').slice(0, 3).join(' | ')}`);
+  let guard = 0;
+  while (item.history.canUndo && guard++ < 50) tools.undo_edit.run({ id: item.id, picture: false });
+  if (DM.editState(d) !== pristine) fail('room', 'undoing every room edit should give back the dungeon as it was');
+  tools.redo_edit.run({ id: item.id, picture: false });
+  if (d.rooms.length !== 3) fail('room', 'redo should draw the room again');
+  done();
+
+  // on a dungeon of levels: a room with stairs cannot move, deleting it takes the stairs, and other rooms are edited by level
+  const multi = freshTools();
+  multi.tools.generate_dungeon.run({ seed: 'rooms-lv', roomCount: 8, levels: 2, levelStairs: 2, picture: false });
+  const md = multi.store.get('d1').dungeon;
+  const mrun = (level, edits) => multi.tools.edit_dungeon.run({ id: 'd1', level, edits, picture: false });
+  const stair = md.stairs[0];
+  const upperView = DM.floorView(md, stair.upper);
+  const withStairs = upperView.rooms[stair.upperRoom];
+  const mover = toolError(() => mrun(stair.upper, [{ type: 'move_room', room: withStairs.label, dx: 1, dy: 0 }]));
+  if (!mover || !/stairs/.test(mover.message)) fail('room', `moving a room with stairs: ${mover && mover.message}`);
+  const stairsBefore = md.stairs.length;
+  const before = DM.editState(md);
+  const drawnUp = mrun(2, [{ type: 'add_room', x: -4, y: -4, x2: -3, y2: -3 }]);
+  if (!/drew room \d+/.test(drawnUp.text) || DM.floorView(md, 2).rooms.length < 2) fail('room', `a room drawn on level 2: ${drawnUp.text.split('\n').slice(0, 2).join(' | ')}`);
+  multi.tools.undo_edit.run({ id: 'd1', picture: false });
+  if (DM.editState(md) !== before) fail('room', 'undoing a room drawn on level 2 should give back the dungeon');
+  const del = toolError(() => mrun(stair.upper, [{ type: 'delete_room', room: withStairs.label }])) || { stairsGone: true };
+  if (!del.stairsGone && !/(stairs|entrance|at least one)/.test(del.message)) fail('room', `deleting a room with stairs: ${del.message}`);
+  if (del.stairsGone && md.stairs.length >= stairsBefore) fail('room', 'deleting a room with stairs should take the stairs');
+  multi.done();
+  console.log('  done');
+}
+
+// ---------------------------------------------------------------------------------------------------
 console.log('== the picture');
 {
   const { tools, store, done } = freshTools();

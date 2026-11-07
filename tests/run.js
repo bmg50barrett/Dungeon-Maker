@@ -2791,6 +2791,264 @@ console.log('== editing several levels');
   console.log('  done');
 }
 
+console.log('== editing rooms');
+{
+  const ok = (cond, msg) => cond || fail('rooms', msg);
+  const key = (x, y) => `${x},${y}`;
+  const base = { roomCount: 9, avgRoomSize: 20, sizeVariance: 30, entrances: 2, connectionType: 'hall', connectionRandomness: 20 };
+  const floorsOf = (dun) => (DM.levelCount(dun) > 1 ? Array.from({ length: dun.levels }, (_, i) => DM.floorView(dun, i + 1)) : [dun]);
+
+  /** Everything that has to hold after rooms were drawn, moved or deleted (on every level). */
+  const checkRooms = (dun, ctx) => {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    floorsOf(dun).forEach((f, n) => {
+      const c = `${ctx} level ${n + 1}`;
+      const N = f.rooms.length;
+      ok(N >= 1, `${c}: no rooms left`);
+      const at = new Map();
+      const put = (x, y, v) => {
+        ok(!at.has(key(x, y)), `${c}: (${x},${y}) is used twice`);
+        at.set(key(x, y), v);
+        x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+      };
+      f.rooms.forEach((r, i) => {
+        ok(r.id === i, `${c}: room at index ${i} has id ${r.id}`);
+        ok(r.area === r.cells.length, `${c}: room ${r.label} says area ${r.area} but has ${r.cells.length} squares`);
+        const xs = r.cells.map((q) => q[0]);
+        const ys = r.cells.map((q) => q[1]);
+        ok(r.bbox.x === Math.min(...xs) && r.bbox.y === Math.min(...ys) && r.bbox.w === Math.max(...xs) - Math.min(...xs) + 1 && r.bbox.h === Math.max(...ys) - Math.min(...ys) + 1, `${c}: room ${r.label} has a box that is not its squares`);
+        ok(r.cells.some(([x, y]) => x === r.labelCell[0] && y === r.labelCell[1]), `${c}: the number of room ${r.label} is not on one of its squares`);
+        if (DM.levelCount(dun) > 1) ok(r.level === n + 1, `${c}: room ${r.label} says level ${r.level}`);
+        for (const [x, y] of r.cells) put(x, y, i);
+      });
+      ok(f.rooms.map((r) => r.label).sort((a, b) => a - b).join() === Array.from({ length: N }, (_, i) => i + 1).join(), `${c}: the numbers are not 1 to ${N}: ${f.rooms.map((r) => r.label)}`);
+      f.halls.forEach((h, i) => {
+        ok(h.id === i, `${c}: hall ${i} has id ${h.id}`);
+        for (const [x, y] of h.cells) put(x, y, -1 - i);
+      });
+      f.connections.forEach((cn, i) => {
+        ok(cn.id === i, `${c}: connection ${i} has id ${cn.id}`);
+        for (const r of cn.rooms) ok(r >= 0 && r < N, `${c}: connection ${i} names room ${r}`);
+        for (const o of cn.openings) {
+          ok(o.room >= 0 && o.room < N && at.get(key(o.x, o.y)) === o.room, `${c}: opening ${o.x},${o.y} is not a square of room ${o.room}`);
+          ok(cn.rooms.includes(o.room), `${c}: connection ${i} does not list room ${o.room}`);
+          const across = at.get(key(o.x + DX[o.d], o.y + DY[o.d]));
+          if (cn.type === 'door') ok(across !== undefined && across >= 0 && across !== o.room && cn.rooms.includes(across), `${c}: the doorway at ${o.x},${o.y} does not lead into the other room`);
+          else ok(across === -1 - cn.hall, `${c}: the opening at ${o.x},${o.y} does not lead into its hallway`);
+        }
+      });
+      for (const e of f.entrances) ok(e.room >= 0 && e.room < N && at.get(key(e.x, e.y)) === e.room, `${c}: entrance ${e.label} is not on a square of room ${e.room}`);
+      ok(f.stats.rooms === N && Object.values(f.stats.shapeCounts).reduce((a, b) => a + b, 0) === N, `${c}: stats say ${f.stats.rooms} rooms`);
+      ok(f.stats.floorCells === at.size, `${c}: stats say ${f.stats.floorCells} squares, there are ${at.size}`);
+      ok(Math.abs(f.stats.meanRoomArea - f.rooms.reduce((a, r) => a + r.cells.length, 0) / N) < 1e-9, `${c}: the mean room size is out of date`);
+      ok((n === 0) === (f.entrances.length > 0), `${c}: ${f.entrances.length} entrances`);
+    });
+    ok(x0 === 0 && y0 === 0 && x1 === dun.width - 1 && y1 === dun.height - 1, `${ctx}: the map is ${dun.width} x ${dun.height} but the squares reach ${x0},${y0} to ${x1},${y1}`);
+    for (const st of dun.stairs || []) {
+      for (const [level, room] of [[st.upper, st.upperRoom], [st.lower, st.lowerRoom]]) {
+        const f = DM.floorView(dun, level);
+        ok(f.rooms[room] && f.rooms[room].cells.some(([x, y]) => x === st.x && y === st.y), `${ctx}: stair ${st.letter} is not in room ${room} of level ${level}`);
+      }
+      ok(dun.stairs.map((s) => s.id).join() === dun.stairs.map((_, i) => i).join(), `${ctx}: stairs are out of order`);
+    }
+    for (let p = 1; p < (dun.levels || 1); p++) ok(dun.stairs.some((s) => s.upper === p), `${ctx}: no stairs between level ${p} and level ${p + 1}`);
+    ok(JSON.stringify(JSON.parse(JSON.stringify(dun))) === JSON.stringify(dun), `${ctx}: the dungeon does not survive being saved as JSON`);
+    if (DM.levelCount(dun) === 1) checkEdited(dun, ctx);
+  };
+
+  let deleted = 0, refused = 0, added = 0, addRefused = 0, moves = 0, moveRefused = 0, droppedOpenings = 0, grew = 0;
+  for (const levels of [1, 3]) {
+    for (let i = 0; i < 10; i++) {
+      const params = { ...base, levels, levelStairs: 2, layout: ['random', 'ring', 'wide', 'gauntlet'][i % 4], connectionType: i % 3 === 2 ? 'door' : 'hall', seed: `rooms-${levels}-${i}` };
+      const dun = DM.generateDungeon(params);
+      const ctx = `rooms ${levels} levels #${i}`;
+      checkRooms(dun, ctx);
+      const h = new DM.EditHistory();
+      const startState = DM.editState(dun);
+      const view = (level) => DM.floorView(dun, level);
+      const run = (label, fn) => {
+        const before = h.snapshot(dun);
+        const res = fn();
+        if (res && res.ok) {
+          checkRooms(dun, `${ctx} ${label}`);
+          ok(h.push(dun, label, before, res), `${ctx}: ${label} changed nothing`);
+          const after = h.snapshot(dun);
+          const undone = h.undo(dun);
+          ok(undone.ok && h.snapshot(dun) === before && undone.dx === -(res.dx || 0), `${ctx}: undoing ${label} did not give back the dungeon`);
+          checkRooms(dun, `${ctx} undone ${label}`);
+          ok(h.redo(dun).ok && h.snapshot(dun) === after, `${ctx}: redoing ${label} did not give the dungeon back`);
+        } else {
+          ok(h.snapshot(dun) === before, `${ctx}: ${label} was refused and still changed the dungeon (${res && res.reason})`);
+          ok(res && typeof res.reason === 'string' && res.reason.length > 5, `${ctx}: ${label} was refused with no reason`);
+        }
+        return res;
+      };
+
+      // moves: slide rooms about (the ones that cannot be moved are refused, and nothing changes)
+      for (let k = 0; k < 6; k++) {
+        const level = 1 + (k % levels);
+        const f = view(level);
+        const room = f.rooms[(k * 2 + i) % f.rooms.length];
+        const [mx, my] = [[1, 0], [0, -1], [-2, 1], [3, 3], [0, 1], [-1, 0]][k];
+        const was = JSON.stringify(room.cells);
+        const res = run(`move room ${room.label} by ${mx},${my}`, () => DM.moveRoom(f, room.id, mx, my));
+        if (res.ok) {
+          moves++;
+          droppedOpenings += res.dropped.openings + res.dropped.doorways;
+          if (res.dx || res.dy) grew++;
+          const now = view(level).rooms.find((r) => r.label === room.label);
+          ok(now && JSON.stringify(now.cells.map(([x, y]) => [x - mx - res.dx, y - my - res.dy])) === was, `${ctx}: room ${room.label} did not move by (${mx},${my})`);
+        } else {
+          moveRefused++;
+        }
+      }
+      ok(DM.planMoveRoom(view(1), 0, 0, 0).ok === false, `${ctx}: moving a room nowhere should be refused`);
+
+      // drawn rooms: one in the open beside the map, one out past the top left (the map grows and everything moves), and ones that cannot be
+      for (const level of levels === 1 ? [1] : [1, 2, 3]) {
+        const f = view(level);
+        const n = f.rooms.length;
+        const labels = f.rooms.map((r) => r.label);
+        const w = dun.width;
+        const res = run(`draw a room on level ${level}`, () => DM.addRoom(f, [w + 2, 1], [w + 5, 3]));
+        ok(res.ok, `${ctx}: a room beside the map was refused: ${res.reason}`);
+        const f2 = view(level);
+        ok(f2.rooms.length === n + 1 && f2.rooms[n].label === n + 1 && f2.rooms[n].id === n && f2.rooms[n].kind === 'rect' && f2.rooms[n].area === 12, `${ctx}: the new room is not number ${n + 1}: ${JSON.stringify(f2.rooms[n])}`);
+        ok(labels.every((l) => f2.rooms.find((r) => r.label === l)), `${ctx}: a room lost its number`);
+        added++;
+        const out = run('draw a room past the top left', () => DM.addRoom(view(level), [-4, -3], [-2, -1]));
+        ok(out.ok, `${ctx}: a room past the top left was refused: ${out.reason}`);
+        ok(out.dx > 0 && out.dy > 0, `${ctx}: the map did not move for a room past its top left`);
+        grew++;
+        added++;
+        // refused: on a room, on a hallway, in front of an entrance door, too big
+        const f3 = view(level);
+        const r0 = f3.rooms[0];
+        const bad = [
+          [DM.addRoom(f3, r0.cells[0], r0.cells[0]), /already part of room/],
+          [DM.addRoom(f3, [r0.cells[0][0] - 1, r0.cells[0][1]], [r0.cells[0][0] + 1, r0.cells[0][1]]), /already part of room|hallway|outside the door/],
+          [DM.addRoom(f3, [0, 0], [DM.MAX_ROOM_SIDE, 0]), /at most/],
+        ];
+        if (f3.halls.length) bad.push([DM.addRoom(f3, f3.halls[0].cells[0], f3.halls[0].cells[0]), /hallway/]);
+        if (level === 1) {
+          const e = f3.entrances.find((q) => q.kind === 'door');
+          if (e) bad.push([DM.addRoom(f3, [e.x + DX[e.d], e.y + DY[e.d]], [e.x + DX[e.d], e.y + DY[e.d]]), /outside the door/]);
+        }
+        for (const [res2, re] of bad) {
+          addRefused++;
+          ok(!res2.ok && re.test(res2.reason), `${ctx}: drawing on top of something said ${JSON.stringify(res2).slice(0, 120)}`);
+        }
+        checkRooms(dun, `${ctx} after refusals`);
+      }
+
+      // deletes, until there is nothing more that can go
+      let guard = 0;
+      for (let level = 1; level <= levels; level++) {
+        while (guard++ < 200) {
+          const f = view(level);
+          const labels = f.rooms.map((r) => r.label).sort((a, b) => a - b);
+          const room = f.rooms.find((r) => !DM.deleteRoomProblem(f, r.id));
+          if (!room) break;
+          const stairsHere = (dun.stairs || []).filter((s) => (s.upper === level && f.rooms[s.upperRoom] === room) || (s.lower === level && f.rooms[s.lowerRoom] === room)).length;
+          const stairsBefore = (dun.stairs || []).length;
+          const names = f.rooms.map((r) => `${r.label}`);
+          const res = run(`delete room ${room.label}`, () => DM.deleteRoom(f, room.id));
+          ok(res.ok, `${ctx}: delete room ${room.label} was refused: ${res.reason}`);
+          const g = view(level);
+          ok(g.rooms.length === labels.length - 1 && !g.rooms.some((r) => r === room), `${ctx}: the room is still there`);
+          ok(((dun.stairs || []).length === stairsBefore - stairsHere), `${ctx}: ${stairsHere} stairs should have gone with the room`);
+          ok(names.length === g.rooms.length + 1, `${ctx}: not one room fewer`);
+          deleted++;
+        }
+        // what is left is only what must stay
+        for (const r of view(level).rooms) {
+          const why = DM.deleteRoomProblem(view(level), r.id);
+          ok(why === '' || view(level).rooms.length === 1 || /only|at least|first/.test(why), `${ctx}: room ${r.label} cannot go because: ${why}`);
+          if (why) refused++;
+        }
+      }
+      ok(DM.editState(dun) !== startState, `${ctx}: all the edits made left the dungeon looking unedited`);
+      // every step can be taken back, one at a time, to the dungeon as it was built
+      let back = 0;
+      while (h.canUndo && back++ < 1000) h.undo(dun);
+      ok(DM.editState(dun) === startState, `${ctx}: taking back every step did not give the dungeon as built`);
+      checkRooms(dun, `${ctx} all undone`);
+    }
+  }
+  ok(deleted > 40 && added > 30 && moves > 30 && addRefused > 30 && refused > 0, `too little was tried: ${deleted} deleted, ${added} drawn, ${moves} moved, ${addRefused} drawn on top of things, ${refused} rooms that had to stay`);
+  ok(grew > 20, `the map hardly ever grew (${grew})`);
+  ok(droppedOpenings > 0 && moveRefused >= 0, 'moving rooms never took a door away');
+  console.log(`  ${deleted} rooms deleted, ${added} drawn (${addRefused} refused), ${moves} moved (${moveRefused} refused, ${droppedOpenings} doors dropped), ${grew} times the map moved`);
+
+  // what moving does to doors: a doorway slides with the room along the wall, and a room moved off a hallway loses its door into it
+  {
+    const dun = DM.generateDungeon({ ...base, connectionType: 'hall', connectionRandomness: 0, seed: 'rooms-move-doors' });
+    const o = dun.connections.find((c) => c.type === 'hall').openings[0];
+    const room = dun.rooms[o.room];
+    const far = DM.moveRoom(dun, room.id, dun.width + 4, 0);
+    ok(far.ok && far.dropped.openings >= 1 && !dun.connections.some((c) => c.openings.some((p) => p.room === room.id && c.type === 'hall')), 'a room moved away from its hallway keeps its door into it');
+    checkRooms(dun, 'rooms moved off a hallway');
+    // sliding a room along a wall it shares keeps the doorway, and one moved along a hallway's side keeps its door into it
+    let slid = 0, slidHall = 0;
+    for (let i = 0; i < 30 && (slid < 3 || slidHall < 3); i++) {
+      const d2 = DM.generateDungeon({ ...base, connectionType: i % 2 ? 'door' : 'hall', seed: `rooms-slide-${i}` });
+      for (const r of d2.rooms) {
+        for (const [mx, my] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const plan = DM.planMoveRoom(d2, r.id, mx, my);
+          if (!plan.ok || (plan.keepDoors.size === 0 && plan.keepHall.size === 0)) continue;
+          const doorsBefore = d2.connections.filter((c) => c.type === 'door').length - plan.dropDoors.size;
+          const res = DM.moveRoom(d2, r.id, mx, my);
+          ok(res.ok && d2.connections.filter((c) => c.type === 'door').length === doorsBefore, 'a doorway that should have stayed was lost');
+          checkRooms(d2, `rooms slid ${i}`);
+          if (plan.keepDoors.size) slid++;
+          if (plan.keepHall.size) slidHall++;
+          i = 99;
+          break;
+        }
+        if (i === 99) break;
+      }
+    }
+    ok(slid + slidHall > 0, 'moving a room never kept a door');
+  }
+
+  // stairs: a room with stairs cannot be moved; deleting one takes its stairs, unless they are the only ones
+  {
+    const dun = DM.generateDungeon({ ...base, levels: 3, levelStairs: 1, seed: 'rooms-stairs' });
+    const st = dun.stairs[0];
+    const upperView = DM.floorView(dun, st.upper);
+    const moved = DM.moveRoom(upperView, st.upperRoom, 1, 0);
+    ok(!moved.ok && /stairs/.test(moved.reason), `a room with stairs was moved: ${JSON.stringify(moved).slice(0, 100)}`);
+    const gone = DM.deleteRoom(upperView, st.upperRoom);
+    ok(!gone.ok && /only ones/.test(gone.reason), `a room with the only stairs was deleted: ${JSON.stringify(gone).slice(0, 120)}`);
+    const other = DM.addStair(dun, st.upper, ...(() => {
+      for (let y = 0; y < dun.height; y++) for (let x = 0; x < dun.width; x++) if (DM.stairProblem(dun, st.upper, x, y).ok) return [x, y];
+      return [0, 0];
+    })());
+    if (other.ok) {
+      const now = dun.stairs.find((s) => s.upper === st.upper && s.letter === st.letter);
+      const res = DM.deleteRoom(DM.floorView(dun, st.upper), now.upperRoom);
+      if (res.ok) {
+        ok(res.removed.stairs.includes(st.letter) && !dun.stairs.some((s) => s.letter === st.letter), `deleting the room of stairs ${st.letter}: they should have gone with it`);
+        checkRooms(dun, 'rooms: stairs went with their room');
+      } else {
+        ok(/only ones/.test(res.reason), `deleting the room of stairs ${st.letter} (with others to use): ${res.reason}`);
+      }
+    }
+  }
+
+  // the only room, and the only entrance
+  {
+    const one = DM.generateDungeon({ ...base, roomCount: 1, entrances: 1, seed: 'rooms-one' });
+    const res = DM.deleteRoom(one, 0);
+    ok(!res.ok && /at least one room/.test(res.reason), 'the last room was deleted');
+    const two = DM.generateDungeon({ ...base, roomCount: 2, entrances: 1, seed: 'rooms-two' });
+    const withEntrance = two.rooms[two.entrances[0].room];
+    const res2 = DM.deleteRoom(two, withEntrance.id);
+    ok(!res2.ok && /only entrance/.test(res2.reason), `the room with the only entrance was deleted: ${JSON.stringify(res2).slice(0, 100)}`);
+  }
+  console.log('  done');
+}
+
 console.log('== undo and redo');
 {
   const ok = (cond, msg) => cond || fail('history', msg);
@@ -3054,6 +3312,33 @@ console.log('== edit mode');
   if (opening.style !== DM.nextDoorStyle(start)) fail('edit', 'a fifth click should give the state after the first');
   if (openings.some((o, i) => o !== opening && o.style !== stylesBefore[i])) fail('edit', 'a click changed another door');
 
+  // a right click takes the door out (the doorway stays, open); it does not click, pan or bring up the browser's menu
+  {
+    const keep = opening.style;
+    const saved = changes.splice(0);
+    opening.style = 'locked';
+    renderer.refreshDoors();
+    let prevented = 0;
+    const rightClick = (pos) => {
+      handlers.pointerdown({ pointerId: 1, button: 2, ...pos });
+      handlers.pointerup({ pointerId: 1, button: 2, ...pos });
+      handlers.contextmenu({ button: 2, ...pos, preventDefault: () => prevented++ });
+    };
+    const viewR = { ...renderer.view };
+    rightClick(where(target));
+    if (opening.style !== 'open' || changes.length !== 1 || changes[0].from !== 'locked' || changes[0].to !== 'open' || changes[0].opening !== opening) fail('edit', `a right click on a locked door left it ${opening.style}, notices ${JSON.stringify(changes.map((c) => [c.from, c.to]))}`);
+    if (prevented !== 1 || JSON.stringify(renderer.view) !== JSON.stringify(viewR)) fail('edit', 'a right click let the menu through, or moved the map');
+    if (renderer.model.doors.some((d) => d.x === target.x && d.y === target.y && d.d === target.d) || hasWall(target)) fail('edit', 'a door taken out is still drawn');
+    rightClick(where(target)); // already open: nothing more to take out
+    if (opening.style !== 'open' || changes.length !== 1 || prevented !== 2) fail('edit', 'a right click on a doorway with no door changed something');
+    rightClick({ clientX: 2, clientY: 2 }); // bare ground
+    if (changes.length !== 1 || prevented !== 3) fail('edit', 'a right click on bare ground changed a door, or let the menu through');
+    opening.style = keep;
+    renderer.refreshDoors();
+    changes.length = 0;
+    changes.push(...saved);
+  }
+
   // hovering shows which door a click would change
   renderer._hover = null;
   handlers.pointermove({ ...where(target) });
@@ -3250,6 +3535,116 @@ console.log('== edit mode');
     r.draw();
     checkEdited(fx, 'after the tool tests');
     r.setEditMode(false);
+
+    // the room tools: draw a rectangle, move a room, delete a room
+    {
+      const g = hallFixture(); // two 3 x 3 rooms, (0,0) and (6,0), with the entrance E1 in the west wall of the first
+      r.setDungeon(g);
+      r.view = { scale: 40, tx: 200, ty: 200 };
+      r.setEditMode(true);
+      const changes = [];
+      const notes = [];
+      r.onRoomChange = (n) => changes.push(n);
+      r.onNote = (t) => notes.push(t);
+      r.beforeEdit = () => 'token';
+      const hint = hallDraw.calls;
+
+      // draw: a drag from corner to corner shows the room as it will be, and letting go makes it (below the map, so the map grows)
+      r.setEditTool('room');
+      ok(hc.classes.has('tool-draw'), 'the room tool has no cross-hair cursor');
+      hc.handlers.pointerdown(ev(at(1, 4)));
+      hc.handlers.pointermove(ev(at(3, 5)));
+      ok(r._roomDrag && r._roomDrag.plan.ok && r._roomDrag.plan.cells.length === 6 && /New room 3×2 \(15×10 ft\)/.test(r._roomTip().text), 'the room being drawn is not shown with its size');
+      r.draw();
+      ok(hallDraw.calls > hint, 'the room being drawn is not drawn');
+      hallDraw.calls = 0;
+      r.exportImage({ legend: true, caption: 'x' });
+      ok(r._roomDrag, 'a picture of the map ended the room being drawn');
+      hc.handlers.pointerup(ev(at(3, 5)));
+      ok(g.rooms.length === 3 && g.rooms[2].label === 3 && g.rooms[2].id === 2 && g.height === 6 && !r._roomDrag, 'releasing did not make the room');
+      ok(changes.length === 1 && changes[0].kind === 'add' && changes[0].token === 'token' && changes[0].dx === 0 && changes[0].room === g.rooms[2], `the change notice for a room is ${JSON.stringify(changes[0])}`);
+      // a rectangle that runs into a room: nothing is made, and the page is told why
+      drag([[4, 1], [7, 1]]);
+      ok(g.rooms.length === 3 && notes.length === 1 && /already part of room 2/.test(notes[0]), `drawing over a room said ${JSON.stringify(notes)}`);
+      // a click on bare ground makes nothing
+      drag([[4, 1]]);
+      ok(g.rooms.length === 3 && changes.length === 1, 'a click on bare ground made a room');
+      // Escape drops it
+      hc.handlers.pointerdown(ev(at(5, 4)));
+      hc.handlers.pointermove(ev(at(5, 5)));
+      r._key({ code: 'Escape' }, true);
+      hc.handlers.pointerup(ev(at(5, 5)));
+      ok(g.rooms.length === 3 && !r._roomDrag, 'Escape did not drop the room being drawn');
+      // Space held pans instead
+      hc.handlers.pointerenter({});
+      r._key({ code: 'Space', target: {}, preventDefault() {} }, true);
+      hc.handlers.pointerdown(ev(at(5, 4)));
+      ok(!r._roomDrag, 'a room was started with Space held');
+      hc.handlers.pointerup(ev(at(5, 4)));
+      r._key({ code: 'Space', target: {}, preventDefault() {} }, false);
+
+      // move: the room under the pointer is picked out (and the cross-hair goes), and a drag that starts on it carries it
+      hc.handlers.pointermove(ev(at(7, 1)));
+      ok(r._hoverRoom === g.rooms[1] && hc.classes.has('over-hall') && !hc.classes.has('tool-draw') && /Drag to move room 2/.test(r._roomTip().text), 'the room under the pointer is not picked out');
+      hc.handlers.pointermove(ev(at(4, 1)));
+      ok(!r._hoverRoom && !hc.classes.has('over-hall') && hc.classes.has('tool-draw'), 'a room is picked out where there is none, or the cross-hair is missing');
+      hc.handlers.pointerdown(ev(at(7, 1)));
+      hc.handlers.pointermove(ev(at(7, 4)));
+      ok(r._moveDrag && r._moveDrag.plan.ok && /Move room 2/.test(r._roomTip().text), 'the room being moved is not shown');
+      r.draw();
+      hc.handlers.pointerup(ev(at(7, 4)));
+      ok(g.rooms[1].bbox.y === 3 && g.rooms[1].cells[0][1] === 3 && changes.length === 2 && changes[1].kind === 'move' && !r._moveDrag, `moving room 2 gave ${JSON.stringify(g.rooms[1].bbox)}`);
+      // onto another room: refused, with the reason, and nothing changes
+      const before = JSON.stringify(g.rooms);
+      drag([[7, 4], [1, 4]]);
+      ok(JSON.stringify(g.rooms) === before && changes.length === 2 && /in the way/.test(notes[notes.length - 1]), `moving onto a room said ${JSON.stringify(notes[notes.length - 1])}`);
+      // a click moves nothing
+      drag([[7, 4]]);
+      ok(changes.length === 2, 'a click moved a room');
+
+      // delete: with the room tool a right click on a room takes it away (the rest are renumbered); the room with the only entrance stays
+      let prevented = 0;
+      const rightClick = (x, y) => {
+        hc.handlers.pointerdown(ev(at(x, y), { button: 2 }));
+        hc.handlers.pointerup(ev(at(x, y), { button: 2 }));
+        hc.handlers.contextmenu({ ...ev(at(x, y), { button: 2 }), preventDefault: () => prevented++ });
+      };
+      hc.handlers.pointermove(ev(at(7, 4)));
+      ok(r._hoverRoom === g.rooms[1] && /Drag to move room 2 · right-click to delete/.test(r._roomTip().text), 'the room to delete is not picked out');
+      hc.handlers.pointermove(ev(at(4, 1)));
+      ok(!r._hoverRoom && !r._roomTip(), 'a room is picked out where there is none');
+      hc.handlers.pointermove(ev(at(1, 1)));
+      ok(/Drag to move room 1 · it stays: it has the only entrance/.test(r._roomTip().text), `the tag over the room with the only entrance says ${r._roomTip().text}`);
+      r.draw();
+      // the right button neither draws nor pans
+      const view4 = { ...r.view };
+      hc.handlers.pointerdown(ev(at(4, 1), { button: 2 }));
+      ok(!r._roomDrag && !r._drag, 'the right button started a drag');
+      hc.handlers.pointerup(ev(at(4, 1), { button: 2 }));
+      ok(JSON.stringify(r.view) === JSON.stringify(view4) && g.rooms.length === 3, 'the right button changed the view');
+      // left clicks do not delete
+      drag([[2, 4]]);
+      ok(g.rooms.length === 3, 'a left click deleted a room');
+      rightClick(1, 1);
+      ok(g.rooms.length === 3 && prevented === 1 && /Room 1 stays/.test(notes[notes.length - 1]), 'the room with the only entrance was deleted');
+      rightClick(4, 1); // bare ground: nothing, and still no menu
+      ok(g.rooms.length === 3 && prevented === 2 && changes.length === 2, 'a right click on bare ground did something, or let the menu through');
+      rightClick(2, 4); // the room drawn first (number 3)
+      ok(g.rooms.length === 2 && changes.length === 3 && changes[2].kind === 'delete' && g.rooms.map((q) => q.label).join() === '1,2' && g.rooms.every((q, i) => q.id === i), `deleting a room gave ${g.rooms.map((q) => q.label)}`);
+      rightClick(7, 4); // number 2, which is not the last
+      ok(g.rooms.length === 1 && g.rooms[0].label === 1 && changes[3].kind === 'delete' && g.height === 3 && g.width === 3, `deleting the second room gave ${g.width} x ${g.height}`);
+      rightClick(1, 1);
+      ok(g.rooms.length === 1 && /at least one room/.test(notes[notes.length - 1]), 'the only room was deleted');
+      // the other tools leave the menu alone
+      r.setEditTool('draw');
+      hc.handlers.contextmenu({ ...ev(at(1, 1), { button: 2 }), preventDefault: () => prevented++ });
+      ok(prevented === 5, 'the menu was held back with the hallway tool');
+      checkEdited(g, 'after the room tools');
+      r.beforeEdit = null;
+      r.onRoomChange = null;
+      r.onNote = null;
+      r.setEditMode(false);
+    }
   }
 
 
@@ -3261,14 +3656,14 @@ console.log('== edit mode');
     const render = read('src', 'render.js');
     const tools = html.slice(html.indexOf('<div class="edit-tools"'), html.indexOf('</div>', html.indexOf('<div class="edit-tools"')));
     const buttons = [...tools.matchAll(/<button type="button" data-tool="(\w+)" aria-pressed="(\w+)"[^>]*>([^<]*)<\/button>/g)].map((m) => m.slice(1, 4).join('|'));
-    if (buttons.join() !== 'door|true|Doors,draw|false|Draw hallway,erase|false|Delete hallway') fail('edit', `the edit tools are [${buttons}]`);
+    if (buttons.join() !== 'door|true|Doors,draw|false|Draw hallway,erase|false|Delete hallway,room|false|Room') fail('edit', `the edit tools are [${buttons}]`);
     if (!/id="editTools"[^>]*\shidden/.test(tools)) fail('edit', 'the edit tools should be hidden until Edit is on');
     const toolbarAt = html.indexOf('<div class="toolbar">');
     if (!(toolbarAt > 0 && html.indexOf('id="editMode"') > toolbarAt && html.indexOf('<div class="edit-tools"') > html.indexOf('id="fit"') && html.indexOf('<div class="edit-tools"') < html.indexOf('id="legend"'))) fail('edit', 'the edit tools belong in the toolbar, under the buttons');
     const at = (s) => html.indexOf(`src/${s}.js`);
     if (!(at('generator') > 0 && at('generator') < at('edit') && at('edit') < at('render'))) fail('edit', 'edit.js must be loaded after generator.js and before render.js');
     if (!/doors and hallways/.test(html.slice(html.indexOf('<dialog')))) fail('edit', 'the warning should say that hallway edits are lost too');
-    if (!/renderer\.onLayoutChange = /.test(app) || !/setEditTool\(/.test(app) || !/\$\('editTools'\)\.hidden = !on/.test(app)) fail('edit', 'the edit tools are not wired up in app.js');
+    if (!/renderer\.onLayoutChange = /.test(app) || !/renderer\.onRoomChange = /.test(app) || !/setEditTool\(/.test(app) || !/\$\('editTools'\)\.hidden = !on/.test(app)) fail('edit', 'the edit tools are not wired up in app.js');
     if (!/showSummary\(DM\.current, builtMs\)/.test(app)) fail('edit', 'the summary does not follow hallway edits');
     // a touch screen has no Space key: its hint for drawing says how else to pan, and the page copes with no matchMedia
     if (!/drawTouch: '[^']*Doors[^']*'/.test(app) || /drawTouch: '[^']*Space/.test(app)) fail('edit', 'the touch hint for drawing should say to pick Doors to pan, not to hold Space');

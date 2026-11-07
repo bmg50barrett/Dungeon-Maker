@@ -15,6 +15,8 @@
  *   - hallStretchAt / deleteHallStretch  the stretch of hallway under a square: from one junction
  *     (or a side door) to the next, or to a dead end.
  *   - deleteHall  a whole hallway, by its id.
+ *   - planRoom / addRoom, planMoveRoom / moveRoom, deleteRoomProblem / deleteRoom  rooms: draw a rectangle, slide a room (its doors go with it where
+ *     they still meet a hallway), take a room away (the numbers after it close up).
  *   - addEntrance / removeEntrance  ways in from outside (a door in an outer wall, or stairs on a floor).
  *   - addStair / moveStair / removeStair  stairs between two floors of a dungeon of several levels: one square that is a room square
  *     on both, with no door or entrance on it and no other stairs. Each pair of floors keeps at least one stair.
@@ -324,6 +326,292 @@
     return { ok: true, removed: hall.cells.map(([x, y]) => [x, y]), ...rebuild(d, squares, hallOpenings(d)) };
   }
 
+  // ---- rooms ---------------------------------------------------------------------------------------------------
+  // A room is a set of squares. Drawing one (a rectangle), moving one and deleting one all end the way hallway edits do: the hallways and
+  // connections are worked out again (`rebuild`) and the map is fitted. Room ids are the places of the rooms in `rooms` and the numbers on the
+  // map count 1, 2, 3 ... in the same order as before, so taking a room away renumbers the ones after it.
+
+  /** The most a room may measure along either side when it is drawn, in squares. */
+  const MAX_ROOM_SIDE = 60;
+
+  /** Is the straight line from square (x, y) outward (side dir) clear of rooms and hallways all the way off the map? */
+  function lineOutClear(rooms, halls, x, y, dir) {
+    for (let i = 0; i <= MAX_SIDE + 1; i++, x += DX[dir], y += DY[dir]) if (rooms.has(key(x, y)) || halls.has(key(x, y))) return false;
+    return true;
+  }
+
+  /** The room of this floor with this id, or undefined. */
+  const roomById = (d, id) => d.rooms.find((r) => r.id === id);
+
+  /** The stairs between levels that are in this room (as the room of its floor). */
+  function stairsInRoom(d, room) {
+    const root = d._model || d;
+    const level = d.level || 1;
+    return (root.stairs || []).filter((s) => (s.upper === level && s.upperRoom === room.id) || (s.lower === level && s.lowerRoom === room.id));
+  }
+
+  /** The counts in `stats` that rooms change (how many, what shapes, how big). */
+  function refreshRoomStats(d) {
+    const s = d.stats;
+    const areas = d.rooms.map((r) => r.cells.length);
+    const mean = areas.reduce((a, b) => a + b, 0) / areas.length;
+    s.rooms = d.rooms.length;
+    s.shapeCounts = d.rooms.reduce((m, r) => ((m[r.kind] = (m[r.kind] || 0) + 1), m), {});
+    s.meanRoomArea = mean;
+    s.roomAreaStdDev = Math.sqrt(areas.reduce((a, b) => a + (b - mean) ** 2, 0) / areas.length);
+    s.floorCells = d.rooms.reduce((n, r) => n + r.cells.length, 0) + d.halls.reduce((n, h) => n + h.cells.length, 0);
+  }
+
+  /**
+   * What drawing a rectangular room between squares a and b (two opposite corners, in any order) would do, without changing anything.
+   * Returns { ok, cells } or { ok: false, reason, cells }. Its squares must be empty: no room, no hallway, and not the square just
+   * outside the door of an entrance. The map grows to take it.
+   */
+  function planRoom(d, a, b) {
+    const x0 = Math.min(a[0], b[0]);
+    const x1 = Math.max(a[0], b[0]);
+    const y0 = Math.min(a[1], b[1]);
+    const y1 = Math.max(a[1], b[1]);
+    const cells = [];
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) cells.push([x, y]);
+    if (x1 - x0 + 1 > MAX_ROOM_SIDE || y1 - y0 + 1 > MAX_ROOM_SIDE) return { ok: false, cells, reason: `a room can be at most ${MAX_ROOM_SIDE} squares across.` };
+    const rooms = roomSquares(d);
+    const halls = hallSquares(d);
+    const shut = entranceSquares(d);
+    for (const [x, y] of cells) {
+      const k = key(x, y);
+      if (rooms.has(k)) return { ok: false, cells, reason: `(${x},${y}) is already part of room ${roomById(d, rooms.get(k)).label}.` };
+      if (halls.has(k)) return { ok: false, cells, reason: `there is a hallway at (${x},${y}).` };
+      if (shut.has(k)) return { ok: false, cells, reason: `(${x},${y}) is just outside the door of an entrance.` };
+    }
+    const span = spanOf(d, halls);
+    if (Math.max(span.x1, x1) - Math.min(span.x0, x0) + 1 > MAX_SIDE || Math.max(span.y1, y1) - Math.min(span.y0, y0) + 1 > MAX_SIDE) return { ok: false, cells, reason: `the map cannot be more than ${MAX_SIDE} squares across.` };
+    return { ok: true, cells };
+  }
+
+  /**
+   * Draw a rectangular room between squares a and b (two opposite corners). It gets the next number. Returns { ok, room, dx, dy } (dx and dy:
+   * how far every square moved when the map grew up or left), or { ok: false, reason }.
+   */
+  function addRoom(d, a, b) {
+    const plan = planRoom(d, a, b);
+    if (!plan.ok) return plan;
+    const { cells } = plan;
+    const x = cells[0][0];
+    const y = cells[0][1];
+    const w = cells[cells.length - 1][0] - x + 1;
+    const h = cells[cells.length - 1][1] - y + 1;
+    const room = {
+      id: d.rooms.length,
+      label: d.rooms.reduce((m, r) => Math.max(m, r.label), 0) + 1,
+      kind: 'rect',
+      area: cells.length,
+      bbox: { x, y, w, h },
+      labelCell: DM.labelCandidates(cells)[0].slice(0, 2),
+      cells,
+    };
+    if (d._model) room.level = d.level;
+    d.rooms.push(room);
+    const shift = rebuild(d, hallSquares(d), hallOpenings(d));
+    refreshRoomStats(d);
+    return { ok: true, room, ...shift };
+  }
+
+  /**
+   * What moving a room by (mx, my) squares would do, without changing anything. The squares it would stand on must be empty (its own
+   * included). Its doors go with it where a hallway (or the room a doorway joins) is still on the other side of them, and the others are
+   * taken away; so are entrance doors that no longer stand on an outer wall. A room with stairs to another level cannot be moved: they would
+   * have to be taken away first. Returns { ok, cells, ... } with what would be kept and dropped, or { ok: false, reason, cells }.
+   */
+  function planMoveRoom(d, id, mx, my) {
+    const room = roomById(d, id);
+    if (!room) return { ok: false, cells: [], reason: 'there is no such room.' };
+    const cells = room.cells.map(([x, y]) => [x + mx, y + my]);
+    const no = (reason) => ({ ok: false, cells, reason });
+    if (mx === 0 && my === 0) return { ...no('the room is already there.'), same: true };
+    const stairs = stairsInRoom(d, room);
+    if (stairs.length > 0) return no(`there are stairs ${stairs.map((s) => s.letter).join(', ')} in room ${DM.roomTag(room)}: remove them first.`);
+    const rooms = roomSquares(d);
+    const halls = hallSquares(d);
+    const mine = new Set(room.cells.map(([x, y]) => key(x, y)));
+    const shut = new Set();
+    for (const e of d.entrances) if (e.kind !== 'stairs' && e.room !== id) shut.add(key(e.x + DX[e.d], e.y + DY[e.d]));
+    for (const [x, y] of cells) {
+      const k = key(x, y);
+      if (rooms.has(k) && !mine.has(k)) return no(`room ${roomById(d, rooms.get(k)).label} is in the way at (${x},${y}).`);
+      if (halls.has(k)) return no(`there is a hallway at (${x},${y}).`);
+      if (shut.has(k)) return no(`(${x},${y}) is just outside the door of an entrance.`);
+    }
+    const xs = cells.map((c) => c[0]);
+    const ys = cells.map((c) => c[1]);
+    const keepsRooms = d.rooms.filter((r) => r.id !== id);
+    const sx = [...keepsRooms.flatMap((r) => r.cells.map((c) => c[0])), ...xs, ...[...halls.values()].map((c) => c.x)];
+    const sy = [...keepsRooms.flatMap((r) => r.cells.map((c) => c[1])), ...ys, ...[...halls.values()].map((c) => c.y)];
+    if (Math.max(...sx) - Math.min(...sx) + 1 > MAX_SIDE || Math.max(...sy) - Math.min(...sy) + 1 > MAX_SIDE) return no(`the map cannot be more than ${MAX_SIDE} squares across.`);
+
+    // the squares as they will be
+    const after = new Map(rooms);
+    for (const k of mine) after.delete(k);
+    for (const [x, y] of cells) after.set(key(x, y), id);
+
+    const keepHall = new Set();
+    let dropHall = 0;
+    for (const c of d.connections) {
+      if (c.type !== 'hall') continue;
+      for (const o of c.openings) {
+        if (o.room !== id) continue;
+        if (halls.has(key(o.x + mx + DX[o.d], o.y + my + DY[o.d]))) keepHall.add(o);
+        else dropHall++;
+      }
+    }
+    const keepDoors = new Set();
+    const dropDoors = new Set();
+    for (const c of d.connections) {
+      if (c.type === 'hall' || !c.rooms.includes(id)) continue;
+      const o = c.openings[0];
+      const other = c.rooms.find((r) => r !== id);
+      const at = o.room === id ? [o.x + mx, o.y + my] : [o.x, o.y];
+      const across = after.get(key(at[0] + DX[o.d], at[1] + DY[o.d]));
+      (across === (o.room === id ? other : id) ? keepDoors : dropDoors).add(c);
+    }
+    const keepEntrances = [];
+    const dropEntrances = [];
+    for (const e of d.entrances) {
+      if (e.room !== id) continue;
+      let keeps = true;
+      if (e.kind !== 'stairs') {
+        const nx = e.x + mx + DX[e.d];
+        const ny = e.y + my + DY[e.d];
+        keeps = !after.has(key(nx, ny)) && !halls.has(key(nx, ny)) && lineOutClear(after, halls, nx, ny, e.d);
+      }
+      (keeps ? keepEntrances : dropEntrances).push(e);
+    }
+    if (d.entrances.length > 0 && dropEntrances.length === d.entrances.length) return no('it would take away the last entrance: the door of the room would not be on an outer wall there.');
+    return { ok: true, cells, keepHall, dropHall, keepDoors, dropDoors, keepEntrances, dropEntrances, mx, my };
+  }
+
+  /**
+   * Move a room by (mx, my) squares: see planMoveRoom for what goes with it. The map grows or shrinks to fit. Returns
+   * { ok, room, dropped: { openings, doorways, entrances }, dx, dy } or { ok: false, reason }.
+   */
+  function moveRoom(d, id, mx, my) {
+    const plan = planMoveRoom(d, id, mx, my);
+    if (!plan.ok) return plan;
+    const room = roomById(d, id);
+    room.cells = plan.cells;
+    room.labelCell = [room.labelCell[0] + mx, room.labelCell[1] + my];
+    room.bbox = { ...room.bbox, x: room.bbox.x + mx, y: room.bbox.y + my };
+    const hallOps = [];
+    for (const o of hallOpenings(d)) {
+      if (o.room !== id) hallOps.push(o);
+      else if (plan.keepHall.has(o)) {
+        o.x += mx;
+        o.y += my;
+        hallOps.push(o);
+      }
+    }
+    for (const c of plan.keepDoors) {
+      const o = c.openings[0];
+      if (o.room === id) {
+        o.x += mx;
+        o.y += my;
+      }
+    }
+    d.connections = d.connections.filter((c) => !plan.dropDoors.has(c));
+    for (const e of plan.keepEntrances) {
+      e.x += mx;
+      e.y += my;
+    }
+    for (const e of plan.dropEntrances) d.entrances.splice(d.entrances.indexOf(e), 1);
+    if (plan.dropEntrances.length > 0) renumberEntrances(d);
+    const shift = rebuild(d, hallSquares(d), hallOps);
+    refreshRoomStats(d);
+    return { ok: true, room, dropped: { openings: plan.dropHall, doorways: plan.dropDoors.size, entrances: plan.dropEntrances.length }, ...shift };
+  }
+
+  /**
+   * Why room `id` cannot be deleted, or '' if it can. The dungeon keeps at least one room and (on level 1) one entrance, and each pair of
+   * floors keeps at least one stair: stairs in the room go with it.
+   */
+  function deleteRoomProblem(d, id) {
+    const room = roomById(d, id);
+    if (!room) return 'there is no such room.';
+    if (d.rooms.length === 1) return 'a dungeon needs at least one room.';
+    const root = d._model || d;
+    const here = stairsInRoom(d, room);
+    for (const upper of new Set(here.map((s) => s.upper))) {
+      if (root.stairs.filter((s) => s.upper === upper && !here.includes(s)).length === 0) return `its stairs are the only ones between level ${upper} and level ${upper + 1}, and every level must stay reachable: add others first.`;
+    }
+    if (d.entrances.length > 0 && d.entrances.every((e) => e.room === id)) return 'it has the only entrance: add another first.';
+    return '';
+  }
+
+  /**
+   * Delete a room: its squares are empty again, and its doors, the doorways it was in, its entrances and any stairs in it go with it
+   * (hallways stay, as dead ends if they led only there). The rooms after it are renumbered. Returns
+   * { ok, room, removed: { openings, doorways, entrances, stairs }, dx, dy } or { ok: false, reason }.
+   */
+  function deleteRoom(d, id) {
+    const problem = deleteRoomProblem(d, id);
+    if (problem) return { ok: false, reason: problem };
+    const root = d._model || d;
+    const room = roomById(d, id);
+    const level = d.level || 1;
+    const removed = { openings: 0, doorways: 0, entrances: 0, stairs: [] };
+    // stairs first (they point at rooms by id)
+    const gone = stairsInRoom(d, room);
+    for (const s of gone) {
+      root.stairs.splice(root.stairs.indexOf(s), 1);
+      removed.stairs.push(s.letter);
+    }
+    d.rooms.splice(d.rooms.indexOf(room), 1);
+    const renumbered = new Map();
+    d.rooms.forEach((r, i) => {
+      renumbered.set(r.id, i);
+      r.id = i;
+      if (r.label > room.label) r.label--;
+    });
+    const hallOps = [];
+    for (const c of d.connections) {
+      if (c.type !== 'hall') continue;
+      for (const o of c.openings) {
+        if (o.room === id) {
+          removed.openings++;
+          continue;
+        }
+        o.room = renumbered.get(o.room);
+        hallOps.push(o);
+      }
+    }
+    d.connections = d.connections.filter((c) => {
+      if (c.type === 'hall') return true;
+      if (c.rooms.includes(id)) {
+        removed.doorways++;
+        return false;
+      }
+      c.rooms = c.rooms.map((r) => renumbered.get(r));
+      for (const o of c.openings) o.room = renumbered.get(o.room);
+      return true;
+    });
+    for (let i = d.entrances.length - 1; i >= 0; i--) {
+      if (d.entrances[i].room === id) {
+        d.entrances.splice(i, 1);
+        removed.entrances++;
+      } else {
+        d.entrances[i].room = renumbered.get(d.entrances[i].room);
+      }
+    }
+    if (d.entrances.length > 0 || removed.entrances > 0) renumberEntrances(d);
+    for (const s of root.stairs || []) {
+      if (s.upper === level) s.upperRoom = renumbered.get(s.upperRoom);
+      if (s.lower === level) s.lowerRoom = renumbered.get(s.lowerRoom);
+    }
+    const shift = rebuild(d, hallSquares(d), hallOps);
+    refreshRoomStats(d);
+    if (root.stairs) tidyStairs(root, d);
+    return { ok: true, room, removed, ...shift };
+  }
+
   // ---- stairs between levels ---------------------------------------------------------------------------------
 
   const floorOf = (root, n) => (n === 1 ? root : root.floors[n - 2]);
@@ -509,7 +797,7 @@
   function floorState(d) {
     const cells = d.halls.flatMap((h) => h.cells.map(([x, y]) => key(x, y))).sort();
     const doors = d.connections.flatMap((c) => c.openings.map((o) => `${o.x},${o.y},${o.d},${o.style}`)).sort();
-    const numbers = d.rooms.map((r) => `${r.label}${r.name ? `:${r.name}` : ''}`).join(',');
+    const numbers = d.rooms.map((r) => `${r.label}${r.name ? `:${r.name}` : ''}${r.bbox ? `@${r.bbox.x},${r.bbox.y},${r.bbox.w}x${r.bbox.h}` : ''}`).join(',');
     const entrances = d.entrances.map((e) => `${e.kind},${e.x},${e.y},${e.d}`).join(';');
     return `${cells.join(';')}|${doors.join(';')}|${numbers}|${entrances}`;
   }
@@ -521,6 +809,14 @@
   DM.hallStretchAt = hallStretchAt;
   DM.deleteHallStretch = deleteHallStretch;
   DM.deleteHall = deleteHall;
+  DM.roomAt = roomAt;
+  DM.MAX_ROOM_SIDE = MAX_ROOM_SIDE;
+  DM.planRoom = planRoom;
+  DM.addRoom = addRoom;
+  DM.planMoveRoom = planMoveRoom;
+  DM.moveRoom = moveRoom;
+  DM.deleteRoomProblem = deleteRoomProblem;
+  DM.deleteRoom = deleteRoom;
   DM.addEntrance = addEntrance;
   DM.stairProblem = stairProblem;
   DM.stairAt = stairAt;

@@ -248,6 +248,9 @@ function createTools({ store = new Store() } = {}) {
       '- "name_room": give a room a name. Give "room" (its number on the map) and "name", e.g. "Foyer". The map still shows numbers; a key under the picture lists "number - name" for every named room, and the description shows the name beside the number. An empty name removes it. A room keeps its name if it is renumbered.\n' +
       'A dungeon of several levels is edited one level at a time: give "level" with each edit (or once, at the top, for all of them). Rooms, hallways, doors and entrances of an edit are those of that level, and "room" is the number on that level\'s map (the 5 of 2-5). ' +
       'Only level 1 has entrances. All levels share one map, so if a hallway makes it bigger every level moves together, and so do the stairs; no door can be put on a square where stairs lead to another level.\n' +
+      '- "add_room": draw a rectangular room. Give "x", "y" and "x2", "y2": two opposite corner squares (any two, so the room covers every square between them; at most 60 across). Every square must be empty (no room, no hallway, and not the square just outside an entrance door); the map grows to fit. It gets the next number (after the last room) and no doors: draw a hallway to it, or let one end against it.\n' +
+      '- "move_room": slide a room. Give "room" (its number on the map) and "dx", "dy": how many squares east and south (negative for west and north). The squares it moves onto must be empty. Its doors go with it where a hallway (or the room a doorway joins) is still against them, and the others are taken away, as are entrance doors that would no longer be in an outer wall; the answer says how many. A room with stairs to another level cannot be moved: remove the stairs first. Hallways stay where they are.\n' +
+      '- "delete_room": delete a room, with its doors, its entrances and any stairs in it. The rooms after it are numbered again (they close up), and later edits in the same call see the new numbers. Hallways stay (as dead ends if they led only there). The dungeon keeps at least one room and one entrance, and each pair of levels at least one stair.\n' +
       '- "add_stair": put stairs between two levels of a dungeon of several levels. Give "level" (the upper one: the stairs join it and the level below), and "x" and "y": a square that is a room square on both levels, with no door, opening or entrance on it and no other stairs. They get the next free letter.\n' +
       '- "move_stair": move stairs to another square. Give "stair" (its letter, A for the stairs marked A) and "x" and "y" (the new square, with the same conditions as add_stair; it stays between the same two levels). No "level" is needed.\n' +
       '- "remove_stair": remove stairs. Give "stair" (the letter). Each pair of levels keeps at least one stair, so every level can be reached.\n' +
@@ -264,17 +267,21 @@ function createTools({ store = new Store() } = {}) {
           items: {
             type: 'object',
             properties: {
-              type: { type: 'string', enum: ['door', 'draw_hallway', 'delete_hallway', 'add_entrance', 'remove_entrance', 'renumber_room', 'name_room', 'add_stair', 'move_stair', 'remove_stair'] },
+              type: { type: 'string', enum: ['door', 'draw_hallway', 'delete_hallway', 'add_entrance', 'remove_entrance', 'renumber_room', 'name_room', 'add_room', 'move_room', 'delete_room', 'add_stair', 'move_stair', 'remove_stair'] },
               stair: { type: 'string', description: 'move_stair, remove_stair: the stairs\' letter (A, B, ...), as in the description' },
               level: int(1, 20, 'A dungeon of several levels: the level this edit is made to (default: the "level" at the top).'),
               name: { type: 'string', description: `name_room: the room's name (up to ${MAX_NAME} characters); empty text removes it` },
               hall: { type: 'integer', description: 'delete_hallway: the hallway\'s number (3 for H3), to delete all of it' },
               kind: { type: 'string', enum: ['door', 'stairs'], description: 'add_entrance: a door in an outer wall (default) or stairs on the floor' },
               entrance: { type: 'integer', description: 'remove_entrance: the entrance\'s number (2 for E2)' },
-              room: { type: 'integer', description: 'renumber_room: the room\'s current number on the map' },
+              room: { type: 'integer', description: 'renumber_room, name_room, move_room, delete_room: the room\'s current number on the map' },
+              x2: { type: 'integer', description: 'add_room: the x of the opposite corner' },
+              y2: { type: 'integer', description: 'add_room: the y of the opposite corner' },
+              dx: { type: 'integer', description: 'move_room: squares to move east (negative: west)' },
+              dy: { type: 'integer', description: 'move_room: squares to move south (negative: north)' },
               number: { type: 'integer', description: 'renumber_room: the number it should have (1 to the number of rooms)' },
-              x: { type: 'integer', description: 'door, add_entrance, delete_hallway (a stretch): the square\'s x (east-west, from the left edge)' },
-              y: { type: 'integer', description: 'door, add_entrance, delete_hallway (a stretch): the square\'s y (north-south, from the top edge)' },
+              x: { type: 'integer', description: 'door, add_entrance, add_room, delete_hallway (a stretch): the square\'s x (east-west, from the left edge)' },
+              y: { type: 'integer', description: 'door, add_entrance, add_room, delete_hallway (a stretch): the square\'s y (north-south, from the top edge)' },
               side: { type: 'string', description: 'door, add_entrance: which side of that square the door is on: N, E, S or W' },
               state: { type: 'string', enum: ['door', 'locked', 'secret', 'open'], description: 'door: what it becomes' },
               points: { type: 'array', items: { type: 'array', items: { type: 'integer' }, minItems: 2, maxItems: 2 }, description: 'draw_hallway: [x, y] squares to pass through, in order' },
@@ -581,6 +588,45 @@ function applyEdit(d, edit, shift, snap) {
       const tag = (k) => (d.level ? `${d.level}-${k}` : String(k));
       return `room ${tag(from)} is now room ${tag(to)}, and the room that was ${tag(to)} is now ${tag(from)}.`;
     }
+    case 'add_room': {
+      const x = needInt(edit.x, 'x');
+      const y = needInt(edit.y, 'y');
+      const x2 = needInt(edit.x2, 'x2');
+      const y2 = needInt(edit.y2, 'y2');
+      const res = dm.addRoom(d, [x + shift.x, y + shift.y], [x2 + shift.x, y2 + shift.y]);
+      if (!res.ok) throw new ToolError(`no room from (${x},${y}) to (${x2},${y2}): ${res.reason}`);
+      shift.x += res.dx;
+      shift.y += res.dy;
+      const w = Math.abs(x2 - x) + 1;
+      const h = Math.abs(y2 - y) + 1;
+      return `drew room ${dm.roomTag(res.room)}: ${w} × ${h} squares (${w * 5} × ${h * 5} ft) from (${Math.min(x, x2)},${Math.min(y, y2)}), with no doors yet.`;
+    }
+    case 'move_room': {
+      const num = needInt(edit.room, 'room');
+      const mx = needInt(edit.dx, 'dx');
+      const my = needInt(edit.dy, 'dy');
+      const r = d.rooms.find((q) => q.label === num);
+      if (!r) throw new ToolError(`there is no room ${num}${d.level ? ` on level ${d.level}` : ''}. Rooms are numbered 1 to ${d.rooms.length}, as printed on the map.`);
+      const res = dm.moveRoom(d, r.id, mx, my);
+      if (!res.ok) throw new ToolError(`cannot move room ${dm.roomTag(r)}: ${res.reason}`);
+      shift.x += res.dx;
+      shift.y += res.dy;
+      const lost = [res.dropped.openings + res.dropped.doorways > 0 && `${res.dropped.openings + res.dropped.doorways} door${res.dropped.openings + res.dropped.doorways === 1 ? '' : 's'}`, res.dropped.entrances > 0 && `${res.dropped.entrances} entrance${res.dropped.entrances === 1 ? '' : 's'}`].filter(Boolean);
+      return `moved room ${dm.roomTag(r)} by (${mx >= 0 ? '+' : ''}${mx},${my >= 0 ? '+' : ''}${my})${lost.length ? `; ${lost.join(' and ')} that no longer met anything went` : '; every door still meets what it did'}.`;
+    }
+    case 'delete_room': {
+      const num = needInt(edit.room, 'room');
+      const r = d.rooms.find((q) => q.label === num);
+      if (!r) throw new ToolError(`there is no room ${num}${d.level ? ` on level ${d.level}` : ''}. Rooms are numbered 1 to ${d.rooms.length}, as printed on the map.`);
+      const tag = dm.roomTag(r);
+      const res = dm.deleteRoom(d, r.id);
+      if (!res.ok) throw new ToolError(`cannot delete room ${tag}: ${res.reason}`);
+      shift.x += res.dx;
+      shift.y += res.dy;
+      const doors = res.removed.openings + res.removed.doorways;
+      const went = [doors > 0 && `${doors} door${doors === 1 ? '' : 's'}`, res.removed.entrances > 0 && `${res.removed.entrances} entrance${res.removed.entrances === 1 ? '' : 's'}`, res.removed.stairs.length > 0 && `stairs ${res.removed.stairs.join(', ')}`].filter(Boolean);
+      return `deleted room ${tag}${went.length ? ` (${went.join(', ')} went with it)` : ''}. The rooms after it are numbered again.`;
+    }
     case 'add_stair': {
       const upper = d.level || 1;
       const x = needInt(edit.x, 'x');
@@ -607,7 +653,7 @@ function applyEdit(d, edit, shift, snap) {
       return `stairs ${letter} are now at (${x},${y}).`;
     }
     default:
-      throw new ToolError(`"type" must be one of: door, draw_hallway, delete_hallway, add_entrance, remove_entrance, renumber_room, name_room, add_stair, move_stair, remove_stair.`);
+      throw new ToolError(`"type" must be one of: door, draw_hallway, delete_hallway, add_entrance, remove_entrance, renumber_room, name_room, add_room, move_room, delete_room, add_stair, move_stair, remove_stair.`);
   }
 }
 

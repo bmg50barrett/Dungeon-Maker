@@ -657,6 +657,7 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
 /* above the legend card, so it never covers a button; the edit tools (while Edit is on) are a row under the buttons */
 .toolbar { position: absolute; top: 14px; right: 14px; z-index: 2; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .toolbar-row, .edit-tools { display: flex; gap: 6px; }
+.edit-tools { flex-wrap: wrap; justify-content: flex-end; max-width: min(620px, 70vw); } /* (seven tools: a second row when the map is narrow) */
 .edit-tools[hidden] { display: none; }
 .toolbar button {
   min-width: var(--tap);

@@ -467,17 +467,20 @@
 
   const MAP_HINT = 'Scroll to zoom · drag to pan · double-click to fit';
   const TOOL_HINTS = {
-    door: 'Edit mode · click a door to change it',
+    door: 'Edit mode · click a door to change it · right-click to take it out',
+    doorTouch: 'Edit mode · tap a door to change it · press and hold to take it out',
     draw: 'Drag to draw a hallway · hold Space to pan',
     drawTouch: 'Drag to draw a hallway · pick Doors to pan',
     erase: 'Click a stretch of hallway to delete it',
+    room: 'Drag empty squares to draw a room, or a room to move it · right-click a room to delete it · hold Space to pan',
+    roomTouch: 'Drag empty squares to draw a room, or a room to move it · press and hold a room to delete it · pick Doors to pan',
     stairs: 'Click a room square to add stairs down (Shift-click: up) · click stairs to remove them',
   };
 
   /** What the hint says for a tool: a touch screen has no Space key, so there it says how else to pan. */
   function toolHint(tool) {
     const touch = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
-    return TOOL_HINTS[tool === 'draw' && touch ? 'drawTouch' : tool];
+    return TOOL_HINTS[touch && ['door', 'draw', 'room'].includes(tool) ? `${tool}Touch` : tool];
   }
 
   /** Pick what a click or a drag on the map does in edit mode: 'door', 'draw' or 'erase'. */
@@ -491,7 +494,7 @@
     renderer.setEditMode(on);
     const button = $('editMode');
     button.setAttribute('aria-pressed', String(on));
-    button.title = on ? 'Edit mode is on: click here to leave it' : 'Edit the doors and hallways';
+    button.title = on ? 'Edit mode is on: click here to leave it' : 'Edit the doors, hallways, rooms and stairs';
     $('editTools').hidden = !on;
     if (on) setEditTool('door');
     else $('canvasHint').textContent = MAP_HINT;
@@ -565,6 +568,26 @@
   // a click the stairs tool could not use: say why, in the hint under the map, until the next tool or the next click
   renderer.onNote = (text) => {
     $('canvasHint').textContent = text;
+  };
+  // a room was drawn, moved or deleted: the legend, summary and room names follow, and the hint says what else went with it
+  renderer.onRoomChange = ({ kind, room, token, dx, dy, removed, dropped } = {}) => {
+    updateDoorLegend();
+    showSummary(DM.current, builtMs);
+    if (namePanelOpen()) showRoomNames(DM.current);
+    const tag = DM.roomTag(room);
+    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+    let note = '';
+    if (kind === 'delete') {
+      const went = [removed.openings + removed.doorways > 0 && plural(removed.openings + removed.doorways, 'door'), removed.entrances > 0 && plural(removed.entrances, 'entrance'), removed.stairs.length > 0 && `stairs ${removed.stairs.join(', ')}`].filter(Boolean);
+      note = `Deleted room ${tag}${went.length ? ` (${went.join(', ')} went with it)` : ''}. The rooms after it are renumbered.`;
+    } else if (kind === 'move') {
+      const lost = dropped.openings + dropped.doorways + dropped.entrances;
+      note = `Moved room ${tag}${lost > 0 ? ` (${plural(lost, 'door')} went where it left)` : ''}.`;
+    } else {
+      note = `Drew room ${tag}. Draw a hallway to it to add doors.`;
+    }
+    $('canvasHint').textContent = note;
+    recordEdit(`${kind === 'delete' ? 'Delete' : kind === 'move' ? 'Move' : 'Draw'} room ${tag}`, token, { dx, dy });
   };
   renderer.onLayoutChange = ({ kind, dx, dy, token } = {}) => {
     updateDoorLegend();

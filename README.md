@@ -237,13 +237,14 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
   `src/palette.js`. Colors are remembered between visits (see Remembered settings).
 - Controls: scroll to zoom, drag to pan, double-click (or **Fit**) to fit the map.
 - **Edit mode** (the **Edit** button on the map, left of the zoom buttons). Click it to start editing
-  doors and hallways, and click it again to stop. While it is on, the button stays pressed in, the map has a
-  coloured frame, and a row of three tools appears under the buttons. Leaving edit mode keeps the edits,
+  doors, hallways, rooms and stairs, and click it again to stop. While it is on, the button stays pressed in, the map has a
+  coloured frame, and a row of tools appears under the buttons. Leaving edit mode keeps the edits,
   and turning it on again starts on **Doors**. The line at the bottom of the map says what the tool does.
   - **Doors.** Every door between rooms (and hallways) has a ring round it, so a doorway with no door in
     it can be seen too. **Click a door to change it to the next state**: door, locked door (a padlock on it),
     secret door (the wall stays solid, with an **S** on it), no door (the wall is left open, with
-    nothing in the gap), then back to a plain door. Hovering a door names what it is now. Dragging
+    nothing in the gap), then back to a plain door. **Right-click a door** (on a touch screen, press and hold) to take it
+    out in one go: whatever kind it was, the doorway is left open (*no door*), and clicking it brings a door back. Hovering a door names what it is now. Dragging
     still pans (a click that wobbles a few pixels is still a click), and a quick double-click on a door is for
     the door, not Fit. Entrance doors (the ones with arrows) are not editable. The legend
     names locked and secret doors only while the map has some.
@@ -268,7 +269,25 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
     junction and the next, or up to a dead end. A *junction* is a square with three or more hallway
     neighbours, or a side door into a room. **Click to delete the stretch**; its doors go with it, and what is
     left is re-counted, so deleting a junction can split one hallway into several. A whole hallway can be
-    removed this way, generated ones included. Room numbers are not renumbered after an edit.
+    removed this way, generated ones included. Room numbers are not renumbered after a hallway edit.
+  - **Room.** Draws, moves and deletes rooms, by where the pointer is. Hovering a room turns it red and the tag
+    says what the buttons will do; the hand cursor replaces the cross-hair.
+    - **Draw:** drag (left button) over empty squares, from one corner to the opposite one. A dashed rectangle follows
+      the pointer, with its size in squares and feet, and the room goes in when you let go (a click alone makes nothing).
+      Every square it covers must be empty (no room, no hallway, and not the square just outside an entrance door); a
+      room can be up to 60 squares across, and the map grows to fit, as for hallways. The new room gets the next number
+      and has no doors: draw a hallway to it, or let one end against it.
+    - **Move:** drag a room. A ghost shows where it will land and the tag says how many doors will go. Its doors go with
+      it where a hallway (or the room a doorway joins) is still against them; the others are taken away, as are entrance
+      doors that would no longer be in an outer wall. It cannot land on another room, on a hallway, or on the square in
+      front of an entrance, cannot leave the dungeon with no entrance, and cannot carry stairs (remove them first).
+      Hallways stay where they are.
+    - **Delete:** right-click a room (on a touch screen, press and hold; the browser's own menu stays away). The room
+      goes with its doors, its entrances and any stairs in it, and the rooms after it are renumbered so the numbers stay
+      1 to N. Hallways stay (as dead ends if they led only to that room). The dungeon keeps at least one room and one
+      entrance, and each pair of levels at least one stair; the tag says why a room stays.
+    - Esc cancels a drag; hold **Space** (or use the middle mouse button) to pan. Resizing a room is not possible: draw a
+      new one and delete the old.
   - **Stairs** (only with several levels). Hover a room square: it lights up if stairs can go there, and the tag says
     what a click does. **Click** to put stairs *down* to the next level (on the last level, up to the one above;
     **Shift-click** goes the other way). A square works when it is a room square on both of the levels the stairs
@@ -281,7 +300,7 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
     the settings and rebuilds the dungeon from them, so it gives the doors and hallways the generator made;
     the status line under the share buttons says so once something has been changed.
   - **Undo and Redo** (the two buttons left of the zoom buttons, or **Ctrl+Z** and **Ctrl+Y**; **Ctrl+Shift+Z**
-    also redoes; **Cmd** on a Mac). Each change is a step: a door changed, a hallway drawn or deleted, stairs added
+    also redoes; **Cmd** on a Mac). Each change is a step: a door changed, a hallway drawn or deleted, a room drawn, moved or deleted, stairs added
     or removed, a room named (typing in one box is one step, kept when you leave the box), the room names
     cleared, a level built again. Undo puts the dungeon back as it was before the last step and Redo makes it again;
     the buttons are greyed out when there is nothing to do, and hovering one says which step it would take. A new
@@ -362,7 +381,7 @@ are reached by stairs only.
   and every stair with it, and the map shrinks to fit all the levels together. No hallway is given a door into a
   square where stairs lead to another level, and an entrance cannot be put on one. Entrances stay on level 1 (adding
   and removing them is the MCP server's). The **All** view is for looking: Edit mode goes off there. The MCP server's
-  `edit_dungeon` takes a `level` too, and has `add_stair`, `move_stair` and `remove_stair` for the stairs.
+  `edit_dungeon` takes a `level` too, and has `add_stair`, `move_stair` and `remove_stair` for the stairs, and `add_room`, `move_room` and `delete_room` for the rooms.
 - **Regenerate level** (at the right of the level tabs, on a single level's tab) builds the level on the map again from
   other random numbers, and leaves the others as they are. It has the dungeon's settings (room count, layout and so
   on); its rooms are numbered from 1 and have no names. The stairs to the levels next to it stay where they still fit
@@ -452,7 +471,7 @@ the map, then writes the content for each room by the numbers printed on it.
 | `generate_dungeon` | Makes a dungeon from any of the page's settings (all optional, with the page's starting values) and a seed. Answers with the picture and a description of every room, door, hallway and entrance. `levels` (1-20) and `levelStairs` (1-10) make a dungeon of several floors: the description then lists the stairs, then each level in turn, with rooms named like `2-5`, and the picture shows every level one above the other. |
 | `open_dungeon` | Opens a dungeon saved as **Data (JSON)**, from the page or from `save_dungeon`. A bare file name is looked for in the maps folder. |
 | `describe_dungeon` | The description alone: each room by its number on the map, with its shape, size in feet and place on the map, its doors and what they lead to. |
-| `edit_dungeon` | A list of edits: change a door (door, locked, secret, no door), draw a hallway through some squares, delete a stretch of hallway, add and remove entrances, renumber and name rooms, and (several levels) add, move and remove stairs. The rules are Edit mode's. |
+| `edit_dungeon` | A list of edits: change a door (door, locked, secret, no door), draw a hallway through some squares, delete a stretch of hallway, add and remove entrances, renumber and name rooms, draw, move and delete rooms, and (several levels) add, move and remove stairs. The rules are Edit mode's. |
 | `regenerate_level` | For a dungeon of several levels: builds one `level` again (from a random `seed`, or the one given) and leaves the others as they are, keeping the stairs that still fit. Answers with the new description and picture. |
 | `undo_edit` | Takes back the last change made with `edit_dungeon` or `regenerate_level` (it can be called again to go further back). Answers with what was undone, the new description and picture. |
 | `redo_edit` | Makes a change again that `undo_edit` took back. A new edit after an undo ends what could be redone. |
@@ -490,7 +509,7 @@ src/generator.js         layout: placement, hallway routing (A*), entrances, out
 src/labels.js            where room numbers go (inside, or outside the walls): `DM.placeOutsideLabels`
 src/palette.js           map colors: the ready-made choices per category, `DM.themeFrom`
 src/share.js             share links, file names, JSON and caption for exports: `DM.encodeShare`, `DM.decodeShare`
-src/edit.js              hallway editing on the data: `DM.planHallway`, `DM.addHallway`, `DM.deleteHallStretch`, `DM.editState`, `DM.walkCells`
+src/edit.js              hallway and room editing on the data: `DM.planHallway`, `DM.addHallway`, `DM.deleteHallStretch`, `DM.planRoom`, `DM.addRoom`, `DM.planMoveRoom`, `DM.moveRoom`, `DM.deleteRoom`, `DM.editState`, `DM.walkCells`
 src/history.js           undo and redo: `DM.EditHistory`, steps kept as copies of the dungeon
 src/render.js            canvas drawing, zoom/pan, the Edit mode tools (clicks, strokes), the exported picture (`exportImage`)
 src/app.js               form handling, export buttons, opening links, the Edit button and tools, the lose-edits warning
@@ -551,7 +570,7 @@ passage, `rooms` lists every room it serves (2 or more), and each of those rooms
 exactly one entry in `openings`. That is what the generator makes. Dungeons changed with the
 Edit mode hallway tools are looser: a hallway may serve 0 or 1 rooms (a dead end), and may have
 several openings into the same room. A hallway's `kind` after an edit is the kind that
-contributed most of its squares, or `'drawn'` when it is all new. Rooms keep their numbers, and a
+contributed most of its squares, or `'drawn'` when it is all new. Rooms keep their numbers through hallway edits and moves; a room drawn gets the next number, and deleting one renumbers the rooms after it so `label` stays 1 to N (`id` is always the room's index in `rooms`). A
 hall's `id` is always its index in `halls`. The edits live in `src/edit.js`, which changes the squares
 and then rebuilds `halls`, `connections`, the map's size (squares of the map shift if it grows up or
 left, so the rooms and entrances move with them) and `stats`. `DM.editState(dungeon)` is a canonical
