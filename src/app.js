@@ -65,7 +65,7 @@
   function readParams() {
     const params = {};
     for (const f of FIELDS) params[f] = $(f).value;
-    params.connectionType = document.querySelector('input[name="connectionType"]:checked').value;
+    params.connectionType = $('connectionTypeSelect').value;
     params.edgeEntrancesOnly = $('edgeEntrancesOnly').checked;
     params.roomShapes = shapeBoxes().filter((box) => box.checked).map((box) => box.value);
     params.hallTypes = hallBoxes().filter((box) => box.checked).map((box) => box.value);
@@ -116,7 +116,7 @@
   function hallwaysPossible() {
     const pct = whole('connectionRandomness', 0, 100);
     if (pct === null) return true;
-    return DM.hallwaysPossible({ connectionType: document.querySelector('input[name="connectionType"]:checked').value, connectionRandomness: pct });
+    return DM.hallwaysPossible({ connectionType: $('connectionTypeSelect').value, connectionRandomness: pct });
   }
 
   const DOORS_HINTS = {
@@ -248,7 +248,7 @@
   function updateRandomnessHint() {
     const pct = Number($('connectionRandomness').value);
     const hint = $('randomnessHint');
-    const other = document.querySelector('input[name="connectionType"]:checked').value === 'hall' ? 'doorways' : 'hallways';
+    const other = $('connectionTypeSelect').value === 'hall' ? 'doorways' : 'hallways';
     const chosen = other === 'doorways' ? 'hallways' : 'doorways';
     if (!Number.isInteger(pct) || pct < 0 || pct > 100 || $('connectionRandomness').value.trim() === '') {
       hint.textContent = 'Chance a connection uses the other type (0–100)';
@@ -767,9 +767,7 @@
   });
   $('generateRandom').addEventListener('click', () => ifEditsDiscarded(() => generate({ randomSeed: true })));
   for (const f of ['avgRoomSize', 'minRoomWidth', 'minRoomLength', 'sizeVariance', 'connectionRandomness', 'levels', 'levelStairs']) $(f).addEventListener('input', updateHints);
-  for (const radio of document.querySelectorAll('input[name="connectionType"]')) {
-    radio.addEventListener('change', updateRandomnessHint);
-  }
+  $('connectionTypeSelect').addEventListener('change', updateRandomnessHint);
 
   $('edgeEntrancesOnly').addEventListener('change', updateEdgeOnlyHint);
 
@@ -978,7 +976,7 @@
   function levelsToDraw() {
     const n = DM.levelCount(DM.current);
     if (n === 1) return [1];
-    if (viewLevel !== 'all' && radioValue('exportScope') === 'this') return [viewLevel];
+    if (viewLevel !== 'all' && $('exportScopeSelect').value === 'this') return [viewLevel];
     return Array.from({ length: n }, (_, i) => i + 1);
   }
 
@@ -1161,7 +1159,7 @@
   /** Take the inputs from a link. Anything the link leaves out stays as it is. */
   function applyForm(form) {
     for (const f of FIELDS) if (form[f] !== undefined) $(f).value = String(form[f]);
-    if (form.connectionType !== undefined) setRadio('connectionType', form.connectionType);
+    if (form.connectionType !== undefined) setSelect('connectionTypeSelect', form.connectionType);
     if (form.hallDoors !== undefined) setSelect('hallDoorsSelect', form.hallDoors);
     if (form.spacing !== undefined) setSelect('spacingSelect', form.spacing);
     if (form.layout !== undefined) setSelect('layoutSelect', form.layout);

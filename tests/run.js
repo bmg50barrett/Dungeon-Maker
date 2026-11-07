@@ -1989,7 +1989,7 @@ console.log('== page layout');
     if (JSON.stringify(radios.map((m) => m[1])) !== JSON.stringify(DM.SPACINGS)) fail('layout', `the page offers spacings [${radios.map((m) => m[1])}], the generator has [${DM.SPACINGS}]`);
     if (radios.filter((m) => /\sselected/.test(m[2])).map((m) => m[1]).join() !== DM.DEFAULT_SPACING) fail('layout', `the page should start on ${DM.DEFAULT_SPACING} spacing`);
     if (radios.map((m) => m[3]).join() !== 'Compact,Normal,Spread' || !html.includes('<label for="spacingSelect">Room spacing</label>')) fail('layout', 'the spacing choice should read Compact / Normal / Spread under "Room spacing"');
-    if (!html.includes('<label for="hallDoorsSelect">Hallway doors</label>') || [...html.matchAll(/<option value="(?:none|less|more|all)"[^>]*>([^<]*)<\/option>/g)].map((m) => m[1]).join() !== 'None,Less,More,All') fail('layout', 'the hallway doors choice should read None / Less / More / All');
+    if (!html.includes('<label for="hallDoorsSelect">Hallway doors</label>') || [...(html.match(/<select id="hallDoorsSelect"[\s\S]*?<\/select>/) || [''])[0].matchAll(/<option value="[a-z]+"[^>]*>([^<]*)<\/option>/g)].map((m) => m[1]).join() !== 'None,Less,More,All') fail('layout', 'the hallway doors choice should read None / Less / More / All');
     if (/type="radio" id="(spacing|doors)-/.test(html)) fail('layout', 'room spacing and hallway doors are still rows of segments');
     if (!html.includes('id="spacingHint"') || !html.includes('id="err-spacing"')) fail('layout', 'the spacing choice needs a hint and an error line');
     const hints = (appJs.match(/const SPACING_HINTS = \{[\s\S]*?\n  \};/) || [''])[0];
@@ -1998,6 +1998,14 @@ console.log('== page layout');
       const line = (hints.match(new RegExp(`${name}: '([^']*)'`)) || [])[1] || '';
       if (min === 0 ? !(/can touch/.test(line) && line.includes(`up to ${max} squares`)) : !(line.includes(`${min}–${max} squares`) && /rooms joined by a door, which touch/.test(line))) fail('layout', `the ${name} hint does not give its distances: "${line}"`);
     }
+    // the other two-way choices that are dropdowns too: how rooms join, and what the picture holds on a dungeon of several levels
+    for (const [name, id, wanted] of [['connectionType', 'connectionTypeSelect', 'Hallways,Doorways'], ['exportScope', 'exportScopeSelect', 'All levels,This level']]) {
+      const sel = (html.match(new RegExp(`<select id="${id}" name="${name}"[^>]*>([\\s\\S]*?)<\\/select>`)) || [])[1];
+      if (!sel || [...sel.matchAll(/<option value="[a-z]+"[^>]*>([^<]*)<\/option>/g)].map((m) => m[1]).join() !== wanted) fail('layout', `${name} should be a dropdown of ${wanted}`);
+      if (new RegExp(`type="radio"[^>]*name="${name}"`).test(html)) fail('layout', `${name} is still a row of segments`);
+      if (!appJs.includes(`$('${id}')`)) fail('layout', `app.js does not use the ${name} dropdown`);
+    }
+    if (!/id="exportScope" hidden/.test(html)) fail('layout', 'the picture choice should start hidden, for a dungeon of one level');
     if (!/params\.spacing = \$\('spacingSelect'\)\.value/.test(appJs) || !/params\.hallDoors = \$\('hallDoorsSelect'\)\.value/.test(appJs)) fail('layout', 'app.js does not read the spacing and the hallway doors');
     if (!/if \(form\.spacing !== undefined\) setSelect\('spacingSelect', form\.spacing\)/.test(appJs) || !/if \(form\.hallDoors !== undefined\) setSelect\('hallDoorsSelect', form\.hallDoors\)/.test(appJs)) fail('layout', 'opening a link or restoring settings does not set the spacing and the hallway doors');
     if (!/\$\('spacingSelect'\)\.addEventListener\('change', updateSpacingHint\)/.test(appJs) || !/\$\('hallDoorsSelect'\)\.addEventListener\('change', updateDoorsHint\)/.test(appJs)) fail('layout', 'choosing a spacing or hallway doors does not update its hint');

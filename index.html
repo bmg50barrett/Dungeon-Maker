@@ -165,16 +165,14 @@
             </button>
           </h2>
           <div class="blade-body" id="blade-hallways-body">
-            <fieldset class="field segmented">
-              <legend>Connections</legend>
-              <div class="seg-options">
-                <input type="radio" id="conn-hall" name="connectionType" value="hall" checked>
-                <label for="conn-hall">Hallways</label>
-                <input type="radio" id="conn-door" name="connectionType" value="door">
-                <label for="conn-door">Doorways</label>
-              </div>
-              <p class="hint">How most rooms join up.</p>
-            </fieldset>
+            <div class="field select-field">
+              <label for="connectionTypeSelect">Connections</label>
+              <select id="connectionTypeSelect" name="connectionType" aria-describedby="connectionTypeHint">
+                <option value="hall" selected>Hallways</option>
+                <option value="door">Doorways</option>
+              </select>
+              <p class="hint" id="connectionTypeHint">How most rooms join up.</p>
+            </div>
 
             <div class="field">
               <label for="connectionRandomness">Connection randomization (%)</label>
@@ -248,16 +246,14 @@
               </div>
               <label class="check"><input type="checkbox" id="exportLegend" checked> Legend and details on the picture and printout</label>
               <!-- a dungeon of several levels: what the picture and the printout hold (shown by app.js) -->
-              <fieldset class="field segmented export-scope" id="exportScope" hidden>
-                <legend>Picture and printout hold</legend>
-                <div class="seg-options">
-                  <input type="radio" id="scope-all" name="exportScope" value="all" checked>
-                  <label for="scope-all">All levels</label>
-                  <input type="radio" id="scope-this" name="exportScope" value="this">
-                  <label for="scope-this">This level</label>
-                </div>
-                <p class="hint">All levels: one picture, one printed page each. This level: only the level on the map.</p>
-              </fieldset>
+              <div class="field select-field export-scope" id="exportScope" hidden>
+                <label for="exportScopeSelect">Picture and printout hold</label>
+                <select id="exportScopeSelect" name="exportScope" aria-describedby="exportScopeHint">
+                  <option value="all" selected>All levels</option>
+                  <option value="this">This level</option>
+                </select>
+                <p class="hint" id="exportScopeHint">All levels: one picture, one printed page each. This level: only the level on the map.</p>
+              </div>
               <input type="text" id="shareUrl" readonly hidden aria-label="Link to this dungeon">
               <p class="hint" id="exportStatus" role="status" aria-live="polite"></p>
             </section>
