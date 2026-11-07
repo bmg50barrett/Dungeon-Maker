@@ -332,17 +332,16 @@
       <header class="map-head">
         <div class="map-head-name">
           <h1 class="map-title">Duckweed’s Dungeon Drafter</h1>
-          <span class="map-mark">Duckweed’s Aeldara</span>
         </div>
       </header>
       <!-- a dungeon of several levels: one button for each floor, and one for all of them side by side (shown by app.js) -->
       <div class="map-bar">
         <nav class="level-tabs" id="levelTabs" aria-label="Levels" hidden></nav>
-        <!-- the buttons that build a dungeon (Re-generate dungeon is the form's submit button, though it sits outside the form); the last, the main one, is filled -->
+        <!-- the buttons that build a dungeon (Generate Dungeon is the form's submit button, though it sits outside the form); the last, the main one, is filled -->
         <div class="map-actions" id="mapActions">
-          <button type="button" id="regenLevel" title="Build the level on the map again, from other random numbers; the other levels stay as they are, and stairs are kept where they still fit" hidden>Regenerate level</button>
-          <button type="submit" form="params" id="generate">Re-generate dungeon</button>
-          <button type="button" id="generateRandom" title="Ignores the seed field, builds a new random dungeon and puts its seed in the field">Generate with random seed</button>
+          <button type="button" id="regenLevel" title="Build the level on the map again, from other random numbers; the other levels stay as they are, and stairs are kept where they still fit" hidden>Generate Level</button>
+          <button type="submit" form="params" id="generate">Generate Dungeon</button>
+          <button type="button" id="generateRandom" title="Ignores the seed field, builds a new random dungeon and puts its seed in the field">Random Dungeon</button>
         </div>
       </div>
       <!-- the map sits in a double gold frame, like a plate in a printed book -->
@@ -416,7 +415,7 @@
       <p id="discardText">Re-generating the dungeon will lose all edits you made to its doors and hallways, and any room names you typed. To keep them, save the picture or the data first.</p>
       <div class="dialog-buttons">
         <button type="submit" value="cancel" autofocus>Keep editing</button>
-        <button type="submit" value="discard" id="discardConfirm" class="danger">Re-generate anyway</button>
+        <button type="submit" value="discard" id="discardConfirm" class="danger">Generate anyway</button>
       </div>
     </form>
   </dialog>

@@ -1981,14 +1981,14 @@ console.log('== page layout');
   for (const [col, needles] of Object.entries(expected)) {
     for (const needle of needles) if (columnOf(needle) !== col) fail('layout', `${needle} should be in the ${col} column, not ${columnOf(needle)}`);
   }
-  // the buttons that build a dungeon sit above the map, beside the level tabs, with Regenerate level; Re-generate still submits the form
+  // the buttons that build a dungeon sit above the map, beside the level tabs, with Generate Level; Re-generate still submits the form
   {
     const bar = html.slice(html.indexOf('<div class="map-bar">'), html.indexOf('<div class="map-frame">'));
     if (bar.length < 20 || html.indexOf('<div class="map-bar">') < stageAt) fail('layout', 'the build buttons are not in the bar above the map');
     const order = ['id="levelTabs"', 'id="regenLevel"', 'id="generate"', 'id="generateRandom"'].map((x) => bar.indexOf(x));
-    if (order.some((x, i) => x < 0 || (i > 0 && x < order[i - 1]))) fail('layout', 'the bar above the map should hold the level tabs, then Regenerate level, Re-generate dungeon and, last, Generate with random seed');
-    if (!/<button type="submit" form="params" id="generate"/.test(bar)) fail('layout', 'Re-generate dungeon must submit the form from outside it');
-    if (!/id="regenLevel"[^>]*hidden/.test(bar)) fail('layout', 'Regenerate level should start hidden (a single level has nothing to regenerate)');
+    if (order.some((x, i) => x < 0 || (i > 0 && x < order[i - 1]))) fail('layout', 'the bar above the map should hold the level tabs, then Generate Level, Generate Dungeon and, last, Random Dungeon');
+    if (!/<button type="submit" form="params" id="generate"/.test(bar)) fail('layout', 'Generate Dungeon must submit the form from outside it');
+    if (!/id="regenLevel"[^>]*hidden/.test(bar)) fail('layout', 'Generate Level should start hidden (a single level has nothing to regenerate)');
   }
   // room spacing: a choice of exactly the spacings the generator knows, compact on first, with a hint that gives its real distances
   {
@@ -2054,10 +2054,10 @@ console.log('== page layout');
     if (!legendHtml.includes(sw)) fail('layout', `the legend has no ${sw} swatch`);
   }
   if (!legendHtml.includes('id="legendToggle"') || !legendHtml.includes('aria-controls="legendList"') || !legendHtml.includes('id="legendList"')) fail('layout', 'the legend has no working fold-away toggle');
-  // a blank seed box is filled in with the seed used by Re-generate dungeon; the random button always shows its new seed (the page cannot be run here, so this reads the source)
+  // a blank seed box is filled in with the seed used by Generate Dungeon; the random button always shows its new seed (the page cannot be run here, so this reads the source)
   const submitHandler = (appJs.match(/\$\('params'\)\.addEventListener\('submit',[\s\S]*?\n  \}\);/) || [''])[0];
-  if (!/generate\(\{\s*fillSeed:\s*true\s*\}\)/.test(submitHandler)) fail('layout', 'Re-generate dungeon (the form submit) should fill a blank seed box');
-  if (!/\$\('generateRandom'\)\.addEventListener\('click', \(\) => ifEditsDiscarded\(\(\) => generate\(\{ randomSeed: true \}\)\)\)/.test(appJs)) fail('layout', 'Generate with random seed should ask for a random seed (after the edits warning)');
+  if (!/generate\(\{\s*fillSeed:\s*true\s*\}\)/.test(submitHandler)) fail('layout', 'Generate Dungeon (the form submit) should fill a blank seed box');
+  if (!/\$\('generateRandom'\)\.addEventListener\('click', \(\) => ifEditsDiscarded\(\(\) => generate\(\{ randomSeed: true \}\)\)\)/.test(appJs)) fail('layout', 'Random Dungeon should ask for a random seed (after the edits warning)');
   if (!/if \(!openLink\(\)\) \{\s*restoreSettings\(\);\s*if \(!restoreDungeon\(\)\) generate\(\);\s*\}/.test(appJs)) fail('layout', 'the first dungeon (page opening) should not fill the seed box, and kept settings and a kept dungeon come after a link');
   if (!/fillSeed && !randomSeed && check\.params\.seed === null/.test(appJs)) fail('layout', 'only a blank seed should be filled in, never one that was typed');
   if (!/if \(randomSeed \|\| \(fillBlankSeed && \$\('seed'\)\.value\.trim\(\) === ''\)\) \$\('seed'\)\.value = dungeon\.seed/.test(appJs)) fail('layout', 'the seed box should get the seed the dungeon was built from (always for the random button, only if blank otherwise)');
@@ -2177,7 +2177,7 @@ console.log('== brand style (Duckweed’s Aeldara)');
   for (const [name, want] of [['--font-display', "'IM Fell English SC'"], ['--font-fell', "'IM Fell English'"], ['--font-text', "'Crimson Pro'"]]) {
     if (!new RegExp(`${name}:\\s*${escapeRe(want)},\\s*Georgia, serif`).test(noComments)) fail('brand', `${name} should be ${want} with Georgia and serif behind it`);
   }
-  for (const sel of ['.map-title', '.blade-toggle', '.colors h3, .export h3, .settings h3', '#generate, #generateRandom', '.toolbar button', '.dialog-buttons button', '.map-mark']) {
+  for (const sel of ['.map-title', '.blade-toggle', '.colors h3, .export h3, .settings h3', '#generate, #generateRandom', '.toolbar button', '.dialog-buttons button']) {
     if (!/font-family:\s*var\(--font-display\)/.test(rule(sel))) fail('brand', `${sel} should be set in the display face (IM Fell English SC)`);
   }
   for (const sel of ['.canvas-hint']) if (!/font-family:\s*var\(--font-fell\)/.test(rule(sel)) || !/font-style:\s*italic/.test(rule(sel))) fail('brand', `${sel} should be IM Fell English italic`);
@@ -2196,10 +2196,10 @@ console.log('== brand style (Duckweed’s Aeldara)');
   if (!/<div class="map-frame"><div class="map-frame-inner">\s*<div class="map-area">\s*<canvas id="map"/.test(html)) fail('brand', 'the map canvas should sit inside the double frame');
   if (!/<header class="map-head">\s*<div class="map-head-name">\s*<h1 class="map-title">/.test(html)) fail('brand', 'the title should sit in the header that carries the 2pt rule');
 
-  // selections are wine: the segment chosen and Generate with random seed are filled, Re-generate is an outline, chips on show a gold diamond, swatches are square with a gold outline on the one chosen
+  // selections are wine: the segment chosen and Random Dungeon are filled, Re-generate is an outline, chips on show a gold diamond, swatches are square with a gold outline on the one chosen
   if (!/background:\s*var\(--fill\)/.test(rule('.seg-options input:checked + label'))) fail('brand', 'the segment chosen should be filled wine');
-  if (!/background:\s*var\(--fill\)/.test(rule('#generateRandom')) || !/color:\s*var\(--on-fill\)/.test(rule('#generateRandom'))) fail('brand', 'Generate with random seed should be filled wine (rose-wine with dark text in Dark)');
-  if (!/background:\s*transparent/.test(rule('#generate')) || !/border:\s*1px solid var\(--wine\)/.test(rule('#generate'))) fail('brand', 'Re-generate dungeon should be a wine outline');
+  if (!/background:\s*var\(--fill\)/.test(rule('#generateRandom')) || !/color:\s*var\(--on-fill\)/.test(rule('#generateRandom'))) fail('brand', 'Random Dungeon should be filled wine (rose-wine with dark text in Dark)');
+  if (!/background:\s*transparent/.test(rule('#generate')) || !/border:\s*1px solid var\(--wine\)/.test(rule('#generate'))) fail('brand', 'Generate Dungeon should be a wine outline');
   if (!/content:\s*'\\25C6'/.test(rule('.chip-body::before'))) fail('brand', 'a chip should carry a diamond');
   if (!/color:\s*var\(--gold\)/.test(rule('.chip input:checked + .chip-body::before'))) fail('brand', 'the diamond on a chip that is on should be gold');
   if (!/outline:\s*var\(--stroke-frame-outer\) solid var\(--gold\)|outline:\s*1\.5pt solid var\(--gold\)/.test(noComments.match(/\.swatch input:checked \+ \.dot,\s*\.swatch\.custom\.active \.dot\s*\{[^}]*\}/)[0])) fail('brand', 'the swatch chosen should have a gold outline');
@@ -3975,8 +3975,8 @@ console.log('== edit mode');
   if (!/\.toolbar\s*\{[^}]*z-index:\s*2/.test(css)) fail('edit', 'the toolbar must sit above the legend card, or the card can cover the Edit button');
   if (!/@media \(max-width: 760px\)[^]*?\.toolbar-row,\s*\.edit-tools\s*\{\s*flex-direction:\s*column/.test(css)) fail('edit', 'on a narrow screen the toolbar should stack, so the Edit button does not run under the legend');
   // every way of building a new dungeon asks first (the first one, at page load, has nothing to lose)
-  if (!/\$\('params'\)\.addEventListener\('submit',[^]*?ifEditsDiscarded\(\(\) => generate\(\{ fillSeed: true \}\)\)/.test(app)) fail('edit', 'Re-generate dungeon does not ask before losing edits');
-  if (!/\$\('generateRandom'\)\.addEventListener\('click', \(\) => ifEditsDiscarded\(/.test(app)) fail('edit', 'Generate with random seed does not ask before losing edits');
+  if (!/\$\('params'\)\.addEventListener\('submit',[^]*?ifEditsDiscarded\(\(\) => generate\(\{ fillSeed: true \}\)\)/.test(app)) fail('edit', 'Generate Dungeon does not ask before losing edits');
+  if (!/\$\('generateRandom'\)\.addEventListener\('click', \(\) => ifEditsDiscarded\(/.test(app)) fail('edit', 'Random Dungeon does not ask before losing edits');
   if (!/\$\('resetSettings'\)\.addEventListener\('click', \(\) =>\s*ifEditsDiscarded\(/.test(app)) fail('edit', 'Reset all does not ask before losing edits');
   if (!/addEventListener\('hashchange', \(\) => ifEditsDiscarded\(openLink, dropLinkFromAddress\)\)/.test(app)) fail('edit', 'opening a link does not ask before losing edits');
   const calls = (app.match(/\bgenerate\(/g) || []).length;

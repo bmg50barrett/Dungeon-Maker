@@ -399,7 +399,7 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
   line-height: 1.2;
   cursor: pointer;
 }
-/* Generate with random seed, the main button: filled wine (rose-wine with dark text in the dark theme) */
+/* Random Dungeon, the main button: filled wine (rose-wine with dark text in the dark theme) */
 #generateRandom {
   color: var(--on-fill);
   background: var(--fill);
@@ -407,7 +407,7 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
 }
 #generateRandom:hover { color: var(--paper); background: var(--ink); border-color: var(--ink); }
 
-/* Re-generate dungeon: a wine outline */
+/* Generate Dungeon: a wine outline */
 #generate {
   color: var(--heading);
   background: transparent;
@@ -511,7 +511,7 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
 .level-tabs-bar button:hover { background: var(--tint); }
 .level-tabs-bar button[aria-pressed='true'] { color: var(--on-fill); background: var(--fill); border-color: var(--wine); font-weight: 600; }
 .level-tabs-bar button:focus-visible { position: relative; outline: 2px solid var(--focus); outline-offset: 2px; }
-/* the build buttons, at the right of the bar: Generate with random seed, last, is filled wine, the other two are wine outlines (all in
+/* the build buttons, at the right of the bar: Random Dungeon, last, is filled wine, the other two are wine outlines (all in
    the engraved small caps of the main buttons; #generate and #generateRandom get their colors from the rules for the main buttons) */
 .map-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-left: auto; }
 .map-actions #generate, .map-actions #generateRandom, .map-actions #regenLevel {
@@ -657,7 +657,6 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
   line-height: 1.05;
   color: var(--heading);
 }
-.map-mark { font-family: var(--font-display); font-size: 15px; letter-spacing: 0.25em; color: var(--gold); }
 /* the double gold frame: a heavy 1.5pt line, then a fine 0.5pt line inset 5pt */
 .map-frame {
   display: flex;

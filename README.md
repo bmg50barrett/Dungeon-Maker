@@ -26,8 +26,8 @@ Duckweed's Aeldara is a printed-book look: parchment, ink, and two accents, wine
   else; IM Fell English italic for hint lines.
 - **Rules of the house**: square corners everywhere, no all caps (small caps instead), no shadows. A column or
   section heading has a 1pt gold rule under it, the title a 2pt one. The map sits in a double gold frame
-  (a 1.5pt line, then a 0.5pt line 5pt inside it). The segment chosen in a choice and Generate with random seed are filled wine
-  (rose-wine with dark text in Dark); Re-generate dungeon is a wine outline; a chip that is on shows a gold
+  (a 1.5pt line, then a 0.5pt line 5pt inside it). The segment chosen in a choice and Random Dungeon are filled wine
+  (rose-wine with dark text in Dark); Generate Dungeon is a wine outline; a chip that is on shows a gold
   diamond; color swatches are square with a gold outline on the one chosen; a dropdown is an input's square box with a wine
   triangle, drawn in CSS. Every input, dropdown and button is at least 44px tall. The brand has no icon set, so the little shape pictures on the chips are hidden: the diamond is
   the only mark.
@@ -53,7 +53,7 @@ Duckweed's Aeldara is a printed-book look: parchment, ink, and two accents, wine
 | Hallway types | short, spine, curly, branching (default on the page: Short, Spine and Branching) | Which kinds of hallway may be built; see below. At least one of short, spine and curly must be on wherever hallways can occur at all. Every type that is on is used at least once in the dungeon: the builder favours a type that has not turned up yet, and builds the dungeon again (a few times, from other numbers) if one still has not. This holds where hallways can occur at all and the dungeon has hallways enough; a Gauntlet has no spines, and Radial and Main St. have few hallways, so they cannot always manage it |
 | Hallway width | Whole number 1–10 (default 1) | How many squares across the generated hallways are. A wide hallway is a band that many squares across, with a full square at each bend; rooms still open onto it through a single door square, as before. The spacing rules stay the same, so the dungeon simply comes out bigger, and at wide settings a small or tightly packed dungeon may fit fewer rooms than asked for (the page says so). Hallways you draw yourself in Edit mode, or add with the MCP server's `edit_dungeon`, are always 1 wide |
 | Hallway doors | A dropdown: None / Less / More / All (default All on the page) | How many of a hallway's openings into rooms have a door rather than an open archway: none, about 1 in 3, about 2 in 3, or all. Doorway connections always have a door. Changing it only adds or removes doors: with the same seed the rooms and hallways stay put |
-| Seed (optional) | any text | Same inputs + same seed = identical dungeon. If the box is blank when you press **Re-generate dungeon**, the seed that was used is put in the box, so you can keep it, change it or share it; the next Generate then rebuilds that same dungeon, so clear the box (or use **Generate with random seed**, which ignores whatever is in the box, builds a new dungeon and puts its seed in the box) for a new one. The first dungeon, drawn when the page opens, does not fill the box |
+| Seed (optional) | any text | Same inputs + same seed = identical dungeon. If the box is blank when you press **Generate Dungeon**, the seed that was used is put in the box, so you can keep it, change it or share it; the next Generate then rebuilds that same dungeon, so clear the box (or use **Random Dungeon**, which ignores whatever is in the box, builds a new dungeon and puts its seed in the box) for a new one. The first dungeon, drawn when the page opens, does not fill the box |
 
 Room areas follow a normal distribution centred on the average. A room cannot be
 smaller than one square, which would nudge the mean upward at high variance, so the
@@ -320,11 +320,11 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
     grew the map is taken back whole, and the picture stays where it was on the screen. They work whether or not Edit
     mode is on, and across levels (the level on the map is kept). The history holds the last 100 steps (fewer on a very
     big dungeon) and is wiped when a new dungeon is built. Ctrl+Z inside a text box is that box's own undo.
-  - **Re-generate dungeon**, **Generate with random seed**, **Reset all** and a share link opened in the
+  - **Generate Dungeon**, **Random Dungeon**, **Reset all** and a share link opened in the
     address bar all build a new dungeon, so if a door or hallway has been changed they first ask in a box:
     *"Re-generating the dungeon will lose all edits you made to its doors and hallways. To keep them, save the
     picture or the data first."* **Keep editing** (also Esc, or a click outside the
-    box) leaves everything as it was; **Re-generate anyway** goes ahead. An edit that is put back as it was
+    box) leaves everything as it was; **Generate anyway** goes ahead. An edit that is put back as it was
     is not an edit, so four clicks on a door, or drawing a hallway and deleting it, and the box does not
     appear. Changing the inputs or the colors, or the Display choices, never builds a new dungeon, so it
     never asks.
@@ -355,7 +355,7 @@ theme is about the viewer, not the dungeon, so a share link does not hold it and
 - **An edited dungeon is remembered.** Once you have changed the dungeon (a door, a hallway, a room, stairs, a room name,
   a level built again), the whole dungeon is kept after each change and comes back on your next visit, as you left
   it, instead of a new one; a line under the map says so. A dungeon you have not changed is not kept, so a visit still
-  starts with a new one. What is kept goes when a new dungeon is built (**Re-generate dungeon**, **Generate with random
+  starts with a new one. What is kept goes when a new dungeon is built (**Generate Dungeon**, **Generate with random
   seed**, **Reset all**), which asks first, as always. **Undo and Redo** start empty again after a visit. A share link
   opened in the address bar wins over a kept dungeon, which stays kept until you change something or build a new
   dungeon. It lives under `dungeonMaker.dungeon`; if the browser will not store it (blocked, or full), the page says so
@@ -402,7 +402,7 @@ are reached by stairs only.
   square where stairs lead to another level, and an entrance cannot be put on one. Entrances stay on level 1 (adding
   and removing them is the MCP server's). The **All** view is for looking: Edit mode goes off there. The MCP server's
   `edit_dungeon` takes a `level` too, and has `add_stair`, `move_stair` and `remove_stair` for the stairs, and `add_room`, `move_room` and `delete_room` for the rooms.
-- **Regenerate level** (at the right above the map, the first of the three build buttons, before **Re-generate dungeon** and **Generate with random seed**, on a single level's tab) builds the level on the map again from
+- **Generate Level** (at the right above the map, the first of the three build buttons, before **Generate Dungeon** and **Random Dungeon**, on a single level's tab) builds the level on the map again from
   other random numbers, and leaves the others as they are. It has the dungeon's settings (room count, layout and so
   on); its rooms are numbered from 1 and have no names. The stairs to the levels next to it stay where they still fit
   on the new floor, and others are placed again on squares that work for both; if the new floor cannot be joined to

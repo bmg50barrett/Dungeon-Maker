@@ -381,7 +381,7 @@
       showFloor();
       showSummary(kept.dungeon, builtMs);
       if (!editsMade()) throw new Error('the kept dungeon has no edits');
-      $('canvasHint').textContent = 'Your edited dungeon is back as you left it. Re-generate dungeon builds a new one.';
+      $('canvasHint').textContent = 'Your edited dungeon is back as you left it. Generate Dungeon builds a new one.';
       return true;
     } catch (err) {
       console.error(err);
@@ -747,7 +747,7 @@
   function buildLevelTabs(n) {
     const bar = $('levelTabs');
     bar.textContent = '';
-    // the level buttons and All are one segmented control (Regenerate level, with the other buttons that build, is beside it)
+    // the level buttons and All are one segmented control (Generate Level, with the other buttons that build, is beside it)
     const group = document.createElement('div');
     group.className = 'level-tabs-bar';
     for (let i = 1; i <= n; i++) group.append(levelButton(n <= 6 ? `Level ${i}` : String(i), i, `Show level ${i}`));
@@ -770,7 +770,7 @@
         $('canvasHint').textContent = res.reason.charAt(0).toUpperCase() + res.reason.slice(1);
         return;
       }
-      recordEdit(`Regenerate level ${n}`, token, res);
+      recordEdit(`Generate Level ${n}`, token, res);
       floorsAsBuilt[n - 1] = floorStates(d)[n - 1];
       // the map may have changed size and moved every level: the view moves the other way, so the picture stays where it was
       renderer.view.tx -= res.dx * renderer.view.scale;
@@ -785,7 +785,7 @@
     askToDiscardEdits({
       title: 'Lose your edits to this level?',
       text: `Building level ${n} again will lose the edits you made to its doors and hallways, and the room names you typed on it. The other levels stay as they are.`,
-      button: 'Regenerate level',
+      button: 'Generate Level',
     }).then((yes) => yes && go());
   }
 
@@ -854,7 +854,7 @@
    * that new seed is then put in the seed field.
    * fromLink is for a dungeon asked for by a share link: the link stays in the address bar.
    * Any other new dungeon is no longer the one the link describes, so the link is dropped.
-   * fillSeed is for the Re-generate dungeon button: if the seed box was blank, it is filled in
+   * fillSeed is for the Generate Dungeon button: if the seed box was blank, it is filled in
    * with the seed the new dungeon was built from, so that seed can be kept, changed or shared.
    */
   function generate({ randomSeed = false, fromLink = false, fillSeed = false } = {}) {
