@@ -2283,7 +2283,10 @@ console.log('== brand style (Duckweed’s Aeldara)');
     if (!/(min-)?height:\s*var\(--tap\)/.test(rule(sel))) fail('brand', `${sel} should be at least 44px tall`);
   }
   if (!/min-height:\s*var\(--tap\)/.test(rule('.blade-toggle')) && !/min-height:\s*(5\d|[6-9]\d)px/.test(rule('.blade-toggle'))) fail('brand', 'a column heading should be at least 44px tall');
-  if (!/height:\s*var\(--tap\)/.test(rule('.toolbar button'))) fail('brand', 'the buttons on the map should be at least 44px tall');
+  // the map's buttons are smaller with a mouse (34px), and keep the full tap size where there is a finger (touch screens, phones)
+  if (!/height:\s*var\(--tool\)/.test(rule('.toolbar button'))) fail('brand', 'the buttons on the map should be sized by --tool');
+  if (!/\.toolbar \{[^}]*--tool:\s*34px/.test(noComments)) fail('brand', 'the map buttons should be 34px tall with a mouse');
+  if (!/@media \(pointer: coarse\), \(max-width: 760px\) \{ \.toolbar \{ --tool: var\(--tap\); \} \}/.test(noComments)) fail('brand', 'the map buttons should be at least 44px tall on touch screens and phones');
 
   // print: the picture alone, and its page is light whatever the page theme is
   const printCss = css.slice(css.indexOf('@media print'));
