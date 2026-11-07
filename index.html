@@ -87,6 +87,12 @@
               </label>
               <p class="hint" id="edgeOnlyHint">Entrances are doors in the outer walls.</p>
             </div>
+
+            <div class="field">
+              <label for="seed">Seed <span class="optional">(optional)</span></label>
+              <input id="seed" name="seed" type="text" placeholder="blank = random">
+              <p class="hint">Same inputs + same seed = same dungeon.</p>
+            </div>
           </div>
         </section>
 
@@ -217,7 +223,7 @@
           </div>
         </section>
 
-        <!-- column 4: seed, results (summary), share and export, settings. (The buttons that build a dungeon are above the map.) -->
+        <!-- column 4: results (summary), share and export, settings. (The buttons that build a dungeon are above the map.) -->
         <section class="blade" id="blade-export" data-blade="export">
           <h2 class="blade-head">
             <button type="button" class="blade-toggle" aria-expanded="true" aria-controls="blade-export-body" title="Collapse Export">
@@ -227,12 +233,6 @@
             </button>
           </h2>
           <div class="blade-body" id="blade-export-body">
-            <div class="field">
-              <label for="seed">Seed <span class="optional">(optional)</span></label>
-              <input id="seed" name="seed" type="text" placeholder="blank = random">
-              <p class="hint">Same inputs + same seed = same dungeon.</p>
-            </div>
-
             <section id="summary" class="summary" aria-live="polite"></section>
 
 

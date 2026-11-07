@@ -1972,10 +1972,10 @@ console.log('== page layout');
     return col;
   };
   const expected = {
-    layout: ['name="layout"', 'name="spacing"', 'id="levels"', 'id="levelStairs"', 'id="entrances"', 'id="edgeEntrancesOnly"'],
+    layout: ['name="layout"', 'name="spacing"', 'id="levels"', 'id="levelStairs"', 'id="entrances"', 'id="edgeEntrancesOnly"', 'id="seed"'],
     rooms: ['id="roomCount"', 'id="avgRoomSize"', 'id="minRoomWidth"', 'id="minRoomLength"', 'id="sizeVariance"', 'name="roomShape"'],
     hallways: ['name="connectionType"', 'id="connectionRandomness"', 'name="hallType"', 'id="hallWidth"', 'name="hallDoors"'],
-    export: ['id="seed"', 'id="summary"'],
+    export: ['id="summary"'],
     display: ['name="labelPosition"', 'id="showGrid"', 'id="showLabels"', 'id="colorPickers"', 'id="resetColors"'],
   };
   for (const [col, needles] of Object.entries(expected)) {

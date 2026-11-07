@@ -328,9 +328,9 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
     is not an edit, so four clicks on a door, or drawing a hallway and deleting it, and the box does not
     appear. Changing the inputs or the colors, or the Display choices, never builds a new dungeon, so it
     never asks.
-- The inputs are in five columns side by side: **Layout** (the overall layout and room spacing), **Rooms** (count, sizes, shapes),
+- The inputs are in five columns side by side: **Layout** (the overall layout, room spacing, levels, entrances and the seed), **Rooms** (count, sizes, shapes),
   **Hallways** (connection type, randomization, hallway types, doors, entrances),
-  **Export** (seed, the results, share and export, settings) and **Display** (theme, label position, the
+  **Export** (the results, share and export, settings) and **Display** (theme, label position, the
   grid and room-number switches, and colors). Display only changes how the map is
   drawn (and, for the theme, the page around it), so it applies at once. Click a
   column's title bar to collapse it into a tab in one narrow bar at the left (the collapsed columns stack there, in the same order) and give the map more room, and
