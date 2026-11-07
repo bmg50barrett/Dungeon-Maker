@@ -2228,10 +2228,18 @@ console.log('== brand style (Duckweed’s Aeldara)');
   for (const m of noComments.matchAll(/box-shadow:\s*([^;]+);/g)) if (!/^inset\b/.test(m[1].trim())) fail('brand', `a drop shadow: box-shadow ${m[1].trim()}`);
   if (/drop-shadow\(/.test(noComments)) fail('brand', 'no drop shadows');
 
-  // the type: Google Fonts, engraved small caps for the title, headings and the main buttons, Fell italic for hints, Crimson for the rest
-  const fontsLink = (html.match(/<link rel="stylesheet" href="(https:\/\/fonts\.googleapis\.com\/css2[^"]+)"/) || [])[1] || '';
-  for (const family of ['Crimson+Pro', 'IM+Fell+English:ital@0;1', 'IM+Fell+English+SC']) if (!fontsLink.includes(`family=${family}`)) fail('brand', `the Google Fonts link has no ${family}`);
-  if (!/display=swap/.test(fontsLink)) fail('brand', 'the fonts should swap in, so the page is readable before they arrive');
+  // the type: engraved small caps for the title, headings and the main buttons, Fell italic for hints, Crimson for the rest.
+  // The fonts are files in fonts/ (nothing is fetched from another site), each with its license beside it
+  if (/fonts\.(googleapis|gstatic)\.com/.test(html) || /fonts\.(googleapis|gstatic)\.com/.test(css)) fail('brand', 'the fonts should come from fonts/, not from Google');
+  const faceRules = [...css.matchAll(/@font-face\s*\{([^}]*)\}/g)].map((m) => m[1]);
+  for (const [family, style] of [['Crimson Pro', 'normal'], ['Crimson Pro', 'italic'], ['IM Fell English', 'normal'], ['IM Fell English', 'italic'], ['IM Fell English SC', 'normal']]) {
+    const f = faceRules.find((r) => r.includes(`font-family: '${family}'`) && new RegExp(`font-style:\\s*${style}`).test(r));
+    if (!f) { fail('brand', `no @font-face for ${family} ${style}`); continue; }
+    if (!/font-display:\s*swap/.test(f)) fail('brand', `${family} ${style} should swap in, so the page is readable before it arrives`);
+    const file = (/url\('fonts\/([^']+)'\)/.exec(f) || [])[1];
+    if (!file || !fs.existsSync(path.join(__dirname, '..', 'fonts', file))) fail('brand', `${family} ${style}: the font file is missing (${file})`);
+  }
+  for (const lic of ['OFL-crimsonpro.txt', 'OFL-imfellenglish.txt', 'OFL-imfellenglishsc.txt']) if (!fs.existsSync(path.join(__dirname, '..', 'fonts', lic))) fail('brand', `fonts/${lic} (the font's license) is missing`);
   const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const rule = (selector) => ((noComments.match(new RegExp(`(?:^|\\})\\s*${escapeRe(selector)}\\s*\\{([^}]*)\\}`)) || [])[1] || '').replace(/\s+/g, ' ');
   for (const [name, want] of [['--font-display', "'IM Fell English SC'"], ['--font-fell', "'IM Fell English'"], ['--font-text', "'Crimson Pro'"]]) {

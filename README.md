@@ -23,7 +23,9 @@ Duckweed's Aeldara is a printed-book look: parchment, ink, and two accents, wine
   picture on screen, the PNG and the printout always match. For a dark map, pick the dark swatches
   (Background **Night**, Rooms **Umber**, Hallways **Soot**, Lines and text **Bone**).
 - **Type**: IM Fell English SC for the title, column headings and the main buttons; Crimson Pro for everything
-  else; IM Fell English italic for hint lines.
+  else; IM Fell English italic for hint lines. The fonts are files in `fonts/` (Latin letters only; anything else
+  falls back to Georgia), so the page looks the same offline and nothing is fetched from another site. They are open
+  fonts (SIL Open Font License); each license is beside its font.
 - **Rules of the house**: square corners everywhere, no all caps (small caps instead), no shadows. A column or
   section heading has a 1pt gold rule under it, the title a 2pt one. The map sits in a double gold frame
   (a 1.5pt line, then a 0.5pt line 5pt inside it). The segment chosen in a choice and Random Dungeon are filled wine
