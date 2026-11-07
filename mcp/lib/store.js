@@ -80,7 +80,8 @@ class Store {
   /** Keep a dungeon under a new id. `built` is its state as made or opened, to tell later whether it was edited. */
   add(dungeon, { file = null } = {}) {
     const id = `d${++this.counter}`;
-    const item = { id, dungeon, built: load().editState(dungeon), file };
+    // `history` is what undo_edit and redo_edit use: the changes made to this dungeon here
+    const item = { id, dungeon, built: load().editState(dungeon), file, history: new (load().EditHistory)() };
     this.items.set(id, item);
     this.lastId = id;
     return item;

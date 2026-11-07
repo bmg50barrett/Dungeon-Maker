@@ -409,6 +409,13 @@
       input.placeholder = 'Unnamed';
       input.autocomplete = 'off';
       input.setAttribute('aria-label', `Name of room ${DM.roomTag(room)}`);
+      // a name typed in this box is one step, kept when the box is left (or Enter is pressed)
+      let before = null;
+      input.addEventListener('focus', () => (before = snapshotNow()));
+      input.addEventListener('change', () => {
+        if (before) recordEdit(`Name room ${DM.roomTag(room)}`, before);
+        before = null;
+      });
       input.addEventListener('input', () => {
         const name = input.value.replace(/\s+/g, ' ').trim();
         if (name) room.name = name;
@@ -452,8 +459,10 @@
   });
   $('clearRoomNames').addEventListener('click', () => {
     if (!DM.current) return;
+    const token = snapshotNow();
     for (const room of DM.allRooms(DM.current)) delete room.name;
     showRoomNames(DM.current);
+    recordEdit('Clear the room names', token);
   });
 
   const MAP_HINT = 'Scroll to zoom · drag to pan · double-click to fit';
@@ -490,19 +499,77 @@
 
   $('editMode').addEventListener('click', () => setEditMode($('editMode').getAttribute('aria-pressed') !== 'true'));
   for (const b of $('editTools').querySelectorAll('button')) b.addEventListener('click', () => setEditTool(b.dataset.tool));
-  renderer.onDoorChange = updateDoorLegend;
+  // ---- undo and redo -----------------------------------------------------------------------
+  // Every change to the dungeon on the page (a door, a hallway, stairs, a room name, a level built again) is kept as a step: DM.EditHistory
+  // holds a copy of the dungeon from before it. Undo and Redo are the two buttons on the map and Ctrl+Z / Ctrl+Y (Ctrl+Shift+Z).
+  const editHistory = new DM.EditHistory();
+  const snapshotNow = () => (DM.current ? editHistory.snapshot(DM.current) : null);
+  renderer.beforeEdit = snapshotNow;
+
+  function updateHistoryButtons() {
+    const undo = $('undoEdit');
+    const redo = $('redoEdit');
+    undo.disabled = !editHistory.canUndo;
+    redo.disabled = !editHistory.canRedo;
+    undo.title = editHistory.canUndo ? `Undo: ${editHistory.undoLabel} (Ctrl+Z)` : 'Nothing to undo';
+    redo.title = editHistory.canRedo ? `Redo: ${editHistory.redoLabel} (Ctrl+Y)` : 'Nothing to redo';
+  }
+
+  /** A change was made; `token` is the dungeon as it was before it (renderer.beforeEdit, or snapshotNow). */
+  function recordEdit(label, token, shift) {
+    if (DM.current) editHistory.push(DM.current, label, token, shift);
+    updateHistoryButtons();
+  }
+
+  /** Show the dungeon again after undo or redo put an older or newer one in it. */
+  function showHistoryStep(res, verb) {
+    const d = DM.current;
+    if (!res.ok || !d) return;
+    // the map may have grown or shrunk and moved every square: the view moves the other way, so the picture stays where it was
+    renderer.view.tx -= res.dx * renderer.view.scale;
+    renderer.view.ty -= res.dy * renderer.view.scale;
+    if (DM.levelCount(d) > 1) showFloor();
+    else renderer.setDungeon(d, { keepView: true });
+    updateDoorLegend();
+    showSummary(d, builtMs);
+    if (namePanelOpen()) showRoomNames(d);
+    $('canvasHint').textContent = `${verb}: ${res.label}`;
+    updateHistoryButtons();
+  }
+  const undoEdit = () => DM.current && showHistoryStep(editHistory.undo(DM.current), 'Undid');
+  const redoEdit = () => DM.current && showHistoryStep(editHistory.redo(DM.current), 'Redid');
+  $('undoEdit').addEventListener('click', undoEdit);
+  $('redoEdit').addEventListener('click', redoEdit);
+  window.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    const tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable)) return; // (those have undo of their own)
+    if ($('discardDialog').open) return;
+    const key = e.key.toLowerCase();
+    if (key === 'z' && !e.shiftKey) undoEdit();
+    else if (key === 'y' || (key === 'z' && e.shiftKey)) redoEdit();
+    else return;
+    e.preventDefault();
+  });
+
+  renderer.onDoorChange = ({ token } = {}) => {
+    updateDoorLegend();
+    recordEdit('Change a door', token);
+  };
   // hallways were drawn or deleted: the legend, and the counts and footprint in the summary, follow
-  renderer.onStairChange = () => {
+  renderer.onStairChange = ({ kind, token } = {}) => {
     updateDoorLegend();
     showSummary(DM.current, builtMs);
+    recordEdit(kind === 'remove' ? 'Remove stairs' : 'Add stairs', token);
   };
   // a click the stairs tool could not use: say why, in the hint under the map, until the next tool or the next click
   renderer.onNote = (text) => {
     $('canvasHint').textContent = text;
   };
-  renderer.onLayoutChange = () => {
+  renderer.onLayoutChange = ({ kind, dx, dy, token } = {}) => {
     updateDoorLegend();
     showSummary(DM.current, builtMs);
+    recordEdit(kind === 'erase' ? 'Delete a hallway' : 'Draw a hallway', token, { dx, dy });
   };
 
   // ---- levels ---------------------------------------------------------------------------
@@ -555,11 +622,13 @@
     if (!d || viewLevel === 'all' || DM.levelCount(d) < 2) return;
     const n = viewLevel;
     const go = () => {
+      const token = snapshotNow();
       const res = DM.regenerateLevel(d, n);
       if (!res.ok) {
         $('canvasHint').textContent = res.reason.charAt(0).toUpperCase() + res.reason.slice(1);
         return;
       }
+      recordEdit(`Regenerate level ${n}`, token, res);
       floorsAsBuilt[n - 1] = floorStates(d)[n - 1];
       // the map may have changed size and moved every level: the view moves the other way, so the picture stays where it was
       renderer.view.tx -= res.dx * renderer.view.scale;
@@ -670,6 +739,8 @@
         DM.current = dungeon;
         editsAsBuilt = DM.editState(dungeon);
         floorsAsBuilt = floorStates(dungeon);
+        editHistory.clear();
+        updateHistoryButtons();
         builtMs = ms;
         showFloor();
         showSummary(dungeon, ms);

@@ -297,6 +297,7 @@ function createTools({ store = new Store() } = {}) {
       const d = item.dungeon;
       const levels = dm().levelCount(d);
       if (args.level !== undefined && (!Number.isInteger(args.level) || args.level < 1)) throw new ToolError('"level" must be a whole number from 1.');
+      const before = item.history.snapshot(d); // (for undo_edit)
       const shift = { x: 0, y: 0 }; // how far the map has moved so far in this call
       // a square of each hallway of each level, to find it again by its H number
       const snap = { hallCells: Array.from({ length: levels }, (_, i) => dm().floorView(d, i + 1).halls.map((h) => h.cells[0])) };
@@ -320,6 +321,8 @@ function createTools({ store = new Store() } = {}) {
         }
       });
       if (done === 0) throw new ToolError(`None of the edits could be made.\n${report.join('\n')}`);
+      const kinds = [...new Set(args.edits.filter(isObject).map((e) => String(e.type)))];
+      item.history.push(d, `${done} edit${done === 1 ? '' : 's'} (${kinds.slice(0, 4).join(', ')}${kinds.length > 4 ? ', ...' : ''})`, before, { dx: shift.x, dy: shift.y });
       const moved = shift.x !== 0 || shift.y !== 0;
       const notes = [];
       if (moved) notes.push(`The map changed size at its top or left, so every square has moved by (${shift.x >= 0 ? '+' : ''}${shift.x},${shift.y >= 0 ? '+' : ''}${shift.y}). Use the coordinates in the description below from now on.`);
@@ -357,13 +360,40 @@ function createTools({ store = new Store() } = {}) {
       const dm = load();
       if (dm.levelCount(d) < 2) throw new ToolError('This dungeon has only one level. Make a new one with generate_dungeon, or one with several levels.');
       if (args.level > dm.levelCount(d)) throw new ToolError(`This dungeon has ${dm.levelCount(d)} levels, so there is no level ${args.level}.`);
+      const before = item.history.snapshot(d);
       const res = dm.regenerateLevel(d, args.level, args.seed === undefined || args.seed === '' ? {} : { seed: args.seed });
       if (!res.ok) throw new ToolError(`Level ${args.level} was not built again: ${res.reason}`);
+      item.history.push(d, `level ${args.level} built again`, before, { dx: res.dx, dy: res.dy });
       const notes = [`Level ${args.level} was built again (seed ${res.seed}): ${res.kept} stair${res.kept === 1 ? '' : 's'} kept where they were, ${res.added} placed anew. The other levels are as they were.`];
       if (res.dx !== 0 || res.dy !== 0) notes.push(`The map changed size at its top or left, so every square has moved by (${res.dx >= 0 ? '+' : ''}${res.dx},${res.dy >= 0 ? '+' : ''}${res.dy}). Use the coordinates in the description below from now on.`);
       return answer(item, { picture, intro: notes.join('\n') });
     },
   });
+
+  for (const [name, verb, past, title] of [['undo_edit', 'undo', 'Undid', 'Undo an edit'], ['redo_edit', 'redo', 'Redid', 'Redo an edit']]) {
+    tools.push({
+      name,
+      description:
+        verb === 'undo'
+          ? 'Take back the last change made to a dungeon with edit_dungeon or regenerate_level (room names included), putting it back as it was. Can be called again to go further back, and redo_edit makes a change again that was taken back. ' +
+            'Answers with what was undone, the new description and the picture. Changes made in the app are not in this history: it holds what was done to the dungeon here, since it was made or opened.'
+          : 'Make a change again that undo_edit took back. A new change made after an undo ends what could be redone. Answers with what was redone, the new description and the picture.',
+      inputSchema: { type: 'object', properties: { id: ID, picture: PICTURE }, additionalProperties: false },
+      annotations: { title, readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      run(args) {
+        only(args, ['id', 'picture'], name);
+        const picture = wantsPicture(args);
+        const item = store.get(args.id);
+        const res = item.history[verb](item.dungeon);
+        if (!res.ok) throw new ToolError(`Nothing to ${verb}: ${item.id} has no ${verb === 'undo' ? 'changes made here to take back' : 'undone changes to make again'}.`);
+        const notes = [`${past}: ${res.label}.`];
+        if (res.dx !== 0 || res.dy !== 0) notes.push(`The map changed size at its top or left, so every square has moved by (${res.dx >= 0 ? '+' : ''}${res.dx},${res.dy >= 0 ? '+' : ''}${res.dy}). Use the coordinates in the description below from now on.`);
+        const more = [item.history.canUndo ? `${item.history.undos.length} more to undo` : '', item.history.canRedo ? `${item.history.redos.length} to redo` : ''].filter(Boolean);
+        if (more.length) notes.push(`(${more.join(', ')}.)`);
+        return answer(item, { picture, intro: notes.join('\n') });
+      },
+    });
+  }
 
   tools.push({
     name: 'save_dungeon',

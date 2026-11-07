@@ -73,6 +73,7 @@
     setDungeon(dungeon, { keepView = false } = {}) {
       this.dungeon = dungeon;
       this.model = dungeon ? this._buildModel(dungeon) : null;
+      this._clearHover();
       if (keepView && dungeon) this.requestDraw();
       else this.fit();
     }
@@ -393,19 +394,21 @@
     _clickAt(e) {
       if (this.editTool === 'erase') {
         const [x, y] = this._cellAt(e);
+        const token = this.beforeEdit ? this.beforeEdit() : null;
         const res = DM.deleteHallStretch(this.dungeon, x, y);
-        if (res.ok) this._layoutChanged(res, 'erase');
+        if (res.ok) this._layoutChanged(res, 'erase', token);
         return;
       }
       if (this.editTool === 'stairs') {
         const plan = this._stairPlan(this._cellAt(e), e.shiftKey);
         if (!plan) return;
         const [x, y] = this._cellAt(e);
+        const token = this.beforeEdit ? this.beforeEdit() : null;
         const res = !plan.can ? { ok: false, reason: plan.text } : plan.kind === 'remove' ? DM.removeStair(this.dungeon, plan.stair.letter) : DM.addStair(this.dungeon, plan.upper, x, y);
         if (res.ok) {
           this._hoverStair = null;
           this.refreshModel();
-          if (this.onStairChange) this.onStairChange({ kind: plan.kind, stair: res.stair });
+          if (this.onStairChange) this.onStairChange({ kind: plan.kind, stair: res.stair, token });
         } else if (this.onNote) {
           this.onNote(res.reason.charAt(0).toUpperCase() + res.reason.slice(1));
         }
@@ -417,10 +420,11 @@
       if (!hit) return;
       const opening = hit.opening;
       const from = opening.style;
+      const token = this.beforeEdit ? this.beforeEdit() : null; // (what undo needs: the dungeon as it is before the change)
       opening.style = DM.nextDoorStyle(from);
       this._hover = hit;
       this.refreshDoors();
-      if (this.onDoorChange) this.onDoorChange({ opening, from, to: opening.style });
+      if (this.onDoorChange) this.onDoorChange({ opening, from, to: opening.style, token });
     }
 
     /**
@@ -468,8 +472,9 @@
     _finishStroke() {
       const { cells } = this._stroke;
       this._stroke = null;
+      const token = this.beforeEdit ? this.beforeEdit() : null;
       const res = DM.addHallway(this.dungeon, cells);
-      if (res.ok) this._layoutChanged(res, 'draw');
+      if (res.ok) this._layoutChanged(res, 'draw', token);
       else this.requestDraw();
     }
 
@@ -477,12 +482,12 @@
      * Hallways were drawn or deleted. The map grows and shrinks to fit them, which can move every square
      * (its top left is always 0, 0), so the view moves the other way and the picture stays where it was.
      */
-    _layoutChanged(res, kind) {
+    _layoutChanged(res, kind, token = null) {
       this.view.tx -= res.dx * this.view.scale;
       this.view.ty -= res.dy * this.view.scale;
       this._clearHover();
       this.refreshModel({ moved: true });
-      if (this.onLayoutChange) this.onLayoutChange({ kind, ...res });
+      if (this.onLayoutChange) this.onLayoutChange({ kind, ...res, token });
     }
 
     _key(e, down) {

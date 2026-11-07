@@ -16,6 +16,7 @@ require('../src/shapes.js');
 require('../src/layout.js');
 require('../src/generator.js');
 require('../src/edit.js');
+require('../src/history.js');
 require('../src/labels.js');
 require('../src/palette.js');
 require('../src/share.js');
@@ -2768,6 +2769,114 @@ console.log('== editing several levels');
   console.log('  done');
 }
 
+console.log('== undo and redo');
+{
+  const ok = (cond, msg) => cond || fail('history', msg);
+  const base = { roomCount: 8, avgRoomSize: 20, sizeVariance: 30, entrances: 2, connectionType: 'hall' };
+  let steps = 0;
+  let shifted = 0;
+
+  // a run of different edits to a dungeon, each recorded: undoing them one by one gives back every state, and redoing them gives back every state again
+  for (const levels of [1, 3]) {
+    for (let i = 0; i < 8; i++) {
+      const dun = DM.generateDungeon({ ...base, levels, levelStairs: 2, seed: `hist-${levels}-${i}` });
+      const ctx = `history ${levels} levels, ${i}`;
+      const h = new DM.EditHistory();
+      const alias = dun; // the dungeon object stays the same one throughout
+      const states = [h.snapshot(dun)]; // states[k]: after k edits
+      const shifts = [];
+      const level = () => 1 + (i % levels);
+      const edit = (label, fn) => {
+        const before = h.snapshot(dun);
+        const res = fn();
+        if (!res || res.ok === false) return;
+        if (h.push(dun, label, before, res)) {
+          states.push(h.snapshot(dun));
+          shifts.push({ dx: res.dx || 0, dy: res.dy || 0 });
+          steps++;
+          if (res.dx || res.dy) shifted++;
+        }
+      };
+      const view = () => DM.floorView(dun, level());
+      edit('Change a door', () => {
+        const o = view().connections.flatMap((c) => c.openings)[0];
+        if (!o) return null;
+        o.style = DM.nextDoorStyle(o.style);
+        return {};
+      });
+      edit('Draw a hallway out past the top left', () => {
+        const v = view();
+        const from = v.rooms[0].cells[0];
+        return DM.addHallway(v, [from, ...DM.walkCells(from, [-4, -3])]);
+      });
+      edit('Name a room', () => {
+        view().rooms[1].name = 'Vault';
+        return {};
+      });
+      edit('Delete a hallway', () => (view().halls.length ? DM.deleteHall(view(), view().halls[0].id) : null));
+      if (levels > 1) {
+        edit('Add stairs', () => {
+          for (let y = 0; y < dun.height; y++) for (let x = 0; x < dun.width; x++) if (DM.stairProblem(dun, 1, x, y).ok) return DM.addStair(DM.floorView(dun, 1), 1, x, y);
+          return null;
+        });
+        edit('Regenerate a level', () => DM.regenerateLevel(dun, 2, { seed: `hist-regen-${i}` }));
+      }
+      ok(h.canUndo && !h.canRedo && h.undoLabel !== '', `${ctx}: the history is not as it should be after the edits`);
+      const total = states.length - 1;
+      ok(total >= 3, `${ctx}: only ${total} edits were made`);
+
+      // all the way back
+      for (let k = total; k >= 1; k--) {
+        const res = h.undo(dun);
+        ok(res.ok && res.dx === -shifts[k - 1].dx && res.dy === -shifts[k - 1].dy, `${ctx}: undoing step ${k} says ${JSON.stringify(res)}`);
+        ok(h.snapshot(dun) === states[k - 1], `${ctx}: undoing step ${k} did not give back the dungeon as it was`);
+        ok(dun === alias, `${ctx}: undo made another dungeon object`);
+      }
+      ok(!h.canUndo && h.canRedo && !h.undo(dun).ok, `${ctx}: at the start there is still something to undo`);
+      ok(DM.editState(dun) === DM.editState(DM.generateDungeon({ ...base, levels, levelStairs: 2, seed: `hist-${levels}-${i}` })), `${ctx}: all undone is not the dungeon as it was built`);
+      // and forward again
+      for (let k = 1; k <= total; k++) {
+        const res = h.redo(dun);
+        ok(res.ok && res.dx === shifts[k - 1].dx && res.dy === shifts[k - 1].dy, `${ctx}: redoing step ${k} says ${JSON.stringify(res)}`);
+        ok(h.snapshot(dun) === states[k], `${ctx}: redoing step ${k} did not give back the dungeon as it was`);
+      }
+      ok(!h.canRedo && !h.redo(dun).ok, `${ctx}: at the end there is still something to redo`);
+      // a new change after undoing drops what could have been redone
+      h.undo(dun);
+      h.undo(dun);
+      ok(h.canRedo, `${ctx}: nothing to redo after undoing`);
+      const before = h.snapshot(dun);
+      DM.floorView(dun, 1).rooms[0].name = 'New';
+      ok(h.push(dun, 'Name a room', before) && !h.canRedo, `${ctx}: a new change did not drop the redo steps`);
+      // something that changed nothing is not a step
+      ok(!h.push(dun, 'Nothing', h.snapshot(dun)) && !h.push(dun, 'Nothing', undefined), `${ctx}: a change that changed nothing was kept`);
+      h.clear();
+      ok(!h.canUndo && !h.canRedo && h.undoLabel === '' && h.redoLabel === '', `${ctx}: clear left something`);
+    }
+  }
+
+  // the history is kept to its limits
+  {
+    const dun = DM.generateDungeon({ ...base, seed: 'hist-limit' });
+    const h = new DM.EditHistory({ limit: 3 });
+    for (let k = 0; k < 6; k++) {
+      const before = h.snapshot(dun);
+      dun.rooms[0].name = `n${k}`;
+      h.push(dun, `step ${k}`, before);
+    }
+    ok(h.undos.length === 3 && h.undoLabel === 'step 5', `a history with a limit of 3 holds ${h.undos.length}, the last being ${h.undoLabel}`);
+    const small = new DM.EditHistory({ maxChars: 10 });
+    for (let k = 0; k < 4; k++) {
+      const before = small.snapshot(dun);
+      dun.rooms[0].name = `m${k}`;
+      small.push(dun, `step ${k}`, before);
+    }
+    ok(small.undos.length === 1 && small.undoLabel === 'step 3', 'a history that is too big keeps only the newest step');
+  }
+  console.log(`  ${steps} edits undone and redone on 16 dungeons, ${shifted} of them moved the map`);
+  console.log('  done');
+}
+
 console.log('== edit mode');
 {
   const fs = require('fs');
@@ -3168,7 +3277,7 @@ console.log('== edit mode');
   const guarded = (app.match(/ifEditsDiscarded\([^;]*generate\(/g) || []).length + (app.match(/ifEditsDiscarded\(openLink/g) || []).length;
   if (calls !== 6 || guarded < 3) fail('edit', `generate() is called ${calls} times; the buttons that call it should all ask first (found ${guarded} that do)`);
   if (!/editsAsBuilt = DM\.editState\(dungeon\)/.test(app) || !/DM\.editState\(DM\.current\) !== editsAsBuilt/.test(app)) fail('edit', 'app.js does not tell whether a door or hallway was changed since the dungeon was built');
-  if (!/renderer\.onDoorChange = updateDoorLegend/.test(app) || !/\$\('editMode'\)\.addEventListener\('click'/.test(app) || !/renderer\.setEditMode\(on\)/.test(app)) fail('edit', 'the Edit button is not wired to the renderer');
+  if (!/renderer\.onDoorChange = \([^)]*\) => \{\s*updateDoorLegend\(\);/.test(app) || !/\$\('editMode'\)\.addEventListener\('click'/.test(app) || !/renderer\.setEditMode\(on\)/.test(app)) fail('edit', 'the Edit button is not wired to the renderer');
   if (!/editsMade\(\) \? '[^']*without your edits/.test(app)) fail('edit', 'Copy link should say a link does not carry edits');
   for (const k of ['Path2D', 'window', 'requestAnimationFrame', 'document']) delete globalThis[k]; // (the stand-ins are only for this section)
   console.log('  done');

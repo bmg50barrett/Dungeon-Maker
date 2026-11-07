@@ -279,8 +279,16 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
     have them (the picture never shows edit mode's rings or a stroke's preview), and the results in the
     Generate column (hallway count, footprint and so on) follow them. **Copy link** does not: a link holds
     the settings and rebuilds the dungeon from them, so it gives the doors and hallways the generator made;
-    the status line under the share buttons says so once something has been changed. There is no undo yet:
-    delete or redraw to put something back.
+    the status line under the share buttons says so once something has been changed.
+  - **Undo and Redo** (the two buttons left of the zoom buttons, or **Ctrl+Z** and **Ctrl+Y**; **Ctrl+Shift+Z**
+    also redoes; **Cmd** on a Mac). Each change is a step: a door changed, a hallway drawn or deleted, stairs added
+    or removed, a room named (typing in one box is one step, kept when you leave the box), the room names
+    cleared, a level built again. Undo puts the dungeon back as it was before the last step and Redo makes it again;
+    the buttons are greyed out when there is nothing to do, and hovering one says which step it would take. A new
+    change after an undo ends what could be redone. The map is put back with its size and place too, so a hallway that
+    grew the map is taken back whole, and the picture stays where it was on the screen. They work whether or not Edit
+    mode is on, and across levels (the level on the map is kept). The history holds the last 100 steps (fewer on a very
+    big dungeon) and is wiped when a new dungeon is built. Ctrl+Z inside a text box is that box's own undo.
   - **Re-generate dungeon**, **Generate with random seed**, **Reset all** and a share link opened in the
     address bar all build a new dungeon, so if a door or hallway has been changed they first ask in a box:
     *"Re-generating the dungeon will lose all edits you made to its doors and hallways. To keep them, save the
@@ -446,6 +454,8 @@ the map, then writes the content for each room by the numbers printed on it.
 | `describe_dungeon` | The description alone: each room by its number on the map, with its shape, size in feet and place on the map, its doors and what they lead to. |
 | `edit_dungeon` | A list of edits: change a door (door, locked, secret, no door), draw a hallway through some squares, delete a stretch of hallway, add and remove entrances, renumber and name rooms, and (several levels) add, move and remove stairs. The rules are Edit mode's. |
 | `regenerate_level` | For a dungeon of several levels: builds one `level` again (from a random `seed`, or the one given) and leaves the others as they are, keeping the stairs that still fit. Answers with the new description and picture. |
+| `undo_edit` | Takes back the last change made with `edit_dungeon` or `regenerate_level` (it can be called again to go further back). Answers with what was undone, the new description and picture. |
+| `redo_edit` | Makes a change again that `undo_edit` took back. A new edit after an undo ends what could be redone. |
 | `draw_map` | The picture alone, with the legend, grid, room numbers, number position and colors as chosen. For a dungeon of several levels, `level` draws just that one (the default is all, one above the other). |
 | `save_dungeon` | Writes the picture (`.png`) and the data (`.json`) to the maps folder. A name already used gets `-2`, `-3`, ... unless `overwrite` is set. |
 | `list_dungeons` | The dungeons in use, and the saved maps. |
@@ -460,6 +470,9 @@ Things to know:
   what stays. As with the page, a seed no longer gives the dungeon once it has been edited, so save the data.
 - If a hallway reaches past the top or left edge the map grows and every square's coordinates move; the
   answer says by how much, and hallways are numbered again (H1, H2, ...).
+- `undo_edit` and `redo_edit` keep a history for each dungeon id: one step per `edit_dungeon` call (all its edits together) or
+  `regenerate_level`, the last 100, from when the dungeon was made or opened. Changes made on the page are not in it, and
+  if a step moved the map, undoing it moves every square back (the answer says by how much).
 - On a dungeon of several levels `edit_dungeon` works one level at a time: give `level` once for the call or in each edit (it is needed), and `room` is the number on that level's map (the 5 of 2-5). Entrances can only be added on level 1. A hallway that makes the map bigger moves every level and every stair, and the answer says by how much. Entrance doors cannot be changed, as in Edit mode. Nothing is sent anywhere: the server runs on your
   computer and Claude only gets what the tools answer.
 
@@ -478,6 +491,7 @@ src/labels.js            where room numbers go (inside, or outside the walls): `
 src/palette.js           map colors: the ready-made choices per category, `DM.themeFrom`
 src/share.js             share links, file names, JSON and caption for exports: `DM.encodeShare`, `DM.decodeShare`
 src/edit.js              hallway editing on the data: `DM.planHallway`, `DM.addHallway`, `DM.deleteHallStretch`, `DM.editState`, `DM.walkCells`
+src/history.js           undo and redo: `DM.EditHistory`, steps kept as copies of the dungeon
 src/render.js            canvas drawing, zoom/pan, the Edit mode tools (clicks, strokes), the exported picture (`exportImage`)
 src/app.js               form handling, export buttons, opening links, the Edit button and tools, the lose-edits warning
 tests/run.js             headless validation:  node tests/run.js

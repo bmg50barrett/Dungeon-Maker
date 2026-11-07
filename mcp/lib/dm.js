@@ -13,7 +13,7 @@ const path = require('path');
 const { createCanvas, Path2D, GlobalFonts } = require('@napi-rs/canvas');
 
 const SRC = path.join(__dirname, '..', '..', 'src');
-const MODULES = ['rng', 'shapes', 'layout', 'generator', 'edit', 'labels', 'palette', 'share', 'render'];
+const MODULES = ['rng', 'shapes', 'layout', 'generator', 'edit', 'history', 'labels', 'palette', 'share', 'render'];
 
 let DM = null;
 

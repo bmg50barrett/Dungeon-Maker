@@ -356,6 +356,8 @@
           <div class="toolbar-row">
             <button type="button" id="editMode" class="edit-toggle" aria-pressed="false" title="Edit the doors and hallways">Edit</button>
             <button type="button" id="roomNamesButton" class="names-toggle" aria-pressed="false" aria-controls="roomPanel" title="Give the rooms names, for the key under the picture">Room names</button>
+            <button type="button" id="undoEdit" title="Nothing to undo" disabled>Undo</button>
+            <button type="button" id="redoEdit" title="Nothing to redo" disabled>Redo</button>
             <button type="button" id="zoomIn" title="Zoom in" aria-label="Zoom in">+</button>
             <button type="button" id="zoomOut" title="Zoom out" aria-label="Zoom out">&minus;</button>
             <button type="button" id="fit" title="Fit dungeon to screen" aria-label="Fit to screen">Fit</button>
@@ -423,6 +425,7 @@
   <script src="src/layout.js"></script>
   <script src="src/generator.js"></script>
   <script src="src/edit.js"></script>
+  <script src="src/history.js"></script>
   <script src="src/labels.js"></script>
   <script src="src/palette.js"></script>
   <script src="src/share.js"></script>

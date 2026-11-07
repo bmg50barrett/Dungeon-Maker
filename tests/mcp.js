@@ -352,6 +352,47 @@ console.log('== levels');
       store.get('d1'); // (the dungeon the tools use when no id is given is the last one asked for)
     }
 
+    // taking changes back and making them again
+    {
+      const item = store.get('d1');
+      const h = item.history;
+      const s0 = h.snapshot(d);
+      tools.regenerate_level.run({ id: 'd1', level: 2, seed: 'mcp-undo', picture: false });
+      const s1 = h.snapshot(d);
+      if (s0 === s1) fail('undo', 'building level 2 again changed nothing');
+      const undone = tools.undo_edit.run({ id: 'd1', picture: false });
+      if (!/Undid: level 2 built again/.test(undone.text) || !/==== LEVEL 1 of 3 ====/.test(undone.text)) fail('undo', `undo_edit: ${undone.text.slice(0, 300)}`);
+      if (h.snapshot(d) !== s0) fail('undo', 'undo_edit did not give back the dungeon as it was');
+      if (store.get('d1').dungeon !== d) fail('undo', 'undo_edit made another dungeon object');
+      const redone = tools.redo_edit.run({ id: 'd1', picture: false });
+      if (!/Redid: level 2 built again/.test(redone.text) || h.snapshot(d) !== s1) fail('undo', `redo_edit: ${redone.text.slice(0, 300)}`);
+      const nothing = toolError(() => tools.redo_edit.run({ id: 'd1', picture: false }));
+      if (!nothing || !/Nothing to redo/.test(nothing.message)) fail('undo', `redo with nothing to redo: ${nothing && nothing.message}`);
+
+      // edits: one step per call, and a new edit ends what could be redone
+      const room = DM.floorView(d, 1).rooms[0];
+      const s2 = h.snapshot(d);
+      const named = tools.edit_dungeon.run({ id: 'd1', level: 1, picture: false, edits: [{ type: 'name_room', room: room.label, name: 'Undo Hall' }] });
+      if (/FAILED/.test(named.text)) fail('undo', `naming a room for the undo test: ${named.text.slice(0, 300)}`);
+      const s3 = h.snapshot(d);
+      if (s3 === s2) fail('undo', 'name_room changed nothing');
+      tools.undo_edit.run({ id: 'd1', picture: false });
+      if (h.snapshot(d) !== s2) fail('undo', 'undoing an edit_dungeon call did not give back the dungeon as it was');
+      if (!h.canRedo) fail('undo', 'nothing to redo after undoing an edit');
+      tools.edit_dungeon.run({ id: 'd1', level: 1, picture: false, edits: [{ type: 'name_room', room: room.label, name: 'Other' }] });
+      if (h.canRedo) fail('undo', 'a new edit did not end what could be redone');
+      // all the way back, then there is nothing more to take back
+      let guard = 0;
+      while (h.canUndo && guard++ < 50) tools.undo_edit.run({ id: 'd1', picture: false });
+      const none = toolError(() => tools.undo_edit.run({ id: 'd1', picture: false }));
+      if (!none || !/Nothing to undo/.test(none.message)) fail('undo', `undo with nothing to undo: ${none && none.message}`);
+      for (const [name, args] of [['undo_edit', { extra: 1 }], ['redo_edit', { extra: 1 }]]) {
+        const err = toolError(() => tools[name].run({ id: 'd1', picture: false, ...args }));
+        if (!err || !/extra/.test(err.message)) fail('undo', `${name} should refuse an unknown argument: ${err && err.message}`);
+      }
+      store.get('d1');
+    }
+
     // a hallway cannot be given a door into the square of a stair: plan one beside the stair
     const stair = d.stairs.find((s) => s.upper === 1);
     const f1 = DM.floorView(d, 1);
@@ -740,7 +781,7 @@ console.log('== the protocol');
 
   const list = call('tools/list').result.tools;
   const names = list.map((t) => t.name).sort().join();
-  if (names !== 'describe_dungeon,draw_map,edit_dungeon,generate_dungeon,list_dungeons,open_dungeon,regenerate_level,save_dungeon') fail('protocol', `the tools are ${names}`);
+  if (names !== 'describe_dungeon,draw_map,edit_dungeon,generate_dungeon,list_dungeons,open_dungeon,redo_edit,regenerate_level,save_dungeon,undo_edit') fail('protocol', `the tools are ${names}`);
   for (const t of list) {
     if (!/^[a-z_]+$/.test(t.name) || typeof t.description !== 'string' || t.description.length < 40) fail('protocol', `${t.name} needs a name in snake_case and a real description`);
     const s = t.inputSchema;
@@ -810,7 +851,7 @@ console.log('== the real process');
   const byId = new Map(parsed.map((m) => [m.id, m]));
   if (parsed.length !== 5) fail('process', `${parsed.length} replies for 4 requests and 1 bad line (the notification gets none)`);
   if (!byId.get(1) || byId.get(1).result.protocolVersion !== '2025-06-18') fail('process', 'no answer to initialize');
-  if (!byId.get(2) || byId.get(2).result.tools.length !== 8) fail('process', 'no list of eight tools');
+  if (!byId.get(2) || byId.get(2).result.tools.length !== 10) fail('process', 'no list of ten tools');
   const generated = byId.get(3) && byId.get(3).result;
   if (!generated || generated.content.length !== 2 || !isPng(Buffer.from(generated.content[1].data, 'base64'))) fail('process', 'no dungeon with a picture');
   if (!parsed.some((m) => m.error && m.error.code === -32700 && m.id === null)) fail('process', 'a line that is not JSON should get a parse error');
