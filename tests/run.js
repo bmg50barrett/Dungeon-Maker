@@ -1098,6 +1098,8 @@ console.log('== share and export');
     if (!generateColumn.includes(`id="${id}"`)) fail('share', `#${id} should be in the export column`);
   }
   if (!/id="exportLegend"[^>]*\schecked/.test(generateColumn)) fail('share', 'the legend should be on the picture unless it is switched off');
+  if (!/<label class="switch" for="exportLegend">[^]*?role="switch"[^]*?id="exportLegendState"/.test(generateColumn)) fail('share', 'the legend choice should be a switch like the others, with its On or Off');
+  if (/class="check"/.test(html)) fail('share', 'no checkbox should be left: choices are switches');
   if (!/<input[^>]*id="shareUrl"[^>]*readonly/.test(generateColumn)) fail('share', 'the link box should be read-only');
   if (!/id="exportStatus"[^>]*aria-live="polite"/.test(generateColumn)) fail('share', 'the export status should be announced to screen readers');
   for (const id of ['copyLink', 'downloadPng', 'downloadJson', 'printMap']) {
@@ -2103,6 +2105,46 @@ console.log('== page layout');
   console.log('  done');
 }
 
+console.log('== helper text as tooltips');
+{
+  const fs = require('fs');
+  const path = require('path');
+  const read = (...p) => fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8');
+  const html = read('index.html');
+  const css = read('styles.css').replace(/\/\*[^]*?\*\//g, '');
+  const app = read('src', 'app.js');
+  // Label position: its helper text is a tooltip on each button, not a line under the control
+  const group = html.slice(html.indexOf('<legend>Label position</legend>'), html.indexOf('</fieldset>', html.indexOf('<legend>Label position</legend>')));
+  if (/class="hint"/.test(group) || /labelPositionHint/.test(html + app)) fail('tips', 'Label position still has helper text under it');
+  for (const opt of ['inside', 'outside']) {
+    const m = new RegExp(`<input type="radio" id="labels-${opt}"[^>]*aria-describedby="(tip-labels-${opt})"[^>]*>\\s*<label for="labels-${opt}">[^<]*</label>\\s*<span class="tip[^"]*" id="\\1" role="tooltip">([^<]{10,})</span>`).exec(group);
+    if (!m) fail('tips', `the ${opt} button needs its tip right after its label, and to point to it with aria-describedby`);
+  }
+  if (!/class="tip tip-end"/.test(group)) fail('tips', 'the tip of the button at the right should line up with the right edge of its column');
+  if (!/\.tip \{[^}]*display:\s*none[^}]*position:\s*absolute[^}]*pointer-events:\s*none/.test(css)) fail('tips', 'a tip should be out of the layout (not even hidden space), and not catch the mouse');
+  if (!/\.seg-options label:hover \+ \.tip[^{]*\{[^}]*display:\s*block/.test(css) || !/focus-visible \+ label \+ \.tip/.test(css)) fail('tips', 'a tip should show on hover and on keyboard focus');
+  // every other helper text in the columns is a tip too: only the status line under the share buttons is still a line of text
+  const form = html.slice(html.indexOf('<form id="params"'), html.indexOf('</form>'));
+  const hints = [...form.matchAll(/<p class="hint"([^>]*)>/g)].map((m) => m[1]);
+  if (hints.length !== 1 || !/id="exportStatus"/.test(hints[0])) fail('tips', `helper text left as a line in the columns: ${JSON.stringify(hints)}`);
+  const tips = [...form.matchAll(/<(?:p|span) class="tip[^"]*"([^>]*)>/g)].map((m) => m[1]);
+  if (tips.length < 20) fail('tips', `only ${tips.length} tips in the columns`);
+  for (const attrs of tips) {
+    const id = (/id="([^"]+)"/.exec(attrs) || [])[1];
+    if (!id || !/role="tooltip"/.test(attrs)) { fail('tips', `a tip needs an id and role="tooltip": ${attrs}`); continue; }
+    if (!new RegExp(`aria-describedby="[^"]*\\b${id}\\b[^"]*"`).test(form)) fail('tips', `nothing points to the tip #${id} (aria-describedby)`);
+  }
+  // a field's tip is the field's own: it shows on hover or focus over the field, but not over an error
+  if (!/\.field \{[^}]*position:\s*relative/.test(css)) fail('tips', 'a field must be positioned for its tip');
+  if (!/\.field:hover > \.tip/.test(css) || !/\.field:has\(:focus-visible\) > \.tip/.test(css)) fail('tips', 'a field tip should show on hover and on keyboard focus');
+  if (!/\.field:has\(\[aria-invalid='true'\]\) > \.tip[^{]*\{[^}]*display:\s*none/.test(css)) fail('tips', 'a tip should not cover an error');
+  if (/\btitle="Least a room measures/.test(form)) fail('tips', 'the minimum size boxes should not have a native tooltip beside the tip');
+  if (!/\.tip \{ animation: none !important; \}/.test(read('styles.css'))) fail('tips', 'tips should appear without the pause when motion is reduced');
+  if (!/\.seg-options \{[^}]*position:\s*relative/.test(css)) fail('tips', 'the tip is placed against its control, which must be positioned');
+  if (/function updateLabelPosition\(\) \{[^}]*textContent/.test(app)) fail('tips', 'the label position choice should only change the map');
+  console.log('  done');
+}
+
 console.log('== keeping the edited dungeon between visits');
 {
   const fs = require('fs');
@@ -2229,7 +2271,7 @@ console.log('== brand style (Duckweed’s Aeldara)');
   // the dropdown is an input's box, square, with a wine arrow and no shadow
   if (!/height:\s*var\(--tap\)/.test(rule('select')) || !/border:\s*1px solid var\(--write-in\)/.test(rule('select')) || !/border-radius:\s*0/.test(rule('select'))) fail('brand', 'a dropdown should be 44px tall with an input\'s square outline');
   if (!/appearance:\s*none/.test(rule('select')) || !/var\(--wine\)/.test(rule('select')) || /box-shadow:\s*(?!inset)/.test(rule('select'))) fail('brand', 'a dropdown should draw its own wine arrow, with no shadow');
-  for (const sel of ['.seg-options label', '.chip-body', '.link-btn', '.check', '#generate, #generateRandom', '.export-buttons button', '.legend-toggle', '.dialog-buttons button', '.color-field .swatch', '.toggle-field label.switch']) {
+  for (const sel of ['.seg-options label', '.chip-body', '.link-btn', '#generate, #generateRandom', '.export-buttons button', '.legend-toggle', '.dialog-buttons button', '.color-field .swatch', '.toggle-field label.switch']) {
     if (!/(min-)?height:\s*var\(--tap\)/.test(rule(sel))) fail('brand', `${sel} should be at least 44px tall`);
   }
   if (!/min-height:\s*var\(--tap\)/.test(rule('.blade-toggle')) && !/min-height:\s*(5\d|[6-9]\d)px/.test(rule('.blade-toggle'))) fail('brand', 'a column heading should be at least 44px tall');

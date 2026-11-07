@@ -196,7 +196,7 @@ body {
 .blade.collapsed .blade-toggle .blade-chevron { order: -2; transform: rotate(180deg); margin-left: 0; }
 .blade.collapsed .blade-toggle .blade-icon { order: -1; margin-right: 0; }
 
-.field { margin: 0 0 20px; padding: 0; border: 0; }
+.field { position: relative; margin: 0 0 20px; padding: 0; border: 0; }
 .field label, .field legend {
   display: block;
   margin-bottom: 6px;
@@ -217,6 +217,10 @@ input[type='number'], input[type='text'] {
   background: var(--field);
   border: 1px solid var(--write-in);
 }
+/* a unit to the right of a number box (the percent sign after Room size variance) */
+.with-suffix { display: flex; align-items: center; gap: 10px; }
+.with-suffix input { flex: 1; min-width: 0; }
+.suffix { flex: none; font-size: 17px; font-weight: 600; color: var(--muted); }
 /* a dropdown (the overall layout): an input's box with a small wine triangle, drawn here since the brand has no icon set */
 select {
   appearance: none;
@@ -301,7 +305,7 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
 .switch input:checked ~ .switch-state { color: var(--heading); }
 
 /* segmented radio control: a wine outline, the choice made filled in wine */
-.seg-options { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--wine); }
+.seg-options { position: relative; display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--wine); }
 .seg-options input { position: absolute; opacity: 0; pointer-events: none; }
 .seg-options label {
   display: flex;
@@ -324,6 +328,40 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
   background: var(--fill);
   font-weight: 600;
 }
+/* Helper text as a tooltip: a ".tip" (role="tooltip") that its control points to with aria-describedby. It is not in the layout
+   at all until it shows: on hover (after a short pause) or keyboard focus, under its control. For a field (".field") the tip
+   is the last thing in it and shows when the mouse is over the field (its label, its box) or a control in it has the keyboard
+   focus; it does not show over an error (the error says what is wrong). Where a control is a choice of buttons, each button has
+   its own tip, just after its label (see Label position); ".tip-end" lines such a tip up with the right edge instead of the left. */
+.tip {
+  display: none;
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  width: max-content;
+  max-width: 100%;
+  padding: 8px 10px;
+  font-size: 14.5px;
+  font-weight: 400;
+  line-height: 1.3;
+  text-align: left;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--gold);
+  pointer-events: none;
+}
+.tip-end { left: auto; right: 0; }
+.seg-options label:hover + .tip,
+.seg-options input:focus-visible + label + .tip,
+.field:hover > .tip,
+.field:has(:focus-visible) > .tip {
+  display: block;
+  animation: tipIn 0.12s ease 0.3s backwards; /* (invisible for the first 0.3s, so passing the mouse across does not flash them) */
+}
+.field.invalid > .tip,
+.field:has([aria-invalid='true']) > .tip { display: none; }
+@keyframes tipIn { from { opacity: 0; } to { opacity: 1; } }
 /* four options in a row (none / less / more / all), or three (compact / normal / spread) */
 .seg-options input:focus-visible + label { outline: 2px solid var(--focus); outline-offset: 2px; }
 
@@ -435,32 +473,6 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
 .summary .fail { color: var(--heading); font-weight: 600; }
 
 .options { margin: 4px 0 0; }
-.check { display: flex; align-items: center; gap: 10px; min-height: var(--tap); margin: 0; font-size: 16px; cursor: pointer; }
-.check input[type='checkbox'] {
-  appearance: none;
-  -webkit-appearance: none;
-  position: relative;
-  flex: none;
-  width: 22px;
-  height: 22px;
-  margin: 0;
-  cursor: pointer;
-  background: var(--field);
-  border: 1px solid var(--write-in);
-}
-.check input[type='checkbox']:checked { background: var(--fill); border-color: var(--fill); }
-.check input[type='checkbox']:checked::after {
-  content: '';
-  position: absolute;
-  left: 7px;
-  top: 2px;
-  width: 6px;
-  height: 12px;
-  border: solid var(--on-fill);
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-
 .colors, .export, .settings { margin: 26px 0 0; }
 /* a section heading: small caps under a 1pt gold rule, with its link (Reset, Reset all) at the right */
 .colors h3, .export h3, .settings h3 {
@@ -477,7 +489,7 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
 }
 
 /* share and export: four buttons in a 2 x 2 grid, a switch for the picture, and a line saying what happened */
-.export-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.export-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; } /* (the same 20px as between the switches) */
 .export-buttons button {
   min-height: var(--tap);
   padding: 8px;
@@ -824,6 +836,7 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
 @media (prefers-reduced-motion: reduce) {
   .switch .track, .switch .thumb, .chip-body, .blade, .blade-body, .blade.collapsed .blade-body { transition: none; }
   .blade-toggle, .blade.collapsed .blade-toggle { animation: none; }
+  .tip { animation: none !important; }
 }
 
 @media (max-width: 760px) {

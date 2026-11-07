@@ -36,7 +36,7 @@ Duckweed's Aeldara is a printed-book look: parchment, ink, and two accents, wine
 
 | Input | Range | Meaning |
 |---|---|---|
-| Overall layout | A dropdown: Random / Cathedral / Ring / Spiral / Gauntlet / Radial / Main St. / Square / Long / Wide (default Random) | The shape the dungeon as a whole leans towards; see below. The line under the dropdown says what the one chosen does |
+| Overall layout | A dropdown: Random / Cathedral / Ring / Spiral / Gauntlet / Radial / Main St. / Square / Long / Wide (default Random) | The shape the dungeon as a whole leans towards; see below. Hover over it (or focus it) and a tip says what the one chosen does |
 | Room count | 1-99 | Number of rooms |
 | Average room size | 1-999 | Mean room area, in grid squares (1 square = 5 ft x 5 ft) |
 | Minimum room size: width and length | 1-30 each (default 3 x 3 on the page and for Claude) | The least a room can measure across the map (width) and up and down it (length): 3 x 8 means every room is at least 3 wide and 8 long. 1 x 1 means no minimum (and is what the generator uses when a program leaves the minimum out) |
@@ -328,6 +328,10 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
     is not an edit, so four clicks on a door, or drawing a hallway and deleting it, and the box does not
     appear. Changing the inputs or the colors, or the Display choices, never builds a new dungeon, so it
     never asks.
+- **Helper text is a tooltip.** The notes under the inputs (ranges, what a choice does, how many shapes are on) are tips that appear under a
+  field when the mouse rests on it (after a short pause) or it has the keyboard focus, and do not take up room in the column. They
+  update as you type. A tip does not cover an error, which stays on show. The status line under the share buttons is not helper
+  text and stays a line.
 - The inputs are in five columns side by side: **Layout** (the overall layout, room spacing, levels, entrances and the seed), **Rooms** (count, sizes, shapes),
   **Hallways** (connection type, randomization, hallway types, doors, entrances),
   **Export** (the results, share and export, settings) and **Display** (theme, label position, the

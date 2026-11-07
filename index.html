@@ -42,7 +42,7 @@
                 <option value="long" title="A tall, narrow dungeon: longer up and down the map than across">Long</option>
                 <option value="wide" title="A wide, shallow dungeon: longer across the map than up and down">Wide</option>
               </select>
-              <p class="hint" id="layoutHint">Rooms grow outward in any direction</p>
+              <p class="tip" role="tooltip" id="layoutHint">Rooms grow outward in any direction</p>
               <p class="error" id="err-layout" role="alert"></p>
             </div>
 
@@ -53,45 +53,45 @@
                 <option value="normal">Normal</option>
                 <option value="spaced">Spread</option>
               </select>
-              <p class="hint" id="spacingHint">Rooms can touch · rooms a hallway joins are up to 4 squares apart · spines run longer</p>
+              <p class="tip" role="tooltip" id="spacingHint">Rooms can touch · rooms a hallway joins are up to 4 squares apart · spines run longer</p>
               <p class="error" id="err-spacing" role="alert"></p>
             </div>
 
             <div class="field">
               <label for="levels">Levels</label>
-              <input id="levels" name="levels" type="number" min="1" max="20" step="1" value="1" inputmode="numeric">
-              <p class="hint" id="levelsHint">1&ndash;20 floors</p>
+              <input id="levels" aria-describedby="levelsHint err-levels" name="levels" type="number" min="1" max="20" step="1" value="1" inputmode="numeric">
+              <p class="tip" role="tooltip" id="levelsHint">1&ndash;20 floors</p>
               <p class="error" id="err-levels" role="alert"></p>
             </div>
 
             <div class="field">
               <label for="levelStairs">Stairs between levels</label>
-              <input id="levelStairs" name="levelStairs" type="number" min="1" max="10" step="1" value="1" inputmode="numeric">
-              <p class="hint" id="levelStairsHint">Needs more than one level</p>
+              <input id="levelStairs" aria-describedby="levelStairsHint err-levelStairs" name="levelStairs" type="number" min="1" max="10" step="1" value="1" inputmode="numeric">
+              <p class="tip" role="tooltip" id="levelStairsHint">Needs more than one level</p>
               <p class="error" id="err-levelStairs" role="alert"></p>
             </div>
 
             <div class="field">
               <label for="entrances">Entrances</label>
-              <input id="entrances" name="entrances" type="number" min="1" max="10" step="1" value="1" inputmode="numeric">
-              <p class="hint">External entrances, 1&ndash;10</p>
+              <input id="entrances" aria-describedby="entrancesHint err-entrances" name="entrances" type="number" min="1" max="10" step="1" value="1" inputmode="numeric">
+              <p class="tip" role="tooltip" id="entrancesHint">External entrances, 1&ndash;10</p>
               <p class="error" id="err-entrances" role="alert"></p>
             </div>
 
             <div class="field toggle-field">
               <label class="switch" for="edgeEntrancesOnly">
                 <span class="switch-title">Entrances on outer edge only</span>
-                <input type="checkbox" id="edgeEntrancesOnly" name="edgeEntrancesOnly" role="switch" checked>
+                <input type="checkbox" id="edgeEntrancesOnly" name="edgeEntrancesOnly" role="switch" checked aria-describedby="edgeOnlyHint">
                 <span class="track" aria-hidden="true"><span class="thumb"></span></span>
                 <span class="switch-state" id="edgeOnlyState" aria-hidden="true">On</span>
               </label>
-              <p class="hint" id="edgeOnlyHint">Entrances are doors in the outer walls.</p>
+              <p class="tip" role="tooltip" id="edgeOnlyHint">Entrances are doors in the outer walls.</p>
             </div>
 
             <div class="field">
               <label for="seed">Seed <span class="optional">(optional)</span></label>
-              <input id="seed" name="seed" type="text" placeholder="blank = random">
-              <p class="hint">Same inputs + same seed = same dungeon.</p>
+              <input id="seed" aria-describedby="seedHint" name="seed" type="text" placeholder="blank = random">
+              <p class="tip" role="tooltip" id="seedHint">Same inputs + same seed = same dungeon.</p>
             </div>
           </div>
         </section>
@@ -108,15 +108,15 @@
           <div class="blade-body" id="blade-rooms-body">
             <div class="field">
               <label for="roomCount">Room count</label>
-              <input id="roomCount" name="roomCount" type="number" min="1" max="99" step="1" value="12" inputmode="numeric">
-              <p class="hint">1&ndash;99 rooms</p>
+              <input id="roomCount" aria-describedby="roomCountHint err-roomCount" name="roomCount" type="number" min="1" max="99" step="1" value="12" inputmode="numeric">
+              <p class="tip" role="tooltip" id="roomCountHint">1&ndash;99 rooms</p>
               <p class="error" id="err-roomCount" role="alert"></p>
             </div>
 
             <div class="field">
               <label for="avgRoomSize">Average room size</label>
-              <input id="avgRoomSize" name="avgRoomSize" type="number" min="1" max="999" step="1" value="30" inputmode="numeric">
-              <p class="hint" id="sizeHint">1&ndash;999 squares</p>
+              <input id="avgRoomSize" aria-describedby="sizeHint err-avgRoomSize" name="avgRoomSize" type="number" min="1" max="999" step="1" value="30" inputmode="numeric">
+              <p class="tip" role="tooltip" id="sizeHint">1&ndash;999 squares</p>
               <p class="error" id="err-avgRoomSize" role="alert"></p>
             </div>
 
@@ -125,28 +125,31 @@
               <div class="pair-inputs">
                 <div>
                   <label for="minRoomWidth">Width <span class="optional">(across)</span></label>
-                  <input id="minRoomWidth" name="minRoomWidth" type="number" min="1" max="30" step="1" value="3" inputmode="numeric" title="Least a room measures across the map, in squares">
+                  <input id="minRoomWidth" aria-describedby="minSizeHint err-minRoomWidth" name="minRoomWidth" type="number" min="1" max="30" step="1" value="3" inputmode="numeric">
                 </div>
                 <span class="times" aria-hidden="true">&times;</span>
                 <div>
                   <label for="minRoomLength">Length <span class="optional">(down)</span></label>
-                  <input id="minRoomLength" name="minRoomLength" type="number" min="1" max="30" step="1" value="3" inputmode="numeric" title="Least a room measures up and down the map, in squares">
+                  <input id="minRoomLength" aria-describedby="minSizeHint err-minRoomLength" name="minRoomLength" type="number" min="1" max="30" step="1" value="3" inputmode="numeric">
                 </div>
               </div>
-              <p class="hint" id="minSizeHint">Every room is at least 3 wide × 3 long (15×15 ft)</p>
+              <p class="tip" role="tooltip" id="minSizeHint">Every room is at least 3 wide × 3 long (15×15 ft)</p>
               <p class="error" id="err-minRoomWidth" role="alert"></p>
               <p class="error" id="err-minRoomLength" role="alert"></p>
             </fieldset>
 
             <div class="field">
               <label for="sizeVariance">Room size variance</label>
-              <input id="sizeVariance" name="sizeVariance" type="number" min="0" max="100" step="1" value="30" inputmode="numeric">
-              <p class="hint" id="varianceHint">Standard deviation, % of the average (0&ndash;100)</p>
+              <div class="with-suffix">
+                <input id="sizeVariance" aria-describedby="varianceHint err-sizeVariance" name="sizeVariance" type="number" min="0" max="100" step="1" value="30" inputmode="numeric">
+                <span class="suffix" aria-hidden="true">%</span>
+              </div>
+              <p class="tip" role="tooltip" id="varianceHint">Standard deviation, % of the average (0&ndash;100)</p>
               <p class="error" id="err-sizeVariance" role="alert"></p>
             </div>
 
 
-            <fieldset class="field chip-group" id="roomShapes">
+            <fieldset class="field chip-group" id="roomShapes" aria-describedby="shapesHint err-roomShapes">
               <legend>Room shapes <button type="button" class="link-btn" id="shapesAll">All</button></legend>
               <div class="chips">
                 <label class="chip"><input type="checkbox" name="roomShape" value="rect" checked><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><polygon points="2,3 14,3 14,13 2,13"/></svg>Rectangle</span></label>
@@ -158,7 +161,7 @@
                 <label class="chip"><input type="checkbox" name="roomShape" value="Z"><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><polygon points="6,2 14,2 14,8 10,8 10,14 2,14 2,8 6,8"/></svg>Z-shape</span></label>
                 <label class="chip"><input type="checkbox" name="roomShape" value="plus"><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><polygon points="6,2 10,2 10,6 14,6 14,10 10,10 10,14 6,14 6,10 2,10 2,6 6,6"/></svg>Plus</span></label>
               </div>
-              <p class="hint" id="shapesHint">8 of 8 shapes on</p>
+              <p class="tip" role="tooltip" id="shapesHint">8 of 8 shapes on</p>
               <p class="error" id="err-roomShapes" role="alert"></p>
             </fieldset>
           </div>
@@ -180,24 +183,24 @@
                 <option value="hall" selected>Hallways</option>
                 <option value="door">Doorways</option>
               </select>
-              <p class="hint" id="connectionTypeHint">How most rooms join up.</p>
+              <p class="tip" role="tooltip" id="connectionTypeHint">How most rooms join up.</p>
             </div>
 
             <div class="field">
               <label for="connectionRandomness">Connection randomization (%)</label>
-              <input id="connectionRandomness" name="connectionRandomness" type="number" min="0" max="100" step="1" value="14" inputmode="numeric">
-              <p class="hint" id="randomnessHint">Chance a connection uses the other type (0&ndash;100)</p>
+              <input id="connectionRandomness" aria-describedby="randomnessHint err-connectionRandomness" name="connectionRandomness" type="number" min="0" max="100" step="1" value="14" inputmode="numeric">
+              <p class="tip" role="tooltip" id="randomnessHint">Chance a connection uses the other type (0&ndash;100)</p>
               <p class="error" id="err-connectionRandomness" role="alert"></p>
             </div>
 
             <div class="field">
               <label for="hallWidth">Hallway width</label>
-              <input id="hallWidth" name="hallWidth" type="number" min="1" max="10" step="1" value="1" inputmode="numeric">
-              <p class="hint">Squares across, 1&ndash;10 (hallways drawn by hand are always 1)</p>
+              <input id="hallWidth" aria-describedby="hallWidthHint err-hallWidth" name="hallWidth" type="number" min="1" max="10" step="1" value="1" inputmode="numeric">
+              <p class="tip" role="tooltip" id="hallWidthHint">Squares across, 1&ndash;10 (hallways drawn by hand are always 1)</p>
               <p class="error" id="err-hallWidth" role="alert"></p>
             </div>
 
-            <fieldset class="field chip-group" id="hallTypes">
+            <fieldset class="field chip-group" id="hallTypes" aria-describedby="hallTypesHint err-hallTypes">
               <legend>Hallway types <button type="button" class="link-btn" id="hallTypesAll">All</button></legend>
               <div class="chips">
                 <label class="chip" title="A short passage between two rooms"><input type="checkbox" name="hallType" value="short" checked><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="5" width="4" height="6"/><rect x="11" y="5" width="4" height="6"/><rect x="5" y="7.2" width="6" height="1.6"/></svg>Short</span></label>
@@ -205,7 +208,7 @@
                 <label class="chip" title="A winding passage with several bends"><input type="checkbox" name="hallType" value="curly"><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 12H5V4H11V12H15" fill="none" stroke="currentColor" stroke-width="2"/></svg>Curly</span></label>
                 <label class="chip" title="Hallways can fork, and rooms can hang off the side of any hallway (not just a spine), so short and curly hallways can serve 3 or more rooms too"><input type="checkbox" name="hallType" value="branching" checked><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 8H8M8 3V13M8 3H15M8 13H15" fill="none" stroke="currentColor" stroke-width="2"/></svg>Branching</span></label>
               </div>
-              <p class="hint" id="hallTypesHint">4 of 4 types on</p>
+              <p class="tip" role="tooltip" id="hallTypesHint">4 of 4 types on</p>
               <p class="error" id="err-hallTypes" role="alert"></p>
             </fieldset>
 
@@ -217,7 +220,7 @@
                 <option value="more">More</option>
                 <option value="all" selected>All</option>
               </select>
-              <p class="hint" id="hallDoorsHint">About 1 in 3 hallway openings have a door</p>
+              <p class="tip" role="tooltip" id="hallDoorsHint">About 1 in 3 hallway openings have a door</p>
               <p class="error" id="err-hallDoors" role="alert"></p>
             </div>
           </div>
@@ -245,7 +248,14 @@
                 <button type="button" id="downloadJson" title="Save the dungeon as data that other programs can read">Data (JSON)</button>
                 <button type="button" id="printMap" title="Print the map on one page">Print</button>
               </div>
-              <label class="check"><input type="checkbox" id="exportLegend" checked> Legend and details on the picture and printout</label>
+              <div class="field toggle-field">
+                <label class="switch" for="exportLegend">
+                  <span class="switch-title">Legend and details on the picture and printout</span>
+                  <input type="checkbox" id="exportLegend" role="switch" checked>
+                  <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+                  <span class="switch-state" id="exportLegendState" aria-hidden="true">On</span>
+                </label>
+              </div>
               <!-- a dungeon of several levels: what the picture and the printout hold (shown by app.js) -->
               <div class="field select-field export-scope" id="exportScope" hidden>
                 <label for="exportScopeSelect">Picture and printout hold</label>
@@ -253,7 +263,7 @@
                   <option value="all" selected>All levels</option>
                   <option value="this">This level</option>
                 </select>
-                <p class="hint" id="exportScopeHint">All levels: one picture, one printed page each. This level: only the level on the map.</p>
+                <p class="tip" role="tooltip" id="exportScopeHint">All levels: one picture, one printed page each. This level: only the level on the map.</p>
               </div>
               <input type="text" id="shareUrl" readonly hidden aria-label="Link to this dungeon">
               <p class="hint" id="exportStatus" role="status" aria-live="polite"></p>
@@ -262,7 +272,6 @@
             <!-- what is typed and picked in the columns is kept on this device, and comes back next visit -->
             <section class="settings">
               <h3>Settings <button type="button" class="link-btn" id="resetSettings" title="Put every input, switch and color back to how the page first comes">Reset all</button></h3>
-              <p class="hint">Your inputs, switches and colors are remembered on this device. The seed is not.</p>
             </section>
           </div>
         </section>
@@ -291,12 +300,14 @@
             <fieldset class="field segmented">
               <legend>Label position</legend>
               <div class="seg-options">
-                <input type="radio" id="labels-inside" name="labelPosition" value="inside" checked>
+                <!-- the helper text is a tooltip on each button (a "tip" after its label), shown on hover or keyboard focus -->
+                <input type="radio" id="labels-inside" name="labelPosition" value="inside" checked aria-describedby="tip-labels-inside">
                 <label for="labels-inside">Inside</label>
-                <input type="radio" id="labels-outside" name="labelPosition" value="outside">
+                <span class="tip" id="tip-labels-inside" role="tooltip">Room numbers sit in the middle of each room</span>
+                <input type="radio" id="labels-outside" name="labelPosition" value="outside" aria-describedby="tip-labels-outside">
                 <label for="labels-outside">Outside</label>
+                <span class="tip tip-end" id="tip-labels-outside" role="tooltip">Room numbers sit just outside each room's wall, clear of the other rooms</span>
               </div>
-              <p class="hint" id="labelPositionHint">Room numbers sit in the middle of each room</p>
             </fieldset>
 
             <div class="field toggle-field">

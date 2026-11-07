@@ -942,13 +942,8 @@
   });
 
   // Label position is about drawing, not building: it takes effect at once, with no new dungeon
-  const LABEL_HINTS = {
-    inside: 'Room numbers sit in the middle of each room',
-    outside: "Room numbers sit just outside each room's wall, clear of the other rooms",
-  };
   function updateLabelPosition() {
     const choice = document.querySelector('input[name="labelPosition"]:checked').value;
-    $('labelPositionHint').textContent = LABEL_HINTS[choice];
     renderer.setOption('labelPosition', choice);
     redrawGallery();
   }
@@ -1077,6 +1072,8 @@
       showSwitchState(id);
     });
   }
+  // the switch for the legend on the picture and printout (it changes nothing on the map)
+  $('exportLegend').addEventListener('change', () => showSwitchState('exportLegend'));
   $('zoomIn').addEventListener('click', () => renderer.zoomBy(1.4));
   $('zoomOut').addEventListener('click', () => renderer.zoomBy(1 / 1.4));
   $('fit').addEventListener('click', () => renderer.fit());
@@ -1415,6 +1412,7 @@
       applyForm({ ...factoryForm, roomShapes: factoryForm.roomShapes.slice(), hallTypes: factoryForm.hallTypes.slice() });
       applyDisplay(factoryDisplay);
       $('exportLegend').checked = true;
+      showSwitchState('exportLegend');
       try {
         localStorage.removeItem(SETTINGS_KEY);
       } catch (err) {
