@@ -1979,6 +1979,8 @@ console.log('== page layout');
   // the inputs are split into five collapsible columns: layout (with room spacing), rooms, hallways (with entrances), seed / generation / results, then display
   const blades = [...html.matchAll(/<section class="blade" id="blade-([a-z]+)" data-blade="([a-z]+)"/g)];
   if (JSON.stringify(blades.map((m) => m[2])) !== JSON.stringify(['layout', 'rooms', 'hallways', 'export', 'display'])) fail('layout', `columns are [${blades.map((m) => m[2])}]`);
+  // on a first visit Export and Display start collapsed (the three columns that shape the dungeon are open)
+  if (!/let closed = \['export', 'display'\];/.test(appJs)) fail('layout', 'a first visit should start with Export and Display collapsed');
   for (const [, id, name] of blades) {
     if (id !== name) fail('layout', `column ${name} has id blade-${id}`);
     if (!html.includes(`aria-controls="blade-${name}-body"`) || !html.includes(`id="blade-${name}-body"`)) fail('layout', `the toggle of column ${name} does not control its body`);
@@ -2287,6 +2289,9 @@ console.log('== brand style (Duckweed’s Aeldara)');
   if (!/height:\s*var\(--tool\)/.test(rule('.toolbar button'))) fail('brand', 'the buttons on the map should be sized by --tool');
   if (!/\.toolbar \{[^}]*--tool:\s*34px/.test(noComments)) fail('brand', 'the map buttons should be 34px tall with a mouse');
   if (!/@media \(pointer: coarse\), \(max-width: 760px\) \{ \.toolbar \{ --tool: var\(--tap\); \} \}/.test(noComments)) fail('brand', 'the map buttons should be at least 44px tall on touch screens and phones');
+  // zoom and fit buttons: only on a touch screen (a mouse has the wheel, a double-click and the F key)
+  if (!/\.toolbar #zoomIn, \.toolbar #zoomOut, \.toolbar #fit \{ display: none; \}/.test(noComments) || !/@media \(pointer: coarse\) \{ \.toolbar #zoomIn, \.toolbar #zoomOut, \.toolbar #fit \{ display: block; \} \}/.test(noComments)) fail('brand', 'the +, - and Fit buttons should show only on a touch screen');
+  if (!/key === 'f'\) \{\s*renderer\.fit\(\)/.test(appJs)) fail('brand', 'the F key should fit the map (there is no Fit button with a mouse)');
 
   // print: the picture alone, and its page is light whatever the page theme is
   const printCss = css.slice(css.indexOf('@media print'));

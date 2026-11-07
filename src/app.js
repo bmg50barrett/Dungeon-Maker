@@ -32,7 +32,7 @@
   }
 
   function restoreBlades() {
-    let closed = ['display']; // a first visit starts with Display folded away; once the columns have been used, what was chosen wins
+    let closed = ['export', 'display']; // a first visit starts with Export and Display folded away; once the columns have been used, what was chosen wins
     try {
       const saved = JSON.parse(localStorage.getItem(BLADES_KEY));
       if (Array.isArray(saved)) closed = saved;
@@ -535,7 +535,7 @@
     recordEdit('Clear the room names', token);
   });
 
-  const MAP_HINT = 'Scroll to zoom · drag to pan · double-click to fit';
+  const MAP_HINT = 'Scroll to zoom · drag to pan · double-click or press F to fit';
   const TOOL_HINTS = {
     door: 'Click a wall to add a door (an entrance, on an outer wall) · click a door to change it · right-click to remove it · middle button to pan',
     doorTouch: 'Tap a wall to add a door (an entrance, on an outer wall) · tap a door to change it · press and hold to remove it · drag to pan',
@@ -657,7 +657,7 @@
     e.preventDefault();
   });
 
-  // Keys: E turns Edit mode on and off, and in Edit mode D, H, R and S pick the Doors, Hallway, Room and Stairs tools
+  // Keys: E turns Edit mode on and off, F fits the map to the screen, and in Edit mode D, H, R and S pick the Doors, Hallway, Room and Stairs tools
   const TOOL_KEYS = { d: 'door', h: 'draw', r: 'room', s: 'stairs' };
   window.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
@@ -668,6 +668,8 @@
     const on = $('editMode').getAttribute('aria-pressed') === 'true';
     if (key === 'e') {
       setEditMode(!on);
+    } else if (key === 'f') {
+      renderer.fit(); // (in Edit mode a double-click is for the doors and hallways, so this is how a mouse gets the whole map back)
     } else if (on && TOOL_KEYS[key]) {
       const button = [...$('editTools').querySelectorAll('button')].find((b) => b.dataset.tool === TOOL_KEYS[key]);
       if (!button || button.hidden) return;

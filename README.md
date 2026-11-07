@@ -237,7 +237,7 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
 
   A color is one value, `#rrggbb`; the colors that go with it are worked out in
   `src/palette.js`. Colors are remembered between visits (see Remembered settings).
-- Controls: scroll to zoom, drag to pan, double-click (or **Fit**) to fit the map.
+- Controls: scroll to zoom, drag to pan, double-click (or press **F**) to fit the map. The **+**, **−** and **Fit** buttons are only shown on a touch screen, which has no scroll wheel.
 - **Edit mode** (the **Edit** button on the map, left of the zoom buttons). Click it to start editing
   doors, hallways, rooms and stairs, and click it again to stop. While it is on, the button stays pressed in, the map has a
   coloured frame, and a row of tools appears under the buttons. Leaving edit mode keeps the edits,
@@ -340,7 +340,7 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
   grid and room-number switches, and colors). Display only changes how the map is
   drawn (and, for the theme, the page around it), so it applies at once. Click a
   column's title bar to collapse it into a tab in one narrow bar at the left (the collapsed columns stack there, in the same order) and give the map more room, and
-  click its tab to open it again (each column has a small picture beside its title: two rooms for Layout, a room for Rooms, a hallway's two walls for Hallways, an arrow out of a tray for Export, a screen for Display); the open columns stay side by side, in their usual order, beside the bar. Which columns are collapsed is remembered; on a first visit Display starts collapsed. A
+  click its tab to open it again (each column has a small picture beside its title: two rooms for Layout, a room for Rooms, a hallway's two walls for Hallways, an arrow out of a tray for Export, a screen for Display); the open columns stay side by side, in their usual order, beside the bar. Which columns are collapsed is remembered; on a first visit Export and Display start collapsed. A
   collapsed column opens by itself if one of its inputs has an error. On a narrow
   screen the columns stack and collapse like an accordion.
 - The **legend** is a small card in the bottom right corner of the map, not in a column, so it

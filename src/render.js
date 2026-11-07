@@ -383,7 +383,7 @@
         }
       });
       c.addEventListener('dblclick', (e) => {
-        // in edit mode quick clicks are for the doors and hallways, not for fitting the map (the Fit button is there)
+        // in edit mode quick clicks are for the doors and hallways, not for fitting the map (the F key does that, and the Fit button on a touch screen)
         if (this.editMode) {
           if (this.editTool !== 'door') return;
           const rect = c.getBoundingClientRect();
