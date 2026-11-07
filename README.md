@@ -352,6 +352,14 @@ theme is about the viewer, not the dungeon, so a share link does not hold it and
 
 - The **seed is not remembered**: it would make every visit open the same dungeon. The
   first dungeon of a visit is built with a new random seed.
+- **An edited dungeon is remembered.** Once you have changed the dungeon (a door, a hallway, a room, stairs, a room name,
+  a level built again), the whole dungeon is kept after each change and comes back on your next visit, as you left
+  it, instead of a new one; a line under the map says so. A dungeon you have not changed is not kept, so a visit still
+  starts with a new one. What is kept goes when a new dungeon is built (**Re-generate dungeon**, **Generate with random
+  seed**, **Reset all**), which asks first, as always. **Undo and Redo** start empty again after a visit. A share link
+  opened in the address bar wins over a kept dungeon, which stays kept until you change something or build a new
+  dungeon. It lives under `dungeonMaker.dungeon`; if the browser will not store it (blocked, or full), the page says so
+  when you edit, and the picture and the data export are the way to keep it.
 - A **share link** opened in the address bar wins over what is remembered, and does not
   replace it: your own settings come back next time you open the page without a link. (Once
   you change something while a link's settings are showing, the whole set is remembered.)

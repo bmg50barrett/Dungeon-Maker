@@ -2058,7 +2058,7 @@ console.log('== page layout');
   const submitHandler = (appJs.match(/\$\('params'\)\.addEventListener\('submit',[\s\S]*?\n  \}\);/) || [''])[0];
   if (!/generate\(\{\s*fillSeed:\s*true\s*\}\)/.test(submitHandler)) fail('layout', 'Re-generate dungeon (the form submit) should fill a blank seed box');
   if (!/\$\('generateRandom'\)\.addEventListener\('click', \(\) => ifEditsDiscarded\(\(\) => generate\(\{ randomSeed: true \}\)\)\)/.test(appJs)) fail('layout', 'Generate with random seed should ask for a random seed (after the edits warning)');
-  if (!/if \(!openLink\(\)\) \{\s*restoreSettings\(\);\s*generate\(\);\s*\}/.test(appJs)) fail('layout', 'the first dungeon (page opening) should not fill the seed box, and kept settings come after a link');
+  if (!/if \(!openLink\(\)\) \{\s*restoreSettings\(\);\s*if \(!restoreDungeon\(\)\) generate\(\);\s*\}/.test(appJs)) fail('layout', 'the first dungeon (page opening) should not fill the seed box, and kept settings and a kept dungeon come after a link');
   if (!/fillSeed && !randomSeed && check\.params\.seed === null/.test(appJs)) fail('layout', 'only a blank seed should be filled in, never one that was typed');
   if (!/if \(randomSeed \|\| \(fillBlankSeed && \$\('seed'\)\.value\.trim\(\) === ''\)\) \$\('seed'\)\.value = dungeon\.seed/.test(appJs)) fail('layout', 'the seed box should get the seed the dungeon was built from (always for the random button, only if blank otherwise)');
   // the name of the app is across the top of the map, not in the columns, and the map sits under it
@@ -2082,6 +2082,55 @@ console.log('== page layout');
   // one form wraps all four columns, so Enter in any field generates
   const formAt = html.indexOf('<form id="params"');
   if (formAt < 0 || blades.some((m) => m.index < formAt) || html.indexOf('</form>') < blades[blades.length - 1].index) fail('layout', 'the five columns are not all inside the one form');
+  console.log('  done');
+}
+
+console.log('== keeping the edited dungeon between visits');
+{
+  const fs = require('fs');
+  const path = require('path');
+  // the text kept on the device: a dungeon (one level and several) goes in and comes out the same, and nonsense is turned away
+  for (const [name, params] of [['one level', { seed: 'keep-1', roomCount: 9 }], ['three levels', { seed: 'keep-3', roomCount: 6, levels: 3 }]]) {
+    const dun = DM.generateDungeon({ avgRoomSize: 25, sizeVariance: 30, entrances: 2, connectionType: 'door', ...params });
+    const asBuilt = DM.editState(dun);
+    const floors = asBuilt.split('||').slice(0, DM.levelCount(dun));
+    DM.current = dun;
+    const kept = DM.decodeKept(DM.encodeKept({ dungeon: dun, asBuilt, floors, builtMs: 12.5 }));
+    if (!kept) { fail('keep', `${name}: what was kept could not be read back`); continue; }
+    if (JSON.stringify(kept.dungeon) !== JSON.stringify(dun) || kept.asBuilt !== asBuilt || JSON.stringify(kept.floors) !== JSON.stringify(floors) || kept.builtMs !== 12.5) fail('keep', `${name}: the dungeon kept is not the dungeon that came back`);
+    // an edit made to the copy shows as an edit against what was built: the page knows the dungeon has been changed
+    const room = DM.allRooms(kept.dungeon)[0];
+    room.name = 'The Vault';
+    if (DM.editState(kept.dungeon) === kept.asBuilt) fail('keep', `${name}: a room named after coming back is not seen as an edit`);
+    const again = DM.decodeKept(DM.encodeKept({ dungeon: kept.dungeon, asBuilt: kept.asBuilt, floors: kept.floors, builtMs: 0 }));
+    if (!again || DM.allRooms(again.dungeon)[0].name !== 'The Vault') fail('keep', `${name}: a name did not survive being kept again`);
+  }
+  const good = DM.generateDungeon({ seed: 'keep-x', roomCount: 5, avgRoomSize: 25, sizeVariance: 30, entrances: 1, connectionType: 'door' });
+  const text = DM.encodeKept({ dungeon: good, asBuilt: DM.editState(good), floors: [DM.editState(good)], builtMs: 3 });
+  const bad = (t, why) => { if (DM.decodeKept(t) !== null) fail('keep', `kept text accepted: ${why}`); };
+  bad(null, 'null'); bad(undefined, 'undefined'); bad('', 'empty'); bad('{', 'half a file'); bad('[]', 'an array'); bad('null', 'the word null'); bad('{"v":1}', 'no dungeon');
+  bad(JSON.stringify({ ...JSON.parse(text), v: 2 }), 'another version');
+  bad(JSON.stringify({ ...JSON.parse(text), asBuilt: 5 }), 'a number for the as-built record');
+  bad(JSON.stringify({ ...JSON.parse(text), floors: 'x' }), 'floors that are not a list');
+  bad(JSON.stringify({ ...JSON.parse(text), dungeon: { ...good, rooms: 'many' } }), 'rooms that are not a list');
+  bad(JSON.stringify({ ...JSON.parse(text), dungeon: { ...good, width: 'wide' } }), 'a width that is not a number');
+  bad(JSON.stringify({ ...JSON.parse(text), dungeon: { ...good, levels: 3 } }), 'three levels without their floors');
+  const noMs = DM.decodeKept(JSON.stringify({ ...JSON.parse(text), builtMs: 'slow' }));
+  if (!noMs || noMs.builtMs !== 0) fail('keep', 'a build time that is not a number should read as 0');
+
+  // the page: kept after each change (steps, undo and redo, typing a name), brought back when it opens, gone when a new dungeon is built
+  const app = fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8');
+  const fn = (name) => (app.match(new RegExp(`function ${name}\\([^)]*\\) \\{[^]*?\\n  \\}\\n`)) || [''])[0];
+  if (!/const KEPT_KEY = 'dungeonMaker\.dungeon'/.test(app)) fail('keep', 'the kept dungeon needs its own storage key');
+  if (['dungeonMaker.settings', 'dungeonMaker.collapsedColumns'].some((k) => app.includes(`KEPT_KEY = '${k}'`))) fail('keep', 'the kept dungeon shares a storage key');
+  const save = fn('saveDungeon');
+  if (!/editsMade\(\)/.test(save) || !/localStorage\.setItem\(KEPT_KEY, DM\.encodeKept\(/.test(save) || !/forgetDungeon\(\)/.test(save) || !/catch/.test(save) || !/could not be kept/.test(save)) fail('keep', 'saveDungeon must keep only a changed dungeon, drop it otherwise, and say so if storage fails');
+  for (const where of ['recordEdit', 'showHistoryStep']) if (!/saveDungeon\(\);/.test(fn(where))) fail('keep', `${where} does not keep the dungeon after a change`);
+  if (!/room\.name = name;[^]*?saveDungeon\(\);/.test(app)) fail('keep', 'a name being typed is not kept until the box is left');
+  const restore = fn('restoreDungeon');
+  if (!/DM\.decodeKept\(text\)/.test(restore) || !/editsAsBuilt = kept\.asBuilt/.test(restore) || !/floorsAsBuilt = kept\.floors/.test(restore) || !/editHistory\.clear\(\)/.test(restore) || !/forgetDungeon\(\)/.test(restore) || !/catch \(err\)/.test(restore)) fail('keep', 'restoreDungeon must read the text safely, bring back the as-built record, and drop a dungeon it cannot show');
+  if (!/if \(!firstBuild\) saveDungeon\(\)/.test(app) || !/const firstBuild = startingUp/.test(app)) fail('keep', 'a new dungeon built by the user must drop the kept one (but not the build made while the page opens)');
+  if (!/\$\('params'\)\.addEventListener\('submit'[^]*?ifEditsDiscarded/.test(app)) fail('keep', 'building a new dungeon still has to ask before losing edits');
   console.log('  done');
 }
 

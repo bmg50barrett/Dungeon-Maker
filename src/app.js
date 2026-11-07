@@ -328,6 +328,69 @@
   const editsMade = () => !!DM.current && DM.editState(DM.current) !== editsAsBuilt;
   let builtMs = 0; // how long the dungeon on the map took to build, for the summary
 
+  // ---- keeping the edited dungeon between visits --------------------------------------------
+  // Once the dungeon has been changed (a door, a hallway, a room, stairs, a name), the whole dungeon is kept in this browser
+  // (localStorage) after each change, and the next visit brings it back instead of building a new one. A dungeon nobody has
+  // changed is not kept (as before, a visit starts with a new one), and the kept one goes when a new dungeon is built. The
+  // undo history is not kept. A share link in the address bar wins over a kept dungeon, which stays until something is
+  // changed or a new dungeon is built.
+
+  const KEPT_KEY = 'dungeonMaker.dungeon';
+  let startingUp = true; // true until the first dungeon is on the page
+
+  const forgetDungeon = () => {
+    try {
+      localStorage.removeItem(KEPT_KEY);
+    } catch (err) {
+      // storage cannot be reached: nothing was kept
+    }
+  };
+
+  /** Keep the dungeon if it has been changed since it was built, otherwise drop what was kept. */
+  function saveDungeon() {
+    if (!DM.current || !editsMade()) return forgetDungeon();
+    try {
+      localStorage.setItem(KEPT_KEY, DM.encodeKept({ dungeon: DM.current, asBuilt: editsAsBuilt, floors: floorsAsBuilt, builtMs }));
+    } catch (err) {
+      // storage is blocked (private mode, a local file in some browsers) or full: say so, once, so nobody counts on it
+      setExportStatus('Your edits could not be kept on this device. Save the picture or the data to keep them.');
+    }
+  }
+
+  /** Bring back the dungeon that was kept, if there is one that still makes sense. Returns whether it did. */
+  function restoreDungeon() {
+    let text = null;
+    try {
+      text = localStorage.getItem(KEPT_KEY);
+    } catch (err) {
+      return false;
+    }
+    if (text === null) return false;
+    const kept = DM.decodeKept(text);
+    if (!kept) {
+      forgetDungeon();
+      return false;
+    }
+    try {
+      DM.current = kept.dungeon;
+      editsAsBuilt = kept.asBuilt;
+      floorsAsBuilt = kept.floors;
+      builtMs = kept.builtMs;
+      editHistory.clear();
+      updateHistoryButtons();
+      showFloor();
+      showSummary(kept.dungeon, builtMs);
+      if (!editsMade()) throw new Error('the kept dungeon has no edits');
+      $('canvasHint').textContent = 'Your edited dungeon is back as you left it. Re-generate dungeon builds a new one.';
+      return true;
+    } catch (err) {
+      console.error(err);
+      DM.current = null;
+      forgetDungeon();
+      return false;
+    }
+  }
+
   const DISCARD_WORDS = { title: $('discardTitle').textContent, text: $('discardText').textContent, button: $('discardConfirm').textContent };
 
   /** The warning before edits are thrown away (with other words for other things that throw them away). Resolves true if the user goes ahead. */
@@ -427,6 +490,7 @@
         if (name) room.name = name;
         else delete room.name;
         updateRoomNamesCount();
+        saveDungeon(); // (the step itself is recorded when the box is left)
       });
       // Enter goes on to the next room's box
       input.addEventListener('keydown', (e) => {
@@ -558,6 +622,7 @@
   function recordEdit(label, token, shift) {
     if (DM.current) editHistory.push(DM.current, label, token, shift);
     updateHistoryButtons();
+    saveDungeon();
   }
 
   /** Show the dungeon again after undo or redo put an older or newer one in it. */
@@ -574,6 +639,7 @@
     if (namePanelOpen()) showRoomNames(d);
     $('canvasHint').textContent = `${verb}: ${res.label}`;
     updateHistoryButtons();
+    saveDungeon();
   }
   const undoEdit = () => DM.current && showHistoryStep(editHistory.undo(DM.current), 'Undid');
   const redoEdit = () => DM.current && showHistoryStep(editHistory.redo(DM.current), 'Redid');
@@ -801,6 +867,7 @@
       return;
     }
     if (!fromLink) dropLinkFromAddress();
+    const firstBuild = startingUp; // (a build made while the page opens leaves a kept dungeon alone)
     const fillBlankSeed = fillSeed && !randomSeed && check.params.seed === null;
 
     const clicked = randomSeed ? $('generateRandom') : $('generate');
@@ -829,6 +896,7 @@
         showSummary(dungeon, ms);
         if (namePanelOpen()) showRoomNames(dungeon);
         setExportStatus('');
+        if (!firstBuild) saveDungeon(); // (a new dungeon has no edits: the kept one goes)
         // the random button always shows the seed it picked; a blank box is filled
         // (unless something was typed into it while the dungeon was being built)
         if (randomSeed || (fillBlankSeed && $('seed').value.trim() === '')) $('seed').value = dungeon.seed;
@@ -1367,6 +1435,7 @@
   applyColors();
   if (!openLink()) {
     restoreSettings();
-    generate();
+    if (!restoreDungeon()) generate();
   }
+  startingUp = false; // (a build asked for above, still under way, counts as the first)
 })();

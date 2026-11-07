@@ -8,6 +8,9 @@
  * to a server. It reads like  #v=1&rooms=12&size=30&...&spacing=compact&seed=482910337  and only holds what
  * differs from the usual look for the display options.
  *
+ * The edited dungeon is also kept on the device between visits (see encodeKept): the whole dungeon as it now is, with what the
+ * page needs to tell, afterwards, what has been changed since it was built.
+ *
  * Pure functions, no page, so they can be tested without a browser.
  */
 (function () {
@@ -115,6 +118,34 @@
     return { form, display, hasSettings };
   }
 
+  const KEPT_VERSION = 1;
+
+  const isFloor = (f) => !!f && typeof f === 'object' && ['rooms', 'halls', 'connections', 'entrances'].every((k) => Array.isArray(f[k]));
+
+  /**
+   * The text that keeps a dungeon on this device: { dungeon, asBuilt, floors, builtMs }. `asBuilt` and `floors` are the page's record of
+   * the dungeon as it was built (DM.editState), so that a dungeon brought back still knows it has been edited.
+   */
+  function encodeKept({ dungeon, asBuilt, floors, builtMs }) {
+    return JSON.stringify({ v: KEPT_VERSION, dungeon, asBuilt, floors, builtMs: Number(builtMs) || 0 });
+  }
+
+  /** What encodeKept made, or null if the text is not that (nothing kept, damaged, or from a different version of the page). */
+  function decodeKept(text) {
+    if (typeof text !== 'string' || text === '') return null;
+    let kept;
+    try {
+      kept = JSON.parse(text);
+    } catch (err) {
+      return null;
+    }
+    if (!kept || kept.v !== KEPT_VERSION || typeof kept.asBuilt !== 'string' || !Array.isArray(kept.floors) || !kept.floors.every((f) => typeof f === 'string')) return null;
+    const d = kept.dungeon;
+    if (!isFloor(d) || !Number.isInteger(d.width) || !Number.isInteger(d.height) || d.width < 1 || d.height < 1) return null;
+    if (d.levels > 1 && !(Array.isArray(d.floors) && d.floors.length === d.levels - 1 && d.floors.every(isFloor) && Array.isArray(d.stairs))) return null;
+    return { dungeon: d, asBuilt: kept.asBuilt, floors: kept.floors, builtMs: Number.isFinite(kept.builtMs) ? kept.builtMs : 0 };
+  }
+
   /** A file name for an export, such as "dungeon-482910337.png": the seed, made safe for a file name. */
   function exportFileName(dungeon, extension) {
     const safe = String(dungeon && dungeon.seed !== undefined ? dungeon.seed : '')
@@ -140,6 +171,8 @@
   DM.SHARE_VERSION = VERSION;
   DM.encodeShare = encodeShare;
   DM.decodeShare = decodeShare;
+  DM.encodeKept = encodeKept;
+  DM.decodeKept = decodeKept;
   DM.exportFileName = exportFileName;
   DM.dungeonJson = dungeonJson;
   DM.exportCaption = exportCaption;
