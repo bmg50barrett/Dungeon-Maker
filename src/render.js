@@ -16,7 +16,7 @@
   const MAX_SCALE = 80;
   const CLICK_SLOP = 4; // px a pointer may travel and still count as a click (not a drag) in edit mode
   const MAX_STROKE = 5000; // squares one hallway stroke may cover
-  const EDIT_TOOLS = ['door', 'draw', 'erase', 'stairs', 'room'];
+  const EDIT_TOOLS = ['door', 'draw', 'stairs', 'room'];
   const DRAG_TOOLS = ['draw', 'room']; // a drag with these does something, so panning takes Space (or the middle button)
 
   // fills in the squares between two the pointer reported, for a hallway stroke (in edit.js)
@@ -50,14 +50,15 @@
       this._drag = null;
       this._raf = 0;
       // edit mode, with a tool: 'door' (a click on a door between rooms changes it to its next state, see
-      // DM.DOOR_STYLES), 'draw' (drag to draw a hallway) or 'erase' (click a stretch of hallway to delete it)
+      // DM.DOOR_STYLES), 'draw' (drag to draw a hallway, right-click a stretch of hallway to delete it)
       this.editMode = false;
       this.editTool = 'door';
-      this.onDoorChange = null; // called with { opening, from, to } after a click changed a door
-      this.onLayoutChange = null; // called with { kind: 'draw'|'erase', dx, dy, ... } after the hallways changed
+      this.onDoorChange = null; // called with { opening, from, to } after a click changed a door (a door taken out has to: null and removed: true)
+      this.onLayoutChange = null; // called with { kind: 'draw'|'erase' (a stretch deleted), dx, dy, ... } after the hallways changed
       this._hover = null; // the door under the pointer (door tool; one of model.edits)
-      this._hoverCell = null; // the square under the pointer (draw and erase tools)
-      this._hoverStretch = null; // the stretch of hallway a click would delete (erase tool)
+      this._hoverWall = null; // else the wall segment under it: { x, y, d, plan } (door tool), plan as DM.planDoor gives it
+      this._hoverCell = null; // the square under the pointer (draw tool)
+      this._hoverStretch = null; // the stretch of hallway a right click would delete (draw tool)
       this._stroke = null; // a hallway being drawn: { cells: [[x, y], ...], plan }
       this.onRoomChange = null; // called with { kind: 'add'|'move'|'delete', dx, dy, ... } after a room was drawn, moved or deleted
       this._roomDrag = null; // a room being drawn (room tool): { a: [x, y], b: [x, y], plan }
@@ -94,7 +95,7 @@
     }
 
     /**
-     * The tool of edit mode: 'door' (the first one), 'draw', 'erase' or 'stairs' (stairs between levels), and for rooms 'room' (drag over empty
+     * The tool of edit mode: 'door' (the first one), 'draw' (hallways: drag to draw, right-click to delete a stretch) or 'stairs' (stairs between levels), and for rooms 'room' (drag over empty
      * squares to draw a rectangle, drag a room to move it; a right click, or a long press on a touch screen, deletes the room under it).
      */
     setEditTool(tool) {
@@ -108,6 +109,7 @@
 
     _clearHover() {
       this._hover = null;
+      this._hoverWall = null;
       this._hoverCell = null;
       this._hoverStretch = null;
       this._hoverStair = null;
@@ -119,9 +121,9 @@
     _cursor() {
       const cl = this.canvas.classList;
       const tool = this.editMode ? this.editTool : '';
-      cl.toggle('over-door', tool === 'door' && !!this._hover);
+      cl.toggle('over-door', tool === 'door' && (!!this._hover || !!(this._hoverWall && (this._hoverWall.plan.ok || this._hoverWall.plan.entrance))));
       cl.toggle('tool-draw', (tool === 'draw' || (tool === 'room' && !this._hoverRoom)) && !this._space);
-      cl.toggle('over-hall', (tool === 'erase' && !!this._hoverStretch) || (tool === 'stairs' && !!this._hoverStair && this._hoverStair.can) || (tool === 'room' && !!this._hoverRoom && !this._space));
+      cl.toggle('over-hall', (tool === 'stairs' && !!this._hoverStair && this._hoverStair.can) || (tool === 'room' && !!this._hoverRoom && !this._space));
     }
 
     /**
@@ -282,8 +284,8 @@
       );
       c.addEventListener('pointerdown', (e) => {
         c.setPointerCapture(e.pointerId);
-        // with the room and door tools the right button deletes (below, in contextmenu): it neither draws, pans nor clicks
-        if (this.editMode && (this.editTool === 'room' || this.editTool === 'door') && e.button === 2) return;
+        // with the room, door and draw tools the right button deletes (below, in contextmenu): it neither draws, pans nor clicks
+        if (this.editMode && (this.editTool === 'room' || this.editTool === 'door' || this.editTool === 'draw') && e.button === 2) return;
         // with the draw tool a drag draws a hallway; the middle button, or Space held, pans as usual
         if (this.editMode && this.editTool === 'draw' && e.button === 0 && !this._space) {
           this._stroke = { cells: [this._cellAt(e)], plan: null };
@@ -350,12 +352,19 @@
         this.requestDraw();
       });
       // the door tool: a right click (or a long press on a touch screen) takes the door out of the doorway under it
-      // (it stays an opening), and the room tool's deletes the room under it; no menu comes up with either
+      // (it stays an opening), the draw tool's deletes the stretch of hallway under it and the room tool's the room; no menu comes up
       c.addEventListener('contextmenu', (e) => {
         if (!this.editMode) return;
         if (this.editTool === 'door') {
           e.preventDefault();
           this._removeDoorAt(e);
+          return;
+        }
+        if (this.editTool === 'draw') {
+          e.preventDefault();
+          this._stroke = null;
+          this._deleteStretchAt(this._cellAt(e));
+          this.requestDraw();
           return;
         }
         if (this.editTool !== 'room') return;
@@ -368,7 +377,7 @@
       c.addEventListener('pointerenter', () => (this._inside = true));
       c.addEventListener('pointerleave', () => {
         this._inside = false;
-        if (this._hover || this._hoverCell || this._hoverStretch || this._hoverStair || this._hoverRoom) {
+        if (this._hover || this._hoverWall || this._hoverCell || this._hoverStretch || this._hoverStair || this._hoverRoom) {
           this._clearHover();
           this.requestDraw();
         }
@@ -421,8 +430,11 @@
       if (this.editTool === 'door') {
         const rect = this.canvas.getBoundingClientRect();
         const hit = this._doorAt(e.clientX - rect.left, e.clientY - rect.top);
-        if (hit === this._hover) return;
+        const wall = hit ? null : this._wallAt(e);
+        const same = this._hoverWall && wall && this._hoverWall.x === wall.x && this._hoverWall.y === wall.y && this._hoverWall.d === wall.d;
+        if (hit === this._hover && (same || (!wall && !this._hoverWall))) return;
         this._hover = hit;
+        this._hoverWall = wall;
       } else if (this.editTool === 'stairs') {
         const cell = this._cellAt(e);
         if (this._hoverCell && this._hoverCell[0] === cell[0] && this._hoverCell[1] === cell[1] && this._hoverShift === e.shiftKey) return;
@@ -433,22 +445,24 @@
         const cell = this._cellAt(e);
         if (this._hoverCell && this._hoverCell[0] === cell[0] && this._hoverCell[1] === cell[1]) return;
         this._hoverCell = cell;
-        this._hoverStretch = this.editTool === 'erase' ? DM.hallStretchAt(this.dungeon, cell[0], cell[1]) : null;
+        this._hoverStretch = this.editTool === 'draw' ? DM.hallStretchAt(this.dungeon, cell[0], cell[1]) : null;
         this._hoverRoom = this.editTool === 'room' ? DM.roomAt(this.dungeon, cell[0], cell[1]) : null;
       }
       this._cursor();
       this.requestDraw();
     }
 
-    /** A click in edit mode: with the door tool the door under it goes to its next state; with the erase tool the stretch of hallway under it goes. */
+    /** The wall segment under a pointer event, as { x, y, d, plan } (see DM.planDoor), or null if the pointer is not by a wall. */
+    _wallAt(e) {
+      if (!this.dungeon) return null;
+      const rect = this.canvas.getBoundingClientRect();
+      const { scale: s, tx, ty } = this.view;
+      const wall = DM.wallNear(this.dungeon, (e.clientX - rect.left - tx) / s, (e.clientY - rect.top - ty) / s, Math.min(0.5, Math.max(0.3, 8 / s)));
+      return wall ? { ...wall, plan: DM.planDoor(this.dungeon, wall.x, wall.y, wall.d) } : null;
+    }
+
+    /** A click in edit mode: with the door tool a click on a wall puts a door in it (an entrance if nothing is beside it), and a click on a door changes it to its next state; with the stairs tool stairs are added or removed. */
     _clickAt(e) {
-      if (this.editTool === 'erase') {
-        const [x, y] = this._cellAt(e);
-        const token = this.beforeEdit ? this.beforeEdit() : null;
-        const res = DM.deleteHallStretch(this.dungeon, x, y);
-        if (res.ok) this._layoutChanged(res, 'erase', token);
-        return;
-      }
       if (this.editTool === 'stairs') {
         const plan = this._stairPlan(this._cellAt(e), e.shiftKey);
         if (!plan) return;
@@ -467,7 +481,16 @@
       if (this.editTool !== 'door') return;
       const rect = this.canvas.getBoundingClientRect();
       const hit = this._doorAt(e.clientX - rect.left, e.clientY - rect.top);
-      if (!hit) return;
+      if (!hit) {
+        // no door there: a wall gets one (the entrance doors are not changed by a click; right-click removes them)
+        const wall = this._wallAt(e);
+        if (!wall || wall.plan.entrance || wall.plan.opening) return;
+        const token = this.beforeEdit ? this.beforeEdit() : null;
+        const res = DM.addDoor(this.dungeon, wall.x, wall.y, wall.d);
+        if (res.ok) this._doorsChanged(res, { added: true, kind: res.kind, opening: res.opening || null, entrance: res.entrance || null, from: null, to: 'door', token });
+        else if (this.onNote) this.onNote(res.reason.charAt(0).toUpperCase() + res.reason.slice(1));
+        return;
+      }
       const opening = hit.opening;
       const from = opening.style;
       const token = this.beforeEdit ? this.beforeEdit() : null; // (what undo needs: the dungeon as it is before the change)
@@ -477,18 +500,47 @@
       if (this.onDoorChange) this.onDoorChange({ opening, from, to: opening.style, token });
     }
 
-    /** The door tool's right click: the door under the pointer (of any kind) is taken out, leaving the doorway open. Nothing to do if it is open already. */
+    /** The draw tool's right click: the stretch of hallway on square `cell` goes, with its doors. */
+    _deleteStretchAt(cell) {
+      if (!this.dungeon) return;
+      const token = this.beforeEdit ? this.beforeEdit() : null;
+      const res = DM.deleteHallStretch(this.dungeon, cell[0], cell[1]);
+      if (res.ok) this._layoutChanged(res, 'erase', token);
+    }
+
+    /** A door was put in or taken out (not just changed): as with hallways the map may have moved, so the view moves the other way. */
+    _doorsChanged(res, notice) {
+      const dx = res.dx || 0;
+      const dy = res.dy || 0;
+      this.view.tx -= dx * this.view.scale;
+      this.view.ty -= dy * this.view.scale;
+      this._clearHover();
+      this.refreshModel({ moved: true });
+      if (this.onDoorChange) this.onDoorChange({ ...notice, dx, dy });
+    }
+
+    /** The door tool's right click: the door under the pointer (any kind, an archway too) is taken out, and the wall is solid there again. An entrance goes the same way. */
     _removeDoorAt(e) {
       const rect = this.canvas.getBoundingClientRect();
       const hit = this._doorAt(e.clientX - rect.left, e.clientY - rect.top);
-      if (!hit || hit.opening.style === 'open') return;
+      if (!hit) {
+        const wall = this._wallAt(e);
+        const entrance = wall && wall.plan.entrance;
+        if (!entrance) return;
+        const token = this.beforeEdit ? this.beforeEdit() : null;
+        const res = DM.removeEntrance(this.dungeon, this.dungeon.entrances.indexOf(entrance));
+        if (res.ok) this._doorsChanged(res, { removed: true, kind: 'entrance', entrance, from: 'door', to: null, token });
+        else if (this.onNote) this.onNote(`Entrance ${entrance.label} stays: ${res.reason}`);
+        return;
+      }
       const opening = hit.opening;
       const from = opening.style;
       const token = this.beforeEdit ? this.beforeEdit() : null;
-      opening.style = 'open';
-      this._hover = hit;
-      this.refreshDoors();
-      if (this.onDoorChange) this.onDoorChange({ opening, from, to: 'open', token });
+      const res = DM.removeOpening(this.dungeon, opening);
+      if (!res.ok) return;
+      this._hover = null;
+      this.refreshModel();
+      if (this.onDoorChange) this.onDoorChange({ opening, from, to: null, removed: true, kind: 'door', token });
     }
 
     /** Delete the room on square `cell` (the room tool's right click); a room that has to stay says why. */
@@ -879,7 +931,10 @@
       );
 
       if (edit) {
-        if (this.editTool === 'door') this._drawEditMarks(model.edits, s);
+        if (this.editTool === 'door') {
+          this._drawEditMarks(model.edits, s);
+          this._drawWallHover(s);
+        }
         else this._drawHallEditing(s);
       }
 
@@ -891,8 +946,13 @@
       this._drawStairBadges(model.stairs);
       if (this.options.showCoordinates) this._drawCoordinates();
       if (edit && this.editTool === 'door' && this._hover) this._drawDoorTip(this._hover);
-      if (edit && this.editTool === 'erase' && this._hoverStretch && this._hoverCell) {
-        this._drawTip((this._hoverCell[0] + 0.5) * s + view.tx, this._hoverCell[1] * s + view.ty - 14, 'Click to delete this stretch');
+      if (edit && this.editTool === 'door' && !this._hover && this._hoverWall) {
+        const w = this._hoverWall;
+        const text = this._wallTip(w);
+        if (text) this._drawTip((w.x + 0.5 + DX[w.d] * 0.5) * s + view.tx, (w.y + 0.5 + DY[w.d] * 0.5) * s + view.ty - 16, text);
+      }
+      if (edit && this.editTool === 'draw' && !this._stroke && this._hoverStretch && this._hoverCell) {
+        this._drawTip((this._hoverCell[0] + 0.5) * s + view.tx, this._hoverCell[1] * s + view.ty - 14, 'Right-click to delete this stretch');
       }
       if (edit) {
         const tip = this._roomTip();
@@ -963,6 +1023,37 @@
       ctx.lineJoin = 'miter';
     }
 
+    /** What the tag over a wall segment says (door tool): what a click will add, why it cannot, or what right-click does to an entrance. */
+    _wallTip(w) {
+      const p = w.plan;
+      if (p.entrance) return `Entrance ${p.entrance.label} · right-click to remove`;
+      if (p.opening) return '';
+      if (p.ok) return p.kind === 'entrance' ? 'Click to add an entrance' : p.kind === 'doorway' ? 'Click to add a doorway door' : 'Click to add a door';
+      return p.reason.charAt(0).toUpperCase() + p.reason.slice(1).replace(/\.$/, '');
+    }
+
+    /** The wall segment under the pointer with the door tool: a heavy line along it (solid if a click would add a door there, dashed if not). */
+    _drawWallHover(s) {
+      const w = this._hoverWall;
+      if (!w || this._hover || w.plan.opening) return;
+      const ctx = this.ctx;
+      const px = 1 / s;
+      const x0 = w.x + (w.d === 1 ? 1 : 0);
+      const y0 = w.y + (w.d === 2 ? 1 : 0);
+      const horizontal = w.d === 0 || w.d === 2;
+      ctx.save();
+      ctx.lineCap = 'butt';
+      ctx.strokeStyle = this.theme.arrow;
+      ctx.lineWidth = 4 * px;
+      ctx.globalAlpha = w.plan.ok || w.plan.entrance ? 0.9 : 0.35;
+      ctx.setLineDash(w.plan.ok || w.plan.entrance ? [] : [4 * px, 3 * px]);
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x0 + (horizontal ? 1 : 0), y0 + (horizontal ? 0 : 1));
+      ctx.stroke();
+      ctx.restore();
+    }
+
     /**
      * Edit mode: a ring round every door that can be changed (the one under the pointer is drawn
      * heavier), so a doorway with no door in it can still be seen and clicked.
@@ -993,7 +1084,7 @@
     }
 
     /**
-     * Edit mode with the draw or erase tool: the hallway being drawn as it will be (floor, and the doors
+     * Edit mode with the draw tool: the hallway being drawn as it will be (floor, and the doors
      * it will open into rooms), the square under the pointer, or the stretch a click would delete.
      */
     _drawHallEditing(s) {
@@ -1029,7 +1120,7 @@
           ctx.arc(o.x + 0.5 + DX[o.d] * 0.5, o.y + 0.5 + DY[o.d] * 0.5, Math.max(0.55, 9 * px), 0, Math.PI * 2);
           ctx.stroke();
         }
-      } else if (this.editTool === 'draw' && this._hoverCell) {
+      } else if (this.editTool === 'draw' && this._hoverCell && !this._hoverStretch) {
         ctx.globalAlpha = 0.7;
         ctx.lineWidth = 2 * px;
         outline([this._hoverCell]);
@@ -1042,7 +1133,7 @@
         outline([this._hoverCell]);
         ctx.globalAlpha = 1;
       }
-      if (this.editTool === 'erase' && this._hoverStretch) {
+      if (this.editTool === 'draw' && this._hoverStretch && !this._stroke) {
         ctx.globalAlpha = 0.4;
         ctx.fillStyle = T.arrow;
         for (const [x, y] of this._hoverStretch) ctx.fillRect(x, y, 1, 1);

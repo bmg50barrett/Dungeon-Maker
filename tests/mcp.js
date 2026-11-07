@@ -471,7 +471,75 @@ console.log('== editing doors');
   const link = dd.connections[0].openings[0];
   direct.tools.edit_dungeon.run({ edits: [{ type: 'door', x: link.x + DX[link.d], y: link.y + DY[link.d], side: 'NESW'[OPP[link.d]], state: 'secret' }], picture: false });
   if (link.style !== 'secret') fail('door', 'a door between two rooms could not be named from the second room');
+  // remove_door takes the opening out for good: a doorway between rooms is gone, a hallway stays and serves one room fewer
+  const conns = dd.connections.length;
+  const gone = direct.tools.edit_dungeon.run({ edits: [{ type: 'remove_door', x: link.x + DX[link.d], y: link.y + DY[link.d], side: 'NESW'[OPP[link.d]] }], picture: false });
+  if (dd.connections.length !== conns - 1 || dd.connections.some((c) => c.openings.includes(link)) || !/removed; the wall is solid/.test(gone.text)) fail('door', `remove_door on a doorway: ${gone.text.split('\n').slice(0, 2).join(' | ')}`);
+  const noDoor = toolError(() => direct.tools.edit_dungeon.run({ edits: [{ type: 'remove_door', x: link.x, y: link.y, side: 'NESW'[link.d] }], picture: false }));
+  if (!noDoor || !/no door at/.test(noDoor.message)) fail('door', `removing a door twice: ${noDoor && noDoor.message}`);
+  direct.tools.undo_edit.run({ picture: false });
+  if (dd.connections.length !== conns || !dd.connections.some((c) => c.openings.includes(link) || c.openings.some((q) => q.x === link.x && q.y === link.y && q.d === link.d))) fail('door', 'undo did not bring the doorway back');
   direct.done();
+
+  const hallConn = d.connections.find((c) => c.type === 'hall' && c.openings.length >= 2);
+  const ho = hallConn.openings[0];
+  const roomsBefore = hallConn.rooms.length;
+  const cellsBefore = d.halls.reduce((n, h) => n + h.cells.length, 0);
+  run([{ type: 'door', x: o.x, y: o.y, side: sideLetter, state: 'door' }]);
+  const pristine = DM.editState(d);
+  const rm = run([{ type: 'remove_door', x: ho.x, y: ho.y, side: 'NESW'[ho.d] }]);
+  const hallAfter = d.connections.find((c) => c.type === 'hall' && c.openings.length === hallConn.openings.length - 1 && c.hall !== undefined && d.halls[c.hall].cells.some(([x, y]) => x === ho.x + DX[ho.d] && y === ho.y + DY[ho.d]));
+  if (!/removed; the wall is solid/.test(rm.text) || !hallAfter || d.halls.reduce((n, h) => n + h.cells.length, 0) !== cellsBefore || hallAfter.rooms.length > roomsBefore) fail('door', `remove_door on a hallway door: ${rm.text.split('\n').slice(0, 2).join(' | ')}`);
+  if (!store.isEdited(item)) fail('door', 'a removed door should count as an edit');
+  tools.undo_edit.run({ picture: false });
+  if (DM.editState(d) !== pristine) fail('door', 'undo did not bring a removed door back');
+  const ent = d.entrances.find((e) => e.kind === 'door');
+  const entErr = toolError(() => run([{ type: 'remove_door', x: ent.x, y: ent.y, side: 'NESW'[ent.d] }]));
+  if (!entErr || !/remove_entrance/.test(entErr.message)) fail('door', `removing an entrance door: ${entErr && entErr.message}`);
+  // on a level of several, and the map and the other levels stay as they were
+  const lv = freshTools();
+  lv.tools.generate_dungeon.run({ seed: 'rm-door-lv', roomCount: 8, levels: 2, levelStairs: 1, picture: false });
+  const ld = lv.store.get('d1').dungeon;
+  const f2 = DM.floorView(ld, 2);
+  const f2o = f2.connections.flatMap((c) => c.openings)[0];
+  const before1 = JSON.stringify([ld.rooms, ld.halls, ld.connections]);
+  lv.tools.edit_dungeon.run({ level: 2, edits: [{ type: 'remove_door', x: f2o.x, y: f2o.y, side: 'NESW'[f2o.d] }], picture: false });
+  if (DM.floorView(ld, 2).connections.some((c) => c.openings.includes(f2o)) || JSON.stringify([ld.rooms, ld.halls, ld.connections]) !== before1) fail('door', 'remove_door on level 2 did not take that door out alone');
+  lv.done();
+
+  // add_door: a door in a wall that has none (into a hallway or a room beside it, else an entrance)
+  {
+    const ad = freshTools();
+    const adItem = ad.store.add(fixture());
+    const dd2 = adItem.dungeon;
+    const go = (edits) => ad.tools.edit_dungeon.run({ id: adItem.id, edits, picture: false });
+    const fresh = DM.editState(dd2);
+    const ent = go([{ type: 'add_door', x: 1, y: 0, side: 'N' }]);
+    if (dd2.entrances.length !== 2 || !/added entrance E2/.test(ent.text)) fail('door', `add_door on an outer wall: ${ent.text.split('\n').slice(0, 2).join(' | ')}`);
+    for (const [edit, re, why] of [
+      [{ type: 'add_door', x: 2, y: 1, side: 'E' }, /shut in/, 'a wall facing another room across the gap'],
+      [{ type: 'add_door', x: 1, y: 0, side: 'N' }, /already an entrance/, 'the same wall twice'],
+      [{ type: 'add_door', x: 0, y: 1, side: 'W' }, /already an entrance/, 'the wall of an entrance'],
+      [{ type: 'add_door', x: 1, y: 1, side: 'N' }, /not a wall/, 'the inside of a room'],
+      [{ type: 'add_door', x: 4, y: 1, side: 'N' }, /not a room square/, 'a square outside every room'],
+      [{ type: 'add_door', x: 1, y: 0 }, /side/, 'no side'],
+    ]) {
+      const err = toolError(() => go([edit]));
+      if (!err || !re.test(err.message)) fail('door', `${why} should fail mentioning ${re}: ${err && err.message}`);
+    }
+    go([{ type: 'remove_entrance', entrance: 2 }]);
+    // a hallway along the wall, and then a door into it, in one call (the coordinates are the ones from before the call)
+    const into = go([{ type: 'draw_hallway', points: [[0, -1], [2, -1]] }, { type: 'add_door', x: 1, y: 0, side: 'N' }]);
+    if (!/added a door into the hallway/.test(into.text) || dd2.halls.length !== 1 || dd2.halls[0].rooms.join() !== '0') fail('door', `add_door beside a hallway: ${into.text.split('\n').slice(0, 3).join(' | ')}`);
+    // a room beside a room: a doorway, named from the second room's square too
+    go([{ type: 'add_room', x: 3, y: 1, x2: 5, y2: 3 }]);
+    const doorway = go([{ type: 'add_door', x: 3, y: 1, side: 'W' }]);
+    if (!/doorway/.test(doorway.text) || dd2.connections.filter((c) => c.type === 'door').length !== 1) fail('door', `add_door between rooms: ${doorway.text.split('\n').slice(0, 2).join(' | ')}`);
+    let guard = 0;
+    while (adItem.history.canUndo && guard++ < 20) ad.tools.undo_edit.run({ id: adItem.id, picture: false });
+    if (DM.editState(dd2) !== fresh) fail('door', 'undoing every add_door should give back the dungeon');
+    ad.done();
+  }
   done();
   console.log('  done');
 }

@@ -358,12 +358,18 @@
     if (e.target === $('discardDialog')) $('discardDialog').close('');
   });
 
-  /** The legend names locked and secret doors only while the map has some. */
+  /** The legend lists only what the map on show has (Room and Wall always); the same rule as the printout's key. */
   function updateDoorLegend() {
     const n = renderer.doorCounts();
+    const d = renderer.dungeon;
+    const doors = (renderer.model && renderer.model.doors) || [];
+    $('legendHall').hidden = !d || d.halls.length === 0;
+    $('legendDoor').hidden = !doors.some((door) => !door.entrance && !door.locked);
     $('legendLocked').hidden = n.locked === 0;
     $('legendSecret').hidden = n.secret === 0;
-    $('legendLevelStairs').hidden = !renderer.dungeon || (renderer.dungeon.stairs || []).length === 0;
+    $('legendEntrance').hidden = !d || !d.entrances.some((e) => e.kind !== 'stairs');
+    $('legendStairsEntrance').hidden = !d || !d.entrances.some((e) => e.kind === 'stairs');
+    $('legendLevelStairs').hidden = !d || (d.stairs || []).length === 0;
   }
 
   // ---- room names ---------------------------------------------------------------------
@@ -467,11 +473,10 @@
 
   const MAP_HINT = 'Scroll to zoom · drag to pan · double-click to fit';
   const TOOL_HINTS = {
-    door: 'Edit mode · click a door to change it · right-click to take it out',
-    doorTouch: 'Edit mode · tap a door to change it · press and hold to take it out',
-    draw: 'Drag to draw a hallway · hold Space to pan',
-    drawTouch: 'Drag to draw a hallway · pick Doors to pan',
-    erase: 'Click a stretch of hallway to delete it',
+    door: 'Click a wall to add a door (an entrance, on an outer wall) · click a door to change it · right-click to remove it · middle button to pan',
+    doorTouch: 'Tap a wall to add a door (an entrance, on an outer wall) · tap a door to change it · press and hold to remove it · drag to pan',
+    draw: 'Drag to draw a hallway · right-click a hallway to delete a stretch of it · hold Space to pan',
+    drawTouch: 'Drag to draw a hallway · press and hold a hallway to delete a stretch of it · pick Doors to pan',
     room: 'Drag empty squares to draw a room, or a room to move it · right-click a room to delete it · hold Space to pan',
     roomTouch: 'Drag empty squares to draw a room, or a room to move it · press and hold a room to delete it · pick Doors to pan',
     stairs: 'Click a room square to add stairs down (Shift-click: up) · click stairs to remove them',
@@ -483,9 +488,39 @@
     return TOOL_HINTS[touch && ['door', 'draw', 'room'].includes(tool) ? `${tool}Touch` : tool];
   }
 
-  /** Pick what a click or a drag on the map does in edit mode: 'door', 'draw' or 'erase'. */
+  // The controls of each tool, as a list under the tools (the same rows for a mouse, and for a touch screen, which has no right or middle button)
+  const TOOL_CONTROLS = {
+    door: [['Left click', 'Add a door to a wall, or change a door'], ['Right click', 'Remove a door'], ['Drag', 'Pan (left or middle button)']],
+    doorTouch: [['Tap', 'Add a door to a wall, or change a door'], ['Press and hold', 'Remove a door'], ['Drag', 'Pan']],
+    draw: [['Left drag', 'Draw a hallway'], ['Right click', 'Delete a stretch of hallway'], ['Middle drag', 'Pan (or hold Space)']],
+    drawTouch: [['Drag', 'Draw a hallway'], ['Press and hold', 'Delete a stretch of hallway'], ['Doors tool', 'Pan']],
+    room: [['Left drag', 'Draw a room (or move the room you start on)'], ['Right click', 'Delete a room'], ['Middle drag', 'Pan (or hold Space)']],
+    roomTouch: [['Drag', 'Draw a room (or move the room you start on)'], ['Press and hold', 'Delete a room'], ['Doors tool', 'Pan']],
+    stairs: [['Left click', 'Add stairs down, or remove stairs'], ['Shift + click', 'Add stairs up'], ['Drag', 'Pan (left or middle button)']],
+    stairsTouch: [['Tap', 'Add stairs down, or remove stairs'], ['Drag', 'Pan']],
+  };
+
+  /** Fill the controls list for a tool (a touch screen gets the touch rows). */
+  function showToolControls(tool) {
+    const touch = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+    const rows = TOOL_CONTROLS[touch && TOOL_CONTROLS[`${tool}Touch`] ? `${tool}Touch` : tool] || [];
+    const list = $('editControls');
+    list.textContent = '';
+    for (const [control, what] of rows) {
+      const row = document.createElement('div');
+      const dt = document.createElement('dt');
+      dt.textContent = control;
+      const dd = document.createElement('dd');
+      dd.textContent = what;
+      row.append(dt, dd);
+      list.append(row);
+    }
+  }
+
+  /** Pick what a click or a drag on the map does in edit mode: 'door', 'draw', 'room' or 'stairs'. */
   function setEditTool(tool) {
     renderer.setEditTool(tool);
+    showToolControls(renderer.editTool);
     for (const b of $('editTools').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.tool === renderer.editTool));
     $('canvasHint').textContent = toolHint(renderer.editTool);
   }
@@ -494,8 +529,9 @@
     renderer.setEditMode(on);
     const button = $('editMode');
     button.setAttribute('aria-pressed', String(on));
-    button.title = on ? 'Edit mode is on: click here to leave it' : 'Edit the doors, hallways, rooms and stairs';
+    button.title = on ? 'Edit mode is on: click here to leave it (E)' : 'Edit the doors, hallways, rooms and stairs (E)';
     $('editTools').hidden = !on;
+    $('editControls').hidden = !on;
     if (on) setEditTool('door');
     else $('canvasHint').textContent = MAP_HINT;
   }
@@ -555,9 +591,33 @@
     e.preventDefault();
   });
 
-  renderer.onDoorChange = ({ token } = {}) => {
+  // Keys: E turns Edit mode on and off, and in Edit mode D, H, R and S pick the Doors, Hallway, Room and Stairs tools
+  const TOOL_KEYS = { d: 'door', h: 'draw', r: 'room', s: 'stairs' };
+  window.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    const tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable)) return; // (typing)
+    if ($('discardDialog').open || $('editMode').offsetParent === null) return; // (a box is open, or the All view, which has no Edit mode)
+    const key = e.key.toLowerCase();
+    const on = $('editMode').getAttribute('aria-pressed') === 'true';
+    if (key === 'e') {
+      setEditMode(!on);
+    } else if (on && TOOL_KEYS[key]) {
+      const button = [...$('editTools').querySelectorAll('button')].find((b) => b.dataset.tool === TOOL_KEYS[key]);
+      if (!button || button.hidden) return;
+      setEditTool(TOOL_KEYS[key]);
+    } else {
+      return;
+    }
+    e.preventDefault();
+  });
+
+  renderer.onDoorChange = ({ token, removed, added, kind, dx, dy } = {}) => {
     updateDoorLegend();
-    recordEdit('Change a door', token);
+    if (removed || added) showSummary(DM.current, builtMs); // (doorways and entrances are counted, and a hallway serves one room more or fewer)
+    const what = kind === 'entrance' ? 'an entrance' : 'a door';
+    if (added) $('canvasHint').textContent = kind === 'entrance' ? 'Added an entrance. Right-click it to remove it.' : kind === 'doorway' ? 'Added a door between the two rooms.' : 'Added a door into the hallway.';
+    recordEdit(added ? `Add ${what}` : removed ? `Remove ${what}` : 'Change a door', token, { dx, dy });
   };
   // hallways were drawn or deleted: the legend, and the counts and footprint in the summary, follow
   renderer.onStairChange = ({ kind, token } = {}) => {

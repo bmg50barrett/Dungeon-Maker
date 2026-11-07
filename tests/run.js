@@ -2446,6 +2446,7 @@ console.log('== hallway editing');
     const rng = new DM.Rng('hall-edit-fuzz');
     let strokes = 0;
     let deletes = 0;
+    let removed = 0;
     for (let n = 0; n < 24; n++) {
       const dun = DM.generateDungeon({
         roomCount: rng.int(2, 18),
@@ -2461,11 +2462,22 @@ console.log('== hallway editing');
       });
       const ctx = `edit fuzz ${n}`;
       checkEdited(dun, `${ctx} as built`);
-      const doors = dun.connections.filter((c) => c.type === 'door').length;
+      let doors = dun.connections.filter((c) => c.type === 'door').length;
       const count = () => dun.halls.reduce((t, h) => t + h.cells.length, 0);
       for (let op = 0; op < 14; op++) {
         const cells = dun.halls.flatMap((h) => h.cells);
-        if (cells.length > 0 && rng.chance(0.3)) {
+        const openings = dun.connections.flatMap((c) => c.openings);
+        if (openings.length > 0 && rng.chance(0.2)) {
+          // a door (of any kind) taken out: its opening goes, the squares of the hallways stay, and so do the rooms and the other doors
+          const o = rng.pick(openings);
+          const squares = count();
+          const total = openings.length;
+          const before = DM.editState(dun);
+          const res = DM.removeOpening(dun, o);
+          removed++;
+          if (!res.ok || res.dx !== 0 || res.dy !== 0 || count() !== squares || dun.connections.flatMap((c) => c.openings).length !== total - 1 || dun.connections.some((c) => c.openings.includes(o)) || DM.editState(dun) === before) fail(ctx, 'a removed door did not leave exactly the other openings');
+          doors = dun.connections.filter((c) => c.type === 'door').length;
+        } else if (cells.length > 0 && rng.chance(0.3)) {
           const [x, y] = rng.pick(cells);
           const before = count();
           const res = DM.deleteHallStretch(dun, x, y);
@@ -2494,9 +2506,10 @@ console.log('== hallway editing');
         }
         checkEdited(dun, `${ctx} op ${op}`);
         if (dun.connections.filter((c) => c.type === 'door').length !== doors) fail(ctx, 'editing hallways changed the doorways');
+        if (DM.removeOpening(dun, { x: -9, y: -9, d: 0, style: 'door' }).ok) fail(ctx, 'an opening that is not there was removed');
       }
     }
-    console.log(`  ${strokes} strokes and ${deletes} deletions on 24 dungeons`);
+    console.log(`  ${strokes} strokes, ${deletes} deletions and ${removed} removed doors on 24 dungeons`);
   }
   console.log('  done');
 }
@@ -2787,6 +2800,109 @@ console.log('== editing several levels');
     ok(!DM.regenerateLevel(deep, 0).ok && !DM.regenerateLevel(deep, 4).ok && !DM.regenerateLevel(deep, 1.5).ok, 'a level that does not exist was rebuilt');
     ok(kept > 0, 'no stair was ever kept when a level was built again');
     console.log(`  rebuilt levels: ${made} (${refused} refused), ${kept} stairs kept, the map grew ${grew} times`);
+  }
+  console.log('  done');
+}
+
+console.log('== adding doors');
+{
+  const ok = (cond, msg) => cond || fail('doors', msg);
+  // the fixture: two 3 x 3 rooms, (0,0) and (6,0), with the entrance E1 in the west wall of the first
+  {
+    const d = hallFixture();
+    ok(JSON.stringify(DM.wallNear(d, 1.5, 0.1)) === '{"x":1,"y":0,"d":0}', 'a point just inside the top wall is not by it');
+    ok(JSON.stringify(DM.wallNear(d, 1.5, -0.1)) === '{"x":1,"y":0,"d":0}', 'a point just outside the top wall gives another wall');
+    ok(DM.wallNear(d, 1.5, 1.5) === null && DM.wallNear(d, 2.02, 1.5) === null && DM.wallNear(d, 4.5, 1.5) === null, 'a wall is near the middle of a room, inside it, or out in the open');
+    let p = DM.planDoor(d, 1, 0, 0);
+    ok(p.ok && p.kind === 'entrance', `a wall with nothing beside it: ${JSON.stringify(p)}`);
+    p = DM.planDoor(d, 2, 1, 1);
+    ok(!p.ok && /shut in/.test(p.reason), `a wall facing the other room across the gap: ${JSON.stringify(p)}`);
+    p = DM.planDoor(d, 0, 1, 3);
+    ok(!p.ok && p.entrance === d.entrances[0] && /entrance/.test(p.reason), 'the wall of an entrance is not an entrance that can be added');
+    ok(/not a wall/.test(DM.planDoor(d, 1, 1, 0).reason) && /not a room square/.test(DM.planDoor(d, 4, 4, 0).reason), 'the inside of a room, or a square that is not a room');
+    const before = DM.editState(d);
+    const r = DM.addDoor(d, 1, 0, 0);
+    ok(r.ok && r.kind === 'entrance' && d.entrances.length === 2 && d.entrances[1].label === 'E2' && d.stats.entrances === 2 && r.dx === 0, `adding an entrance: ${JSON.stringify(r)}`);
+    checkEdited(d, 'a door that is an entrance');
+    ok(DM.editState(d) !== before && !DM.addDoor(d, 1, 0, 0).ok, 'the same wall took a second entrance');
+    ok(DM.removeEntrance(d, 1).ok && DM.editState(d) === before, 'removing the entrance did not give back the dungeon');
+  }
+  // a hallway beside the wall (one that only runs along it opens nothing): the door opens into it
+  {
+    const d = hallFixture();
+    const hr = DM.addHallway(d, [[0, -1], [1, -1], [2, -1]]);
+    ok(hr.ok && d.connections[0].openings.length === 0, 'a hallway along a wall opened it');
+    const p = DM.planDoor(d, 1, hr.dy, 0);
+    ok(p.ok && p.kind === 'hall', `the wall beside a hallway: ${JSON.stringify(p)}`);
+    const res = DM.addDoor(d, 1, hr.dy, 0);
+    ok(res.ok && res.kind === 'hall' && res.opening.style === 'door' && d.halls[0].rooms.join() === '0' && d.connections[0].openings.length === 1, `a door into a hallway: ${JSON.stringify(res)}`);
+    checkEdited(d, 'a door into a hallway');
+    ok(DM.planDoor(d, 1, hr.dy, 0).opening === res.opening && !DM.addDoor(d, 1, hr.dy, 0).ok, 'the same wall took a second door');
+    ok(DM.removeOpening(d, res.opening).ok && d.connections[0].openings.length === 0 && d.halls[0].rooms.length === 0, 'taking the door out did not leave the wall solid');
+    checkEdited(d, 'the door taken out again');
+  }
+  // another room beside the wall: a doorway between them, named from either room
+  {
+    const d = hallFixture();
+    ok(DM.addRoom(d, [3, 0], [5, 2]).ok, 'a room beside the first did not go in');
+    const p = DM.planDoor(d, 2, 1, 1);
+    ok(p.ok && p.kind === 'doorway' && p.room === 0 && p.other === 2, `the wall between two rooms: ${JSON.stringify(p)}`);
+    ok(JSON.stringify(DM.wallNear(d, 3.1, 1.5)) === '{"x":3,"y":1,"d":3}', 'the wall between two rooms is not found from the second room');
+    const res = DM.addDoor(d, 2, 1, 1);
+    ok(res.ok && res.kind === 'doorway' && d.connections.length === 1 && d.connections[0].type === 'door' && d.connections[0].rooms.join() === '0,2' && d.stats.doorConnections === 1, `a doorway: ${JSON.stringify(res)}`);
+    checkEdited(d, 'a doorway made by the door tool');
+    ok(DM.planDoor(d, 3, 1, 3).opening === res.opening, 'the doorway is not seen from the second room');
+    ok(DM.removeOpening(d, res.opening).ok && d.connections.length === 0 && d.stats.doorConnections === 0, 'taking the doorway out left a connection behind');
+    checkEdited(d, 'the doorway taken out again');
+  }
+  // only level 1 has entrances
+  {
+    const d = DM.generateDungeon({ roomCount: 8, avgRoomSize: 20, sizeVariance: 30, entrances: 2, connectionType: 'hall', levels: 2, levelStairs: 1, seed: 'door-levels' });
+    const upper = DM.floorView(d, 2);
+    let tried = 0;
+    for (const r of upper.rooms) for (const [x, y] of r.cells) for (let k = 0; k < 4; k++) {
+      const p = DM.planDoor(upper, x, y, k);
+      tried++;
+      if (p.ok && p.kind === 'entrance') fail('doors', 'level 2 would take an entrance');
+    }
+    ok(tried > 0, 'no wall was tried on level 2');
+  }
+  // many random doors on dungeons of every kind: each plan agrees with what is made, and everything stays consistent
+  {
+    const rng = new DM.Rng('door-add-fuzz');
+    const made = { entrance: 0, hall: 0, doorway: 0 };
+    for (let n = 0; n < 20; n++) {
+      const dun = DM.generateDungeon({
+        roomCount: rng.int(3, 16),
+        avgRoomSize: rng.pick([9, 16, 30]),
+        sizeVariance: 30,
+        entrances: rng.int(1, 3),
+        connectionType: rng.pick(['hall', 'door']),
+        connectionRandomness: rng.pick([0, 14, 50]),
+        edgeEntrancesOnly: rng.pick([true, false]),
+        hallDoors: rng.pick(['less', 'more', 'all']),
+        seed: `door-add-${n}`,
+      });
+      const ctx = `door fuzz ${n}`;
+      for (let op = 0; op < 20; op++) {
+        const r = rng.pick(dun.rooms);
+        const [x, y] = rng.pick(r.cells);
+        const k = rng.int(0, 3);
+        const plan = DM.planDoor(dun, x, y, k);
+        const res = DM.addDoor(dun, x, y, k);
+        if (plan.ok !== res.ok) fail(ctx, `the plan said ${plan.ok} and the door ${res.ok}`);
+        if (res.ok) {
+          made[res.kind]++;
+          checkEdited(dun, `${ctx} op ${op}`);
+        }
+        if (rng.chance(0.25) && dun.entrances.filter((e) => e.kind === 'door').length > 1) {
+          DM.removeEntrance(dun, dun.entrances.findIndex((e) => e.kind === 'door'));
+          checkEdited(dun, `${ctx} entrance gone ${op}`);
+        }
+      }
+    }
+    console.log(`  ${made.entrance} entrances, ${made.hall} hallway doors and ${made.doorway} doorways added at random`);
+    if (!made.entrance || !made.hall || !made.doorway) fail('doors', 'the random doors did not try every kind');
   }
   console.log('  done');
 }
@@ -3312,29 +3428,45 @@ console.log('== edit mode');
   if (opening.style !== DM.nextDoorStyle(start)) fail('edit', 'a fifth click should give the state after the first');
   if (openings.some((o, i) => o !== opening && o.style !== stylesBefore[i])) fail('edit', 'a click changed another door');
 
-  // a right click takes the door out (the doorway stays, open); it does not click, pan or bring up the browser's menu
+  // a right click takes the door out for good (the wall is solid again); it does not click, pan or bring up the browser's menu
   {
-    const keep = opening.style;
     const saved = changes.splice(0);
-    opening.style = 'locked';
-    renderer.refreshDoors();
+    const viewKeep = { ...renderer.view };
+    const copy = JSON.parse(JSON.stringify(dungeon));
+    renderer.setDungeon(copy);
+    renderer.view = { ...viewKeep };
     let prevented = 0;
     const rightClick = (pos) => {
       handlers.pointerdown({ pointerId: 1, button: 2, ...pos });
       handlers.pointerup({ pointerId: 1, button: 2, ...pos });
       handlers.contextmenu({ button: 2, ...pos, preventDefault: () => prevented++ });
     };
-    const viewR = { ...renderer.view };
-    rightClick(where(target));
-    if (opening.style !== 'open' || changes.length !== 1 || changes[0].from !== 'locked' || changes[0].to !== 'open' || changes[0].opening !== opening) fail('edit', `a right click on a locked door left it ${opening.style}, notices ${JSON.stringify(changes.map((c) => [c.from, c.to]))}`);
-    if (prevented !== 1 || JSON.stringify(renderer.view) !== JSON.stringify(viewR)) fail('edit', 'a right click let the menu through, or moved the map');
-    if (renderer.model.doors.some((d) => d.x === target.x && d.y === target.y && d.d === target.d) || hasWall(target)) fail('edit', 'a door taken out is still drawn');
-    rightClick(where(target)); // already open: nothing more to take out
-    if (opening.style !== 'open' || changes.length !== 1 || prevented !== 2) fail('edit', 'a right click on a doorway with no door changed something');
-    rightClick({ clientX: 2, clientY: 2 }); // bare ground
-    if (changes.length !== 1 || prevented !== 3) fail('edit', 'a right click on bare ground changed a door, or let the menu through');
-    opening.style = keep;
-    renderer.refreshDoors();
+    // one of each: a secret door, a plain door and an archway, in turn
+    const picks = [];
+    for (const style of ['secret', 'door', 'open']) {
+      const t = renderer.model.edits.find((e) => e.opening.style === style) || renderer.model.edits.find((e) => !picks.includes(e.opening));
+      picks.push(t.opening);
+      const n = renderer.model.edits.length;
+      const sum0 = sum(renderer.doorCounts());
+      const open = t.opening;
+      const at = { x: t.x, y: t.y, d: t.d, cx: t.cx, cy: t.cy };
+      const was = open.style;
+      const viewR = { ...renderer.view };
+      rightClick(where(at));
+      if (renderer.model.edits.length !== n - 1 || copy.connections.some((c) => c.openings.includes(open)) || renderer.model.edits.some((e) => e.opening === open)) fail('edit', `a right click on a ${was} door did not take the opening out`);
+      if (changes.length < 1 || changes[changes.length - 1].removed !== true || changes[changes.length - 1].from !== was || changes[changes.length - 1].to !== null || changes[changes.length - 1].opening !== open) fail('edit', `the change notice for a removed door is ${JSON.stringify(changes[changes.length - 1])}`);
+      if (sum(renderer.doorCounts()) !== sum0 - 1) fail('edit', 'the door counts did not follow a removed door');
+      if (renderer.model.doors.some((d) => !d.entrance && d.x === at.x && d.y === at.y && d.d === at.d) || renderer.model.secrets.some((e) => e.x === at.x && e.y === at.y && e.d === at.d)) fail('edit', 'a door taken out is still drawn');
+      if (!hasWall(at, renderer)) fail('edit', `there is no wall where a ${was} door was taken out`);
+      if (JSON.stringify(renderer.view) !== JSON.stringify(viewR)) fail('edit', 'a right click moved the map');
+      checkEdited(copy, `after taking out a ${was} door`);
+    }
+    if (prevented !== 3) fail('edit', `the browser's menu came up ${3 - prevented} times`);
+    const left = changes.length;
+    rightClick(where({ cx: -5, cy: -5 })); // where there is no door: nothing, and still no menu
+    if (changes.length !== left || prevented !== 4) fail('edit', 'a right click away from every door changed something, or let the menu through');
+    renderer.setDungeon(dungeon);
+    renderer.view = { ...viewKeep };
     changes.length = 0;
     changes.push(...saved);
   }
@@ -3492,31 +3624,33 @@ console.log('== edit mode');
     const screen2 = roomScreen();
     ok(Math.abs(screen2[0] - screen1[0]) < 1e-9 && Math.abs(screen2[1] - screen1[1]) < 1e-9, `the picture moved when the map grew: ${screen1} -> ${screen2}`);
 
-    // the erase tool: the hallway under the pointer is picked out, and a click deletes its stretch
-    r.setEditTool('erase');
-    ok(!hc.classes.has('tool-draw'), 'the cross-hair stays with the erase tool');
+    // right-click with the same tool: the hallway under the pointer is picked out (the cross-hair stays), and a right click deletes its stretch
+    let prevented = 0;
+    const rightClick = (x, y) => {
+      hc.handlers.pointerdown(ev(at(x, y), { button: 2 }));
+      hc.handlers.pointerup(ev(at(x, y), { button: 2 }));
+      hc.handlers.contextmenu({ ...ev(at(x, y), { button: 2 }), preventDefault: () => prevented++ });
+    };
+    ok(hc.classes.has('tool-draw'), 'the cross-hair went from the draw tool');
     hc.handlers.pointermove(ev(at(4, 1)));
-    ok(r._hoverStretch && r._hoverStretch.length === 3 && hc.classes.has('over-hall'), 'the stretch under the pointer is not picked out');
+    ok(r._hoverStretch && r._hoverStretch.length === 3 && hc.classes.has('tool-draw'), 'the stretch under the pointer is not picked out');
     hc.handlers.pointermove(ev(at(0, 0)));
-    ok(!r._hoverStretch && !hc.classes.has('over-hall'), 'a stretch is picked out where there is no hallway');
-    hallDraw.calls = 0;
-    r.draw();
-    ok(hallDraw.calls === 1, 'the erase tool draws nothing for the stretch');
-    // dragging pans, and does not delete
+    ok(!r._hoverStretch, 'a stretch is picked out where there is no hallway');
+    hc.handlers.pointermove(ev(at(4, 1)));
+    // the right button neither draws nor pans, and a stroke has no stretch picked out
     const view2 = { ...r.view };
-    hc.handlers.pointerdown(ev(at(4, 1)));
-    hc.handlers.pointermove(ev({ clientX: at(4, 1).clientX + 25, clientY: at(4, 1).clientY }));
-    hc.handlers.pointerup(ev({ clientX: at(4, 1).clientX + 25, clientY: at(4, 1).clientY }));
-    ok(fx.halls[0].cells.length === 6 && r.view.tx === view2.tx + 25, 'dragging with the erase tool deleted something, or did not pan');
-    r.view = { ...view2 };
-    drag([[4, 1]]); // a click
-    ok(fx.halls.length === 1 && fx.halls[0].cells.length === 3 && fx.height === 3 && notices[2].kind === 'erase' && notices[2].dy === -2, `a click deleted the wrong thing: ${fx.halls[0].cells.length} squares, height ${fx.height}, ${JSON.stringify(notices[2])}`);
+    hc.handlers.pointerdown(ev(at(4, 1), { button: 2 }));
+    ok(!r._stroke && !r._drag, 'the right button started a stroke or a pan');
+    hc.handlers.pointerup(ev(at(4, 1), { button: 2 }));
+    ok(fx.halls[0].cells.length === 6 && JSON.stringify(r.view) === JSON.stringify(view2) && notices.length === 2, 'the right button on its own changed something');
+    rightClick(4, 1);
+    ok(prevented === 1 && fx.halls.length === 1 && fx.halls[0].cells.length === 3 && fx.height === 3 && notices[2].kind === 'erase' && notices[2].dy === -2, `a right click deleted the wrong thing: ${fx.halls[0].cells.length} squares, height ${fx.height}, ${JSON.stringify(notices[2])}`);
     const screen3 = roomScreen();
     ok(Math.abs(screen3[1] - screen2[1]) < 1e-9, 'the picture moved when the map shrank back');
-    drag([[0, 0]]); // a click where there is nothing
-    ok(notices.length === 3, 'a click on nothing deleted something');
+    rightClick(0, 0); // where there is nothing: no change, and still no menu
+    ok(notices.length === 3 && prevented === 2, 'a right click on nothing deleted something, or let the menu through');
     hc.handlers.dblclick({ clientX: 1, clientY: 1 });
-    ok(fitted.calls === 0, 'a double-click fitted the map with the erase tool');
+    ok(fitted.calls === 0, 'a double-click fitted the map with the hallway tool');
     r.setEditTool('door');
     hc.handlers.dblclick({ clientX: 1, clientY: 1 });
     ok(fitted.calls === 1, 'a double-click on bare ground no longer fits the map with the door tool');
@@ -3636,12 +3770,93 @@ console.log('== edit mode');
       rightClick(1, 1);
       ok(g.rooms.length === 1 && /at least one room/.test(notes[notes.length - 1]), 'the only room was deleted');
       // the other tools leave the menu alone
-      r.setEditTool('draw');
+      r.setEditTool('stairs');
       hc.handlers.contextmenu({ ...ev(at(1, 1), { button: 2 }), preventDefault: () => prevented++ });
-      ok(prevented === 5, 'the menu was held back with the hallway tool');
+      ok(prevented === 5, 'the menu was held back with the stairs tool');
       checkEdited(g, 'after the room tools');
       r.beforeEdit = null;
       r.onRoomChange = null;
+      r.onNote = null;
+      r.setEditMode(false);
+    }
+
+    // the door tool: a click on a wall adds a door (an entrance if nothing is beside it), a right click takes one out
+    {
+      const g = hallFixture();
+      r.setDungeon(g);
+      r.view = { scale: 40, tx: 200, ty: 200 };
+      r.setEditMode(true);
+      r.setEditTool('door');
+      const doorChanges = [];
+      const notes = [];
+      r.onDoorChange = (n) => doorChanges.push(n);
+      r.onNote = (t) => notes.push(t);
+      r.beforeEdit = () => 'token';
+      let prevented = 0;
+      // a point 3 px inside square (x, y), by its wall on side d
+      const edge = (x, y, d) => {
+        const c = at(x, y);
+        return { clientX: c.clientX + DX[d] * 17, clientY: c.clientY + DY[d] * 17 };
+      };
+      const click = (pos) => {
+        hc.handlers.pointerdown(ev(pos));
+        hc.handlers.pointerup(ev(pos));
+      };
+      const rightClick = (pos) => {
+        hc.handlers.pointerdown(ev(pos, { button: 2 }));
+        hc.handlers.pointerup(ev(pos, { button: 2 }));
+        hc.handlers.contextmenu({ ...ev(pos, { button: 2 }), preventDefault: () => prevented++ });
+      };
+
+      // hovering a wall: picked out, and the tag says what a click will do (or why not)
+      hc.handlers.pointermove(ev(edge(1, 0, 0)));
+      ok(r._hoverWall && r._hoverWall.plan.ok && r._hoverWall.plan.kind === 'entrance' && /Click to add an entrance/.test(r._wallTip(r._hoverWall)) && hc.classes.has('over-door'), 'a wall that can take an entrance is not picked out');
+      r.draw();
+      hc.handlers.pointermove(ev(edge(2, 1, 1)));
+      ok(r._hoverWall && !r._hoverWall.plan.ok && /Shut in|shut in/.test(r._wallTip(r._hoverWall)) && !hc.classes.has('over-door'), 'a wall that is shut in is offered a door');
+      r.draw();
+      hc.handlers.pointermove(ev(at(1, 1)));
+      ok(!r._hoverWall, 'the middle of a room has a wall picked out');
+
+      // a click on a wall with nothing beside it adds an entrance; on one that is shut in it says why
+      click(edge(1, 0, 0));
+      ok(g.entrances.length === 2 && g.entrances[1].d === 0 && doorChanges.length === 1 && doorChanges[0].added && doorChanges[0].kind === 'entrance' && doorChanges[0].token === 'token', `a click on an outer wall gave ${JSON.stringify(doorChanges)}`);
+      checkEdited(g, 'an entrance added by clicking');
+      click(edge(2, 1, 1));
+      ok(g.entrances.length === 2 && doorChanges.length === 1 && /shut in/.test(notes[notes.length - 1]), `a click on a wall that is shut in said ${JSON.stringify(notes)}`);
+      // the entrance: left click leaves it, hovering says how to remove it, right click removes it (never the last one)
+      hc.handlers.pointermove(ev(edge(1, 0, 0)));
+      ok(/Entrance E2 · right-click to remove/.test(r._wallTip(r._hoverWall)), 'the tag over an entrance does not say how to remove it');
+      click(edge(1, 0, 0));
+      ok(g.entrances.length === 2 && doorChanges.length === 1, 'a left click changed an entrance');
+      rightClick(edge(1, 0, 0));
+      ok(prevented === 1 && g.entrances.length === 1 && doorChanges.length === 2 && doorChanges[1].removed && doorChanges[1].kind === 'entrance', 'a right click did not remove the entrance');
+      rightClick(edge(0, 1, 3));
+      ok(prevented === 2 && g.entrances.length === 1 && /stays/.test(notes[notes.length - 1]), 'the last entrance was removed');
+      checkEdited(g, 'an entrance removed by right-clicking');
+
+      // a hallway beside a wall: a click opens a door into it, and a right click closes it again
+      const hr = DM.addHallway(g, [[0, -1], [1, -1], [2, -1]]);
+      r.view.ty -= hr.dy * 40;
+      r.refreshModel({ moved: true });
+      hc.handlers.pointermove(ev(edge(1, hr.dy, 0)));
+      ok(r._hoverWall && r._hoverWall.plan.kind === 'hall' && /Click to add a door/.test(r._wallTip(r._hoverWall)), 'the wall beside a hallway is not offered a door');
+      click(edge(1, hr.dy, 0));
+      ok(g.connections[0].openings.length === 1 && doorChanges[2].added && doorChanges[2].kind === 'hall' && r.model.edits.length === 1, `a click beside a hallway gave ${JSON.stringify(doorChanges[2])}`);
+      checkEdited(g, 'a door into a hallway by clicking');
+      // now that there is a door, a click on it changes it (as before) and does not add another
+      click(edge(1, hr.dy, 0));
+      ok(g.connections[0].openings.length === 1 && g.connections[0].openings[0].style === 'locked' && !doorChanges[3].added, 'a click on a new door did not change it');
+      rightClick(edge(1, hr.dy, 0));
+      ok(g.connections[0].openings.length === 0 && doorChanges[4].removed && doorChanges[4].kind === 'door', 'a right click did not take the door out');
+      // the middle button still pans
+      const view5 = { ...r.view };
+      hc.handlers.pointerdown(ev(edge(1, 0, 0), { button: 1 }));
+      hc.handlers.pointermove(ev({ clientX: edge(1, 0, 0).clientX + 30, clientY: edge(1, 0, 0).clientY }, { button: 1 }));
+      hc.handlers.pointerup(ev({ clientX: edge(1, 0, 0).clientX + 30, clientY: edge(1, 0, 0).clientY }, { button: 1 }));
+      ok(r.view.tx === view5.tx + 30 && doorChanges.length === 5, 'the middle button did not pan, or changed a door');
+      r.beforeEdit = null;
+      r.onDoorChange = null;
       r.onNote = null;
       r.setEditMode(false);
     }
@@ -3655,9 +3870,25 @@ console.log('== edit mode');
     const css = read('styles.css');
     const render = read('src', 'render.js');
     const tools = html.slice(html.indexOf('<div class="edit-tools"'), html.indexOf('</div>', html.indexOf('<div class="edit-tools"')));
-    const buttons = [...tools.matchAll(/<button type="button" data-tool="(\w+)" aria-pressed="(\w+)"[^>]*>([^<]*)<\/button>/g)].map((m) => m.slice(1, 4).join('|'));
-    if (buttons.join() !== 'door|true|Doors,draw|false|Draw hallway,erase|false|Delete hallway,room|false|Room') fail('edit', `the edit tools are [${buttons}]`);
+    const buttons = [...tools.matchAll(/<button type="button" data-tool="(\w+)" aria-pressed="(\w+)"[^>]*>(.*?)<\/button>/g)].map((m) => [m[1], m[2], m[3].replace(/<[^>]*>/g, '')].join('|'));
+    // each button underlines the letter of its key (E for Edit, D H R S for the tools)
+    for (const [m, k] of [...tools.matchAll(/data-tool="(\w+)"[^>]*aria-keyshortcuts="(\w)"[^>]*><u>(\w)<\/u>/g)].map((x) => [x[1], x[2]])) if (!m) fail('edit', `no tool for key ${k}`);
+    if ([...tools.matchAll(/aria-keyshortcuts="(\w)"[^>]*><u>(\w)<\/u>/g)].some((x) => x[1] !== x[2]) || [...tools.matchAll(/aria-keyshortcuts="\w"/g)].length !== [...tools.matchAll(/<u>\w<\/u>/g)].length) fail('edit', 'the underlined letter of a tool button is not its key');
+    if (buttons.join() !== 'door|true|Doors,draw|false|Hallway,room|false|Room') fail('edit', `the edit tools are [${buttons}]`);
     if (!/id="editTools"[^>]*\shidden/.test(tools)) fail('edit', 'the edit tools should be hidden until Edit is on');
+    if (!/id="editControls"[^>]*\shidden/.test(html) || html.indexOf('id="editControls"') < html.indexOf('id="editTools"')) fail('edit', 'the controls list should be under the tools, hidden until Edit is on');
+    for (const tool of ['door', 'draw', 'room', 'stairs']) {
+      const rows = (app.match(new RegExp(`\\n    ${tool}: \\[(.*)\\],\\n`)) || [])[1] || '';
+      if (!/Right click|Left click|Left drag|Shift/.test(rows) || !/Pan/.test(rows)) fail('edit', `the ${tool} tool has no list of controls with panning in it`);
+    }
+    if (!/\$\('editControls'\)\.hidden = !on/.test(app)) fail('edit', 'the controls list is not shown and hidden with Edit mode');
+    // the keys: E for Edit mode, D H R S for the tools (not while typing, not with Ctrl, Cmd or Alt, and the tools only in Edit mode)
+    if (!/TOOL_KEYS = \{ d: 'door', h: 'draw', r: 'room', s: 'stairs' \}/.test(app) || !/key === 'e'[^]{0,40}setEditMode\(!on\)/.test(app) || !/on && TOOL_KEYS\[key\][^]{0,300}setEditTool\(TOOL_KEYS\[key\]\)/.test(app)) fail('edit', 'the tool keys are not wired up in app.js');
+    const keyHandler = app.slice(app.indexOf('const TOOL_KEYS'), app.indexOf('renderer.onDoorChange = '));
+    if (!/e\.ctrlKey \|\| e\.metaKey \|\| e\.altKey/.test(keyHandler) || !/'INPUT'/.test(keyHandler) || !/discardDialog/.test(keyHandler)) fail('edit', 'the tool keys must leave typing, Ctrl/Cmd/Alt chords and open boxes alone');
+    for (const [tool, k] of [['door', 'D'], ['draw', 'H'], ['room', 'R'], ['stairs', 'S']]) {
+      if (!new RegExp(`data-tool="${tool}"[^>]*aria-keyshortcuts="${k}"`).test(html)) fail('edit', `the ${tool} button does not say its key is ${k}`);
+    }
     const toolbarAt = html.indexOf('<div class="toolbar">');
     if (!(toolbarAt > 0 && html.indexOf('id="editMode"') > toolbarAt && html.indexOf('<div class="edit-tools"') > html.indexOf('id="fit"') && html.indexOf('<div class="edit-tools"') < html.indexOf('id="legend"'))) fail('edit', 'the edit tools belong in the toolbar, under the buttons');
     const at = (s) => html.indexOf(`src/${s}.js`);
@@ -3677,11 +3908,11 @@ console.log('== edit mode');
   const app = read('src', 'app.js');
   const css = read('styles.css');
   const toolbar = html.slice(html.indexOf('<div class="toolbar">'), html.indexOf('</div>', html.indexOf('<div class="toolbar">')));
-  if (!/<button type="button" id="editMode"[^>]*aria-pressed="false"[^>]*>Edit<\/button>/.test(toolbar)) fail('edit', 'the toolbar on the map has no Edit button that shows whether it is on');
+  if (!/<button type="button" id="editMode"[^>]*aria-pressed="false"[^>]*><u>E<\/u>dit<\/button>/.test(toolbar) || !/id="editMode"[^>]*aria-keyshortcuts="E"/.test(toolbar)) fail('edit', 'the toolbar on the map has no Edit button, with its E underlined, that shows whether it is on');
   const dialog = html.slice(html.indexOf('<dialog id="discardDialog"'), html.indexOf('</dialog>'));
   if (!dialog || !/lose all edits/.test(dialog) || !/value="discard"/.test(dialog) || !/value="cancel"[^>]*autofocus|autofocus[^>]*value="cancel"/.test(dialog)) fail('edit', 'the warning should say re-generating will lose all edits, and Keep editing should be the button already chosen');
   if (html.indexOf('<dialog') < html.indexOf('</form>')) fail('edit', 'the warning is inside the main form (a form cannot hold a form)');
-  for (const id of ['legendLocked', 'legendSecret']) if (!new RegExp(`<li id="${id}" hidden>`).test(html)) fail('edit', `the legend line ${id} is missing, or shown for maps with none`);
+  for (const id of ['legendHall', 'legendDoor', 'legendLocked', 'legendSecret', 'legendEntrance', 'legendStairsEntrance', 'legendLevelStairs']) if (!new RegExp(`<li id="${id}" hidden>`).test(html)) fail('edit', `the legend line ${id} is missing, or shown for maps with none`);
   for (const sel of ["\\.edit-toggle\\[aria-pressed='true'\\]", '\\.sw-locked', '\\.sw-secret', '#discardDialog', '#map\\.over-door', '\\.legend li\\[hidden\\]']) if (!new RegExp(sel).test(css)) fail('edit', `styles.css has no ${sel}`);
   if (!/\.toolbar\s*\{[^}]*z-index:\s*2/.test(css)) fail('edit', 'the toolbar must sit above the legend card, or the card can cover the Edit button');
   if (!/@media \(max-width: 760px\)[^]*?\.toolbar-row,\s*\.edit-tools\s*\{\s*flex-direction:\s*column/.test(css)) fail('edit', 'on a narrow screen the toolbar should stack, so the Edit button does not run under the legend');

@@ -239,6 +239,8 @@ function createTools({ store = new Store() } = {}) {
     description:
       'Change a dungeon by hand, as the app\'s Edit mode does. Give a list of edits, applied in order; each has a "type":\n' +
       '- "door": change one door. Give "x", "y" and "side" (N, E, S or W) as written next to the door in the description, e.g. "(12,7) east" is x 12, y 7, side E, and "state": door, locked, secret (drawn as solid wall with an S) or open (an archway with no door). Entrance doors cannot be changed.\n' +
+      '- "add_door": put a door in a wall that has none. Give "x", "y" and "side" (N, E, S, W): the room square and the side of it that is the wall. If a hallway is beside the wall it opens into it; if another room is, the two rooms get a doorway; and if nothing is beside it, it becomes an entrance (level 1 only, in an outer wall: the rules of add_entrance). The door is a plain one: use "door" to change it.\n' +
+      '- "remove_door": take a door out of the wall for good, so the wall is solid there. Give "x", "y" and "side" as for "door". The door can be of any kind, an archway too. A hallway it led into stays (and serves one room fewer, maybe none); a doorway between two rooms is gone. Entrance doors cannot be removed: use remove_entrance.\n' +
       '- "draw_hallway": draw a hallway. Give "points", a list of [x, y] squares to pass through; the squares between them are filled in (straight runs along rows and columns are best; a diagonal comes out as a staircase). ' +
       'Squares that touch a hallway join it, so starting at one makes a branch; a hallway may be a dead end. Where it ends against a room\'s wall it opens into that room (a door or an archway, following the dungeon\'s Hallway doors setting). Rooms cannot be drawn over. The map grows to fit.\n' +
       '- "delete_hallway": delete hallway and the doors on it. Either give "hall", a hallway\'s number from the description (3 for H3), to delete all of that hallway, or give "x" and "y" of any square to delete just one stretch of it (up to the next junction, side door or dead end). Hall numbers in one call are those before the call, even though hallways are numbered again afterwards.\n' +
@@ -267,7 +269,7 @@ function createTools({ store = new Store() } = {}) {
           items: {
             type: 'object',
             properties: {
-              type: { type: 'string', enum: ['door', 'draw_hallway', 'delete_hallway', 'add_entrance', 'remove_entrance', 'renumber_room', 'name_room', 'add_room', 'move_room', 'delete_room', 'add_stair', 'move_stair', 'remove_stair'] },
+              type: { type: 'string', enum: ['door', 'add_door', 'remove_door', 'draw_hallway', 'delete_hallway', 'add_entrance', 'remove_entrance', 'renumber_room', 'name_room', 'add_room', 'move_room', 'delete_room', 'add_stair', 'move_stair', 'remove_stair'] },
               stair: { type: 'string', description: 'move_stair, remove_stair: the stairs\' letter (A, B, ...), as in the description' },
               level: int(1, 20, 'A dungeon of several levels: the level this edit is made to (default: the "level" at the top).'),
               name: { type: 'string', description: `name_room: the room's name (up to ${MAX_NAME} characters); empty text removes it` },
@@ -282,7 +284,7 @@ function createTools({ store = new Store() } = {}) {
               number: { type: 'integer', description: 'renumber_room: the number it should have (1 to the number of rooms)' },
               x: { type: 'integer', description: 'door, add_entrance, add_room, delete_hallway (a stretch): the square\'s x (east-west, from the left edge)' },
               y: { type: 'integer', description: 'door, add_entrance, add_room, delete_hallway (a stretch): the square\'s y (north-south, from the top edge)' },
-              side: { type: 'string', description: 'door, add_entrance: which side of that square the door is on: N, E, S or W' },
+              side: { type: 'string', description: 'door, add_door, remove_door, add_entrance: which side of that square the door is on: N, E, S or W' },
               state: { type: 'string', enum: ['door', 'locked', 'secret', 'open'], description: 'door: what it becomes' },
               points: { type: 'array', items: { type: 'array', items: { type: 'integer' }, minItems: 2, maxItems: 2 }, description: 'draw_hallway: [x, y] squares to pass through, in order' },
             },
@@ -496,6 +498,45 @@ function applyEdit(d, edit, shift, snap) {
       o.style = edit.state;
       return from === edit.state ? `${at}: already a ${STYLES[from]}.` : `${at}: ${STYLES[from]} became ${STYLES[edit.state]}.`;
     }
+    case 'add_door': {
+      const { DX, DY, OPP } = dm.DIRS;
+      const x = needInt(edit.x, 'x');
+      const y = needInt(edit.y, 'y');
+      const dir = readSide(edit.side);
+      const at = `(${x},${y}) ${SIDES[dir]}`;
+      let ax = x + shift.x;
+      let ay = y + shift.y;
+      let ad = dir;
+      // the square beside the wall may be the one named (as the description writes a door from either room)
+      if (!dm.roomAt(d, ax, ay) && dm.roomAt(d, ax + DX[ad], ay + DY[ad])) {
+        ax += DX[ad];
+        ay += DY[ad];
+        ad = OPP[ad];
+      }
+      const res = dm.addDoor(d, ax, ay, ad);
+      if (!res.ok) throw new ToolError(`no door added at ${at}: ${res.reason}`);
+      shift.x += res.dx;
+      shift.y += res.dy;
+      if (res.kind === 'entrance') return `${at}: added entrance ${res.entrance.label} (a door from outside).`;
+      if (res.kind === 'doorway') return `${at}: added a doorway into the room beside it.`;
+      return `${at}: added a door into the hallway beside it.`;
+    }
+    case 'remove_door': {
+      const x = needInt(edit.x, 'x');
+      const y = needInt(edit.y, 'y');
+      const dir = readSide(edit.side);
+      const at = `(${x},${y}) ${SIDES[dir]}`;
+      const o = findOpening(d, x + shift.x, y + shift.y, dir);
+      if (!o) {
+        const entrance = d.entrances.some((e) => e.kind !== 'stairs' && e.x === x + shift.x && e.y === y + shift.y && e.d === dir);
+        throw new ToolError(entrance ? `${at} is an entrance: use remove_entrance to take it away.` : `there is no door at ${at}. Doors are written like that in the description.`);
+      }
+      const res = dm.removeOpening(d, o);
+      if (!res.ok) throw new ToolError(res.reason);
+      shift.x += res.dx;
+      shift.y += res.dy;
+      return `${at}: ${STYLES[res.style]} removed; the wall is solid there.`;
+    }
     case 'draw_hallway': {
       if (!Array.isArray(edit.points) || edit.points.length === 0) throw new ToolError('"points" must be a list of [x, y] squares.');
       if (edit.points.length > MAX_POINTS) throw new ToolError(`At most ${MAX_POINTS} points in one hallway: split it up.`);
@@ -653,7 +694,7 @@ function applyEdit(d, edit, shift, snap) {
       return `stairs ${letter} are now at (${x},${y}).`;
     }
     default:
-      throw new ToolError(`"type" must be one of: door, draw_hallway, delete_hallway, add_entrance, remove_entrance, renumber_room, name_room, add_room, move_room, delete_room, add_stair, move_stair, remove_stair.`);
+      throw new ToolError(`"type" must be one of: door, add_door, remove_door, draw_hallway, delete_hallway, add_entrance, remove_entrance, renumber_room, name_room, add_room, move_room, delete_room, add_stair, move_stair, remove_stair.`);
   }
 }
 

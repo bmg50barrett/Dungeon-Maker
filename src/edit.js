@@ -15,6 +15,10 @@
  *   - hallStretchAt / deleteHallStretch  the stretch of hallway under a square: from one junction
  *     (or a side door) to the next, or to a dead end.
  *   - deleteHall  a whole hallway, by its id.
+ *   - wallNear / planDoor / addDoor  a door put in a wall that has none: into a hallway or another room if one is on the other side, and
+ *     otherwise an entrance from outside (the rules of addEntrance).
+ *   - removeOpening  a door (of any kind) taken out of the wall for good: the wall is solid there again. A hallway keeps its squares
+ *     (it may now serve fewer rooms, or none) and a doorway between two rooms is gone.
  *   - planRoom / addRoom, planMoveRoom / moveRoom, deleteRoomProblem / deleteRoom  rooms: draw a rectangle, slide a room (its doors go with it where
  *     they still meet a hallway), take a room away (the numbers after it close up).
  *   - addEntrance / removeEntrance  ways in from outside (a door in an outer wall, or stairs on a floor).
@@ -324,6 +328,106 @@
     const squares = hallSquares(d);
     for (const [x, y] of hall.cells) squares.delete(key(x, y));
     return { ok: true, removed: hall.cells.map(([x, y]) => [x, y]), ...rebuild(d, squares, hallOpenings(d)) };
+  }
+
+  /**
+   * Take a door out of the wall: the opening is gone, whatever state it was in, and the room's wall is solid there. `opening` is one of the
+   * objects in `connections[].openings`. The hallway it led into stays (and now serves one room fewer); a doorway joining two rooms goes
+   * altogether. Returns { ok, style, dx, dy } or { ok: false, reason }.
+   */
+  function removeOpening(d, opening) {
+    const conn = d.connections.find((c) => c.openings.includes(opening));
+    if (!conn) return { ok: false, reason: 'There is no door there.' };
+    const style = opening.style;
+    if (conn.type !== 'hall') {
+      conn.openings = conn.openings.filter((o) => o !== opening);
+      if (conn.openings.length === 0) d.connections = d.connections.filter((c) => c !== conn);
+      return { ok: true, style, ...rebuild(d, hallSquares(d), hallOpenings(d)) };
+    }
+    return { ok: true, style, ...rebuild(d, hallSquares(d), hallOpenings(d).filter((o) => o !== opening)) };
+  }
+
+  /**
+   * The wall (the edge of a room square) nearest the point (fx, fy), in squares, if it is within `reach` of it: { x, y, d } with (x, y) the
+   * room square and d the side (0 = N ... 3 = W). An edge between two squares of one room is not a wall. Null if there is none.
+   */
+  function wallNear(d, fx, fy, reach = 0.35) {
+    const cx = Math.floor(fx);
+    const cy = Math.floor(fy);
+    const rooms = roomSquares(d);
+    const sides = [[fy - cy, 0], [cx + 1 - fx, 1], [cy + 1 - fy, 2], [fx - cx, 3]].filter(([dist]) => dist <= reach).sort((a, b) => a[0] - b[0]);
+    for (const [, k] of sides) {
+      const here = rooms.get(key(cx, cy));
+      const there = rooms.get(key(cx + DX[k], cy + DY[k]));
+      if (here !== undefined) {
+        if (there !== here) return { x: cx, y: cy, d: k };
+      } else if (there !== undefined) {
+        return { x: cx + DX[k], y: cy + DY[k], d: OPP[k] };
+      }
+    }
+    return null;
+  }
+
+  /** Why a door cannot be made an entrance in the wall of room square (x, y), side dir: '' if it can. (The checks of addEntrance.) */
+  function entranceDoorProblem(d, rooms, halls, x, y, dir) {
+    const nx = x + DX[dir];
+    const ny = y + DY[dir];
+    if (rooms.has(key(nx, ny)) || halls.has(key(nx, ny))) return 'that side of the room is not an outer wall: there is a room or hallway beside it.';
+    for (let cx = nx, cy = ny; cx >= 0 && cy >= 0 && cx < d.width && cy < d.height; cx += DX[dir], cy += DY[dir]) {
+      if (rooms.has(key(cx, cy)) || halls.has(key(cx, cy))) return 'that wall is shut in: a line straight out from it meets another room or hallway before it leaves the map.';
+    }
+    if (d.entrances.some((e) => e.kind !== 'stairs' && e.x === x && e.y === y && e.d === dir)) return 'there is already an entrance there.';
+    return '';
+  }
+
+  /**
+   * What a door in the wall of room square (x, y), side dir, would be, without changing anything: { ok: true, kind, room } with kind 'hall'
+   * (an opening into the hallway beside the wall), 'doorway' (a doorway into the room beside it, as `other`) or 'entrance' (nothing is
+   * beside it: a door from outside, on level 1 only, by the rules of addEntrance). Otherwise { ok: false, reason }, with `entrance` or
+   * `opening` if the wall has one already.
+   */
+  function planDoor(d, x, y, dir) {
+    const no = (reason) => ({ ok: false, reason });
+    const rooms = roomSquares(d);
+    const halls = hallSquares(d);
+    const room = rooms.get(key(x, y));
+    if (room === undefined) return no(`(${x},${y}) is not a room square.`);
+    const nx = x + DX[dir];
+    const ny = y + DY[dir];
+    const other = rooms.get(key(nx, ny));
+    if (other === room) return no('that is not a wall: it is inside the room.');
+    const entrance = d.entrances.find((e) => e.kind !== 'stairs' && e.x === x && e.y === y && e.d === dir);
+    if (entrance) return { ok: false, reason: 'there is already an entrance there.', entrance };
+    const opening = d.connections.flatMap((c) => c.openings).find((o) => (o.x === x && o.y === y && o.d === dir) || (o.x === nx && o.y === ny && o.d === OPP[dir]));
+    if (opening) return { ok: false, reason: 'there is a door there already.', opening };
+    if ((d.stairs || []).some((s) => (s.x === x && s.y === y) || (other !== undefined && s.x === nx && s.y === ny))) return no('there are stairs next to that wall, so no door can go there.');
+    if (other !== undefined) return { ok: true, kind: 'doorway', room, other };
+    if (halls.has(key(nx, ny))) return { ok: true, kind: 'hall', room };
+    if (d.level > 1) return no('only level 1 has entrances from outside; the floors below are reached by stairs.');
+    const why = entranceDoorProblem(d, rooms, halls, x, y, dir);
+    return why ? no(why) : { ok: true, kind: 'entrance', room };
+  }
+
+  /**
+   * Put a door (a plain one) in the wall of room square (x, y), side dir. Returns { ok, kind, dx, dy } and the new `opening` (kind 'hall' or
+   * 'doorway') or `entrance`, or { ok: false, reason } (see planDoor).
+   */
+  function addDoor(d, x, y, dir) {
+    const plan = planDoor(d, x, y, dir);
+    if (!plan.ok) return plan;
+    if (plan.kind === 'entrance') {
+      const res = addEntrance(d, 'door', x, y, dir);
+      return res.ok ? { ok: true, kind: 'entrance', entrance: res.entrance, dx: 0, dy: 0 } : res;
+    }
+    const opening = { x, y, d: dir, style: 'door', room: plan.room };
+    let shift;
+    if (plan.kind === 'hall') {
+      shift = rebuild(d, hallSquares(d), [...hallOpenings(d), opening]);
+    } else {
+      d.connections.push({ id: d.connections.length, type: 'door', rooms: [plan.room, plan.other], hall: null, openings: [opening] });
+      shift = rebuild(d, hallSquares(d), hallOpenings(d));
+    }
+    return { ok: true, kind: plan.kind, opening, ...shift };
   }
 
   // ---- rooms ---------------------------------------------------------------------------------------------------
@@ -732,13 +836,8 @@
     if (kind === 'stairs') {
       if (d.entrances.some((e) => e.kind === 'stairs' && e.x === x && e.y === y)) return { ok: false, reason: `there are already stairs at (${x},${y}).` };
     } else {
-      const nx = x + DX[dir];
-      const ny = y + DY[dir];
-      if (rooms.has(key(nx, ny)) || halls.has(key(nx, ny))) return { ok: false, reason: 'that side of the room is not an outer wall: there is a room or hallway beside it.' };
-      for (let cx = nx, cy = ny; cx >= 0 && cy >= 0 && cx < d.width && cy < d.height; cx += DX[dir], cy += DY[dir]) {
-        if (rooms.has(key(cx, cy)) || halls.has(key(cx, cy))) return { ok: false, reason: 'that wall is shut in: a line straight out from it meets another room or hallway before it leaves the map.' };
-      }
-      if (d.entrances.some((e) => e.kind !== 'stairs' && e.x === x && e.y === y && e.d === dir)) return { ok: false, reason: 'there is already an entrance there.' };
+      const why = entranceDoorProblem(d, rooms, halls, x, y, dir);
+      if (why) return { ok: false, reason: why };
     }
     const entrance = { id: d.entrances.length, label: '', kind: kind === 'stairs' ? 'stairs' : 'door', room, x, y, d: dir };
     d.entrances.push(entrance);
@@ -809,6 +908,10 @@
   DM.hallStretchAt = hallStretchAt;
   DM.deleteHallStretch = deleteHallStretch;
   DM.deleteHall = deleteHall;
+  DM.removeOpening = removeOpening;
+  DM.wallNear = wallNear;
+  DM.planDoor = planDoor;
+  DM.addDoor = addDoor;
   DM.roomAt = roomAt;
   DM.MAX_ROOM_SIDE = MAX_ROOM_SIDE;
   DM.planRoom = planRoom;
