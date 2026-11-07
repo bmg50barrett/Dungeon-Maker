@@ -5,8 +5,9 @@
  * A share link holds everything needed to rebuild the same dungeon (the inputs, with the seed that
  * was actually used, even if the seed box was blank) and how the map is drawn (label position,
  * grid, room numbers, colors). It lives in the part of the address after "#", so it is never sent
- * to a server. It reads like  #v=1&rooms=12&size=30&...&spacing=compact&seed=482910337  and only holds what
- * differs from the usual look for the display options.
+ * to a server. It only holds what differs from the page's usual starting values (FORM_DEFAULTS for the inputs, the
+ * usual look for the display), so a link reads like  #ent=2&shapes=rect,L&seed=482910337  and what it leaves out is the
+ * usual. (A page that opens a link has to put the usual values back for everything the link leaves out: DM.formDefaults().)
  *
  * The edited dungeon is also kept on the device between visits (see encodeKept): the whole dungeon as it now is, with what the
  * page needs to tell, afterwards, what has been changed since it was built.
@@ -16,7 +17,38 @@
 (function () {
   const DM = (globalThis.DM = globalThis.DM || {});
 
-  const VERSION = 1;
+  /** What the page starts with (see index.html; tests/mcp.js checks these against it, and against the MCP server's own copy). */
+  const FORM_DEFAULTS = {
+    roomCount: 12,
+    avgRoomSize: 30,
+    minRoomWidth: 3,
+    minRoomLength: 3,
+    sizeVariance: 30,
+    spacing: 'compact',
+    layout: 'random',
+    roomShapes: ['rect', 'chamfer'],
+    connectionType: 'hall',
+    connectionRandomness: 14,
+    hallTypes: ['short', 'spine', 'branching'],
+    hallDoors: 'all',
+    hallWidth: 1,
+    levels: 1,
+    levelStairs: 1,
+    entrances: 1,
+    edgeEntrancesOnly: true,
+  };
+
+  /** A fresh copy of the page's starting values, to change as you like. */
+  function formDefaults() {
+    return { ...FORM_DEFAULTS, roomShapes: FORM_DEFAULTS.roomShapes.slice(), hallTypes: FORM_DEFAULTS.hallTypes.slice() };
+  }
+
+  /** Is this the usual value for the input? (Typed text counts: '12' is the usual 12. A list is the same whatever its order.) */
+  function isUsual(name, value) {
+    const usual = FORM_DEFAULTS[name];
+    if (Array.isArray(usual)) return Array.isArray(value) && [...value].sort().join() === [...usual].sort().join();
+    return String(value) === String(usual);
+  }
 
   // [key in the link, name of the input]
   const NUMBERS = [
@@ -44,17 +76,19 @@
    * @param {object} [state.display] { labelPosition, showGrid, showLabels, colors: { categoryId: '#rrggbb' } }
    */
   function encodeShare({ params = {}, display = {} } = {}) {
-    const parts = [pair('v', VERSION)];
+    const parts = [];
+    // an input is left out when it has the usual value (or none)
+    const differs = (name) => params[name] !== undefined && params[name] !== null && !isUsual(name, params[name]);
     for (const [key, name] of NUMBERS) {
-      if (params[name] !== undefined && params[name] !== null) parts.push(pair(key, params[name]));
+      if (differs(name)) parts.push(pair(key, params[name]));
     }
-    if (params.connectionType) parts.push(pair('conn', params.connectionType));
-    if (typeof params.edgeEntrancesOnly === 'boolean') parts.push(pair('edge', params.edgeEntrancesOnly ? 1 : 0));
-    if (Array.isArray(params.roomShapes)) parts.push(pair('shapes', params.roomShapes.join(',')));
-    if (Array.isArray(params.hallTypes)) parts.push(pair('halls', params.hallTypes.join(',')));
-    if (params.hallDoors) parts.push(pair('doors', params.hallDoors));
-    if (params.spacing) parts.push(pair('spacing', params.spacing));
-    if (params.layout) parts.push(pair('layout', params.layout));
+    if (params.connectionType && differs('connectionType')) parts.push(pair('conn', params.connectionType));
+    if (typeof params.edgeEntrancesOnly === 'boolean' && differs('edgeEntrancesOnly')) parts.push(pair('edge', params.edgeEntrancesOnly ? 1 : 0));
+    if (Array.isArray(params.roomShapes) && differs('roomShapes')) parts.push(pair('shapes', params.roomShapes.join(',')));
+    if (Array.isArray(params.hallTypes) && differs('hallTypes')) parts.push(pair('halls', params.hallTypes.join(',')));
+    if (params.hallDoors && differs('hallDoors')) parts.push(pair('doors', params.hallDoors));
+    if (params.spacing && differs('spacing')) parts.push(pair('spacing', params.spacing));
+    if (params.layout && differs('layout')) parts.push(pair('layout', params.layout));
     if (params.seed !== undefined && params.seed !== null && String(params.seed) !== '') parts.push(pair('seed', params.seed));
 
     // how it is drawn: only what is not the usual
@@ -73,7 +107,8 @@
    * cannot make sense of (a missing key, a value out of range, a name it does not know) is left
    * out, so the page falls back to its usual value for it.
    * @returns {{ form: object, display: object, hasSettings: boolean }}
-   *   form: the inputs found, as generateDungeon takes them (roomCount, ..., roomShapes, hallTypes, seed)
+   *   form: the inputs found, as generateDungeon takes them (roomCount, ..., roomShapes, hallTypes, seed). Only the inputs the
+   *   link names: the rest have their usual values (DM.formDefaults()).
    *   display: { labelPosition?, showGrid?, showLabels?, colors: { categoryId: '#rrggbb' } }
    */
   function decodeShare(text) {
@@ -168,7 +203,8 @@
     return `Seed ${dungeon.seed} · ${rooms} ${rooms === 1 ? 'room' : 'rooms'} · ${dungeon.width}×${dungeon.height} squares (${ft(dungeon.width)}×${ft(dungeon.height)} ft)`;
   }
 
-  DM.SHARE_VERSION = VERSION;
+  DM.FORM_DEFAULTS = FORM_DEFAULTS;
+  DM.formDefaults = formDefaults;
   DM.encodeShare = encodeShare;
   DM.decodeShare = decodeShare;
   DM.encodeKept = encodeKept;

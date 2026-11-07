@@ -434,15 +434,20 @@ At the bottom of the Export column (Share & export). All of it is made in the pa
   Ctrl+P and the browser's own Print menu print the map too, but the picture is made at
   the last moment there, so the Print button is the more dependable way.
 
-A link looks like
+A link holds only what differs from the page's usual starting values (the ones in the table of inputs above), so it is
+short: a dungeon made from the usual inputs has a link that is just its seed, and one with three entrances and other
+room shapes reads like
 
 ```
-#v=1&rooms=12&size=30&minw=1&minl=1&var=30&ent=2&rand=14&conn=hall&edge=1&shapes=rect,L,T&halls=short,spine&doors=less&spacing=compact&layout=ring&seed=679300265&label=outside&grid=0&nums=0&color.rooms=aabbcc
+#ent=3&shapes=rect,L,T&seed=679300265
 ```
 
-A link made before **Room spacing** existed has no `spacing` key, and one from before the **Overall layout**
-has no `layout` key; they leave the page's choice as it is (Compact and Random when the page opens fresh),
-like any other key a link leaves out. Every link made now names both.
+Whatever a link leaves out has its usual value (opening a link puts the usual value back in every input it does not name).
+It can also carry `label`, `grid`, `nums` and `color.<category>` for how the map is drawn, again only where that is not the
+usual. The keys for the inputs are `rooms`, `size`, `minw`, `minl`, `var`, `ent`, `rand`, `hallw`, `levels`, `lstairs`,
+`conn`, `edge`, `shapes`, `halls`, `doors`, `spacing`, `layout` and `seed`. A key with a value the page cannot use is
+ignored, and a link with no seed asks for a random dungeon. The usual values are `DM.FORM_DEFAULTS` in `src/share.js`; a
+test checks them against the page and the MCP server.
 
 The display keys (`label`, `grid`, `nums`, `color.<row>`) appear only when they differ from
 the usual look, so what a link leaves out is the usual. (Links made before the brand colors came in leave out the colors the map then started in, so they now open in the parchment look; to bring the old tan map back, add `color.background=e6dbc0&color.hallways=e2c9a8&color.doors=d9a45a&color.entrances=c0392b&color.lines=2a2018&color.grid=78623e`.) Anything in a link that is not

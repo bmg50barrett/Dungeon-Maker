@@ -964,10 +964,13 @@ console.log('== share and export');
       for (const withHash of [text, `#${text}`]) {
         const link = DM.decodeShare(withHash);
         if (!link.hasSettings) fail('share', `sample ${i}: the link was not recognised`);
-        const again = DM.generateDungeon(link.form);
+        const again = DM.generateDungeon({ ...DM.formDefaults(), ...link.form });
         if (JSON.stringify(again) !== JSON.stringify(dun)) fail('share', `sample ${i}: the link did not bring back the same dungeon`);
+        // (the link names only what differs from the page's usual values; the rest is the usual)
         const want = { ...dun.params };
-        if (JSON.stringify(Object.entries(link.form).sort()) !== JSON.stringify(Object.entries(want).sort())) fail('share', `sample ${i}: the link gave back other inputs: ${JSON.stringify(link.form)}`);
+        const got = { ...DM.formDefaults(), ...link.form };
+        if (JSON.stringify(Object.entries(got).sort()) !== JSON.stringify(Object.entries(want).sort())) fail('share', `sample ${i}: the link gave back other inputs: ${JSON.stringify(link.form)}`);
+        for (const [k, v] of Object.entries(link.form)) if (k !== 'seed' && JSON.stringify(v) === JSON.stringify(DM.FORM_DEFAULTS[k])) fail('share', `sample ${i}: the link names ${k}, which has its usual value`);
         const gotLook = { labelPosition: link.display.labelPosition || 'inside', showGrid: link.display.showGrid !== false, showLabels: link.display.showLabels !== false, colors: { ...DM.defaultColors(), ...link.display.colors } };
         if (JSON.stringify(gotLook) !== JSON.stringify(look)) fail('share', `sample ${i}: the look did not survive: ${JSON.stringify(gotLook)}`);
       }
@@ -975,14 +978,25 @@ console.log('== share and export');
   }
   if (longest > 700) fail('share', `a link can be ${longest} characters long: too long to paste around`);
 
-  // a link holds only what differs from the usual look
+  // a link holds only what differs from the usual: dungeon inputs with their usual values, and the usual look, add nothing
+  {
+    const usualOnly = DM.generateDungeon({ ...DM.formDefaults(), seed: 'abc' });
+    const usualText = DM.encodeShare({ params: usualOnly.params, display: usual });
+    if (usualText !== 'seed=abc') fail('share', `a dungeon from the usual inputs should have a link that is just its seed, not "${usualText}"`);
+    const oneChange = DM.encodeShare({ params: DM.generateDungeon({ ...DM.formDefaults(), entrances: 3, roomShapes: ['rect', 'L'], seed: 'abc' }).params, display: usual });
+    if (oneChange !== 'ent=3&shapes=rect,L&seed=abc') fail('share', `a link should name only what was changed, not "${oneChange}"`);
+    // the same shapes in another order are the usual shapes
+    if (DM.encodeShare({ params: { ...usualOnly.params, roomShapes: ['chamfer', 'rect'] } }) !== 'seed=abc') fail('share', 'the usual shapes in another order should still be left out');
+    // typed text counts too (the kept settings are the form as typed)
+    if (DM.encodeShare({ params: { roomCount: '12', avgRoomSize: '30', entrances: '2' } }) !== 'ent=2') fail('share', 'typed text with the usual value should be left out');
+  }
   const plain = DM.encodeShare({ params: DM.generateDungeon(samples[0]).params, display: usual });
   if (/label=|grid=|nums=|color\./.test(plain)) fail('share', `the usual look should add nothing to a link: ${plain}`);
   const fancy = DM.encodeShare({ params: DM.generateDungeon(samples[0]).params, display: odd });
   for (const want of ['label=outside', 'grid=0', 'nums=0', ...DM.COLOR_CATEGORIES.map((c) => `color.${c.id}=${odd.colors[c.id].slice(1)}`)]) if (!fancy.includes(want)) fail('share', `the link lacks ${want}`);
   if (DM.encodeShare({ params: samples[0], display: { colors: { rooms: 'red', nonsense: '#ffffff', doors: '#FFAA00' } } }).match(/color\.[a-z]+=[^&]*/g).join() !== 'color.doors=ffaa00') fail('share', 'only real colors of real categories belong in a link');
 
-  // the format is a promise to everyone holding an old link: this one must keep opening
+  // the names of the keys are the format: a link written with them must keep decoding (a leading "v=1", from the first links, is ignored)
   const pinned = DM.decodeShare('#v=1&rooms=7&size=25&minw=2&minl=3&var=10&ent=3&rand=50&conn=door&edge=0&shapes=rect,L&halls=spine,curly&doors=more&seed=castle&label=outside&grid=0&nums=0&color.rooms=aabbcc');
   const pinnedWant = { roomCount: 7, avgRoomSize: 25, minRoomWidth: 2, minRoomLength: 3, sizeVariance: 10, entrances: 3, connectionRandomness: 50, connectionType: 'door', edgeEntrancesOnly: false, roomShapes: ['rect', 'L'], hallTypes: ['spine', 'curly'], hallDoors: 'more', seed: 'castle' };
   for (const [k, v] of Object.entries(pinnedWant)) if (JSON.stringify(pinned.form[k]) !== JSON.stringify(v)) fail('share', `an old link now gives ${k} = ${JSON.stringify(pinned.form[k])}, not ${JSON.stringify(v)}`);
@@ -993,15 +1007,17 @@ console.log('== share and export');
   for (const name of DM.SPACINGS) {
     const withSpacing = DM.decodeShare(`#v=1&rooms=7&spacing=${name}&seed=castle`);
     if (withSpacing.form.spacing !== name || Object.keys(withSpacing.form).length !== 3) fail('share', `a link with spacing=${name} gave ${JSON.stringify(withSpacing.form)}`);
-    if (!DM.encodeShare({ params: { ...DM.generateDungeon({ ...samples[0], spacing: name }).params } }).includes(`&spacing=${name}&layout=random&seed=`)) fail('share', `a link for ${name} spacing should say so, then the layout, just before the seed`);
+    const spacingLink = DM.encodeShare({ params: { ...DM.generateDungeon({ ...samples[0], spacing: name }).params } });
+    if (name === 'compact' ? /spacing=/.test(spacingLink) : !spacingLink.includes(`spacing=${name}&seed=`)) fail('share', `a link for ${name} spacing should say so only if it is not the usual one, just before the seed: ${spacingLink}`);
   }
 
-  // the same for the overall layout: a link from before it leaves it out, every link made now names it, and nonsense is dropped
+  // the same for the overall layout: a link without it leaves it out, one for another layout names it, and nonsense is dropped
   if ('layout' in pinned.form) fail('share', 'a link from before the overall layout should not set it');
   for (const name of DM.LAYOUTS) {
     const withLayout = DM.decodeShare(`#v=1&rooms=7&layout=${name}&seed=castle`);
     if (withLayout.form.layout !== name || Object.keys(withLayout.form).length !== 3) fail('share', `a link with layout=${name} gave ${JSON.stringify(withLayout.form)}`);
-    if (!DM.encodeShare({ params: { ...DM.generateDungeon({ ...samples[0], layout: name }).params } }).includes(`&layout=${name}&seed=`)) fail('share', `a link for the ${name} layout should say so, just before the seed`);
+    const layoutLink = DM.encodeShare({ params: { ...DM.generateDungeon({ ...samples[0], layout: name }).params } });
+    if (name === 'random' ? /layout=/.test(layoutLink) : !layoutLink.includes(`layout=${name}&seed=`)) fail('share', `a link for the ${name} layout should say so only if it is not the usual one, just before the seed: ${layoutLink}`);
   }
   for (const bad of ['roomy', 'Ring', '', 'ring,long', '0']) {
     if ('layout' in DM.decodeShare(`#v=1&rooms=7&layout=${bad}&seed=castle`).form) fail('share', `layout=${bad} should be dropped`);
@@ -1113,7 +1129,8 @@ console.log('== remembered settings');
   const look = { labelPosition: 'outside', showGrid: false, showLabels: true, colors: { ...DM.defaultColors(), rooms: DM.COLOR_CATEGORIES[1].presets[2].hex } };
   const back = DM.decodeShare(DM.encodeShare({ params: typed, display: look }));
   const want = { ...typed, roomCount: 25, avgRoomSize: 14, minRoomWidth: 2, minRoomLength: 3, sizeVariance: 10, entrances: 4, connectionRandomness: 40 };
-  if (JSON.stringify(Object.entries(back.form).sort()) !== JSON.stringify(Object.entries(want).sort())) fail('settings', `kept inputs came back as ${JSON.stringify(back.form)}`);
+  // (only what differs from the usual is kept; the rest is the usual)
+  if (JSON.stringify(Object.entries({ ...DM.formDefaults(), ...back.form }).sort()) !== JSON.stringify(Object.entries({ ...DM.formDefaults(), ...want }).sort())) fail('settings', `kept inputs came back as ${JSON.stringify(back.form)}`);
   if ('seed' in back.form) fail('settings', 'a kept form should not hold a seed');
   if (back.display.labelPosition !== 'outside' || back.display.showGrid !== false || back.display.colors.rooms !== look.colors.rooms) fail('settings', 'the kept look did not come back');
 
@@ -1127,7 +1144,8 @@ console.log('== remembered settings');
   }
   if (half) {
     for (const k of ['roomCount', 'avgRoomSize', 'minRoomWidth', 'sizeVariance', 'roomShapes']) if (k in half.form) fail('settings', `a bad ${k} was kept: ${JSON.stringify(half.form[k])}`);
-    if (half.form.entrances !== 4 || half.form.minRoomLength !== 3 || half.form.hallDoors !== 'all') fail('settings', `the good fields of a half-typed form were lost: ${JSON.stringify(half.form)}`);
+    const whole = { ...DM.formDefaults(), ...half.form };
+    if (whole.entrances !== 4 || whole.minRoomLength !== 3 || whole.hallDoors !== 'all') fail('settings', `the good fields of a half-typed form were lost: ${JSON.stringify(half.form)}`);
   }
   // what a damaged store holds never throws and keeps nothing
   for (const junk of [null, '', 'garbage', '{"a":1}', '%%%', 'v=1', 'rooms=abc']) {

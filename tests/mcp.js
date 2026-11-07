@@ -107,6 +107,8 @@ console.log('== defaults: the same as the page');
     if (on.join() !== [...APP_DEFAULTS[key]].sort().join()) fail('defaults', `${key} are [${APP_DEFAULTS[key]}] here but [${on}] on the page`);
   }
   if (!/id="edgeEntrancesOnly"[^>]*checked/.test(html) || APP_DEFAULTS.edgeEntrancesOnly !== true) fail('defaults', 'entrances on the outer edge only should start on, as on the page');
+  // the share links leave out what is usual, so the usual must be what the page starts with
+  if (JSON.stringify(DM.formDefaults()) !== JSON.stringify(APP_DEFAULTS)) fail('defaults', `the share links' usual values ${JSON.stringify(DM.formDefaults())} differ from the page's ${JSON.stringify(APP_DEFAULTS)}`);
   const settings = Object.keys(SETTINGS).sort().join();
   if (settings !== [...Object.keys(APP_DEFAULTS), 'seed'].sort().join()) fail('defaults', `the settings Claude can give are [${settings}]`);
   // a call with only a seed makes the dungeon the page makes with its starting values

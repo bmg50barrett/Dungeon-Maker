@@ -1309,8 +1309,9 @@
 
   // ---- opening a share link ---------------------------------------------------------
 
-  /** Take the inputs from a link. Anything the link leaves out stays as it is. */
-  function applyForm(form) {
+  /** Take the inputs from a link (or the kept settings). Anything it leaves out has its usual value: a link names only what differs. */
+  function applyForm(named) {
+    const form = { ...DM.formDefaults(), ...named };
     for (const f of FIELDS) if (form[f] !== undefined) $(f).value = String(form[f]);
     if (form.connectionType !== undefined) setSelect('connectionTypeSelect', form.connectionType);
     if (form.hallDoors !== undefined) setSelect('hallDoorsSelect', form.hallDoors);
