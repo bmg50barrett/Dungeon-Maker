@@ -329,6 +329,43 @@ function createTools({ store = new Store() } = {}) {
   });
 
   tools.push({
+    name: 'regenerate_level',
+    description:
+      'Build one level of a dungeon of several levels again, from other random numbers, and leave every other level as it is. Use it when one floor came out badly. ' +
+      'The new level has the same settings as the dungeon (room count, shapes, layout, hallways), its rooms are numbered from 1 and have no names, and any edits made to that level are lost. ' +
+      'The stairs to the levels next to it stay where they still fit on the new floor; others are placed again on squares that work for both floors, and the answer says how many. ' +
+      'If the new level makes the map bigger or smaller every level moves together, and the answer says by how much. Answers with the new description and picture.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: ID,
+        level: int(1, 20, 'The level to build again (1 is the top, with the entrances).'),
+        seed: { type: 'string', description: 'Optional text to build the level from: the same seed on the same dungeon gives the same level. Default: a random one, so each call gives a different level.' },
+        picture: PICTURE,
+      },
+      required: ['level'],
+      additionalProperties: false,
+    },
+    annotations: { title: 'Build a level again', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    run(args) {
+      only(args, ['id', 'level', 'seed', 'picture'], 'regenerate_level');
+      const picture = wantsPicture(args);
+      if (!Number.isInteger(args.level) || args.level < 1) throw new ToolError('"level" must be a whole number from 1.');
+      if (args.seed !== undefined && typeof args.seed !== 'string') throw new ToolError('"seed" must be text.');
+      const item = store.get(args.id);
+      const d = item.dungeon;
+      const dm = load();
+      if (dm.levelCount(d) < 2) throw new ToolError('This dungeon has only one level. Make a new one with generate_dungeon, or one with several levels.');
+      if (args.level > dm.levelCount(d)) throw new ToolError(`This dungeon has ${dm.levelCount(d)} levels, so there is no level ${args.level}.`);
+      const res = dm.regenerateLevel(d, args.level, args.seed === undefined || args.seed === '' ? {} : { seed: args.seed });
+      if (!res.ok) throw new ToolError(`Level ${args.level} was not built again: ${res.reason}`);
+      const notes = [`Level ${args.level} was built again (seed ${res.seed}): ${res.kept} stair${res.kept === 1 ? '' : 's'} kept where they were, ${res.added} placed anew. The other levels are as they were.`];
+      if (res.dx !== 0 || res.dy !== 0) notes.push(`The map changed size at its top or left, so every square has moved by (${res.dx >= 0 ? '+' : ''}${res.dx},${res.dy >= 0 ? '+' : ''}${res.dy}). Use the coordinates in the description below from now on.`);
+      return answer(item, { picture, intro: notes.join('\n') });
+    },
+  });
+
+  tools.push({
     name: 'save_dungeon',
     description:
       'Save the dungeon to the maps folder as two files: the picture (.png, to print or share) and the data (.json, to open again later with open_dungeon). ' +

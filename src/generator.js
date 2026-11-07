@@ -2622,6 +2622,187 @@
     return model;
   }
 
+  /** Keep the stairs in order (the level they leave, then their letters), with ids that are their places, and the count in the stats. */
+  function tidyStairs(root) {
+    root.stairs.sort((a, b) => a.upper - b.upper || a.letter.length - b.letter.length || (a.letter < b.letter ? -1 : a.letter > b.letter ? 1 : 0));
+    root.stairs.forEach((s, i) => (s.id = i));
+    root.stats.stairs = root.stairs.length;
+  }
+
+  /**
+   * Make the map as small as it can be round the rooms and hallways of every floor, its top left at (0, 0): every floor and every stair
+   * moves together when that corner moves. Returns { dx, dy }, how far everything moved.
+   */
+  function fitLevelsBox(root) {
+    const floors = [root, ...root.floors];
+    const b = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+    const grow = ([x, y]) => {
+      b.x0 = Math.min(b.x0, x);
+      b.y0 = Math.min(b.y0, y);
+      b.x1 = Math.max(b.x1, x);
+      b.y1 = Math.max(b.y1, y);
+    };
+    for (const f of floors) {
+      for (const r of f.rooms) r.cells.forEach(grow);
+      for (const h of f.halls) h.cells.forEach(grow);
+    }
+    const dx = -b.x0;
+    const dy = -b.y0;
+    for (const f of floors) moveFloor(f, dx, dy);
+    for (const s of root.stairs) {
+      s.x += dx;
+      s.y += dy;
+    }
+    root.width = b.x1 - b.x0 + 1;
+    root.height = b.y1 - b.y0 + 1;
+    for (const f of root.floors) {
+      f.width = root.width;
+      f.height = root.height;
+    }
+    return { dx, dy };
+  }
+
+  /**
+   * Build level `n` (from 1) of a dungeon of several levels again, from other random numbers (or from `options.seed`), leaving every other
+   * level as it is. The stairs to the floors next to it are kept where they still fit, and otherwise placed again on squares that work for
+   * both floors; if the new floor cannot be joined to its neighbours, nothing is changed. The map is fitted to all the floors afterwards, so
+   * it can grow or shrink and move every level together. The dungeon is changed in place.
+   * Returns { ok, level, seed, kept, added, dx, dy } or { ok: false, reason }.
+   */
+  function regenerateLevel(model, n, options = {}) {
+    const levels = levelCount(model);
+    if (levels < 2) return { ok: false, reason: 'this dungeon has only one level: make a new dungeon instead.' };
+    if (!Number.isInteger(n) || n < 1 || n > levels) return { ok: false, reason: `there is no level ${n}: this dungeon has ${levels} levels.` };
+    const params = model.params;
+    const want = params.levelStairs;
+    const fresh = options.seed !== undefined ? String(options.seed) : String(Math.floor(Math.random() * 1e9));
+    const stairRng = new DM.Rng(`${fresh}:stairs`);
+    const floorObj = (level) => (level === 1 ? model : model.floors[level - 2]);
+    const squaresOf = (level) => stairSquares(floorObj(level));
+    const pairs = []; // the pairs of floors that meet at this one: { upper, existing stairs, squares of the other floor }
+    if (n > 1) pairs.push({ upper: n - 1, above: true, other: squaresOf(n - 1) });
+    if (n < levels) pairs.push({ upper: n, above: false, other: squaresOf(n + 1) });
+    for (const p of pairs) {
+      p.old = model.stairs.filter((s) => s.upper === p.upper);
+      p.target = Math.max(want, p.old.length);
+    }
+    // stairs that come down onto the floor above this one are kept away from by the stairs leaving it
+    const anchorsAbove = n > 2 ? model.stairs.filter((s) => s.lower === n - 1).map((s) => [s.x, s.y]) : [];
+    const boxW = model.width;
+    const boxH = model.height;
+
+    // for a new floor `sq` slid to `at`: what each pair would have (kept stairs, new squares), and how good that is
+    const evaluate = (sq, at) => {
+      let score = 0;
+      let full = true;
+      const plans = [];
+      let landed = anchorsAbove;
+      for (const p of pairs) {
+        const shared = p.above ? sharedSquares(p.other, 0, 0, sq, at[0], at[1]) : sharedSquares(sq, at[0], at[1], p.other, 0, 0);
+        const ok = new Set(shared.map(([x, y]) => cellKey(x, y)));
+        const kept = p.old.filter((s) => ok.has(cellKey(s.x, s.y)));
+        const keptAt = kept.map((s) => [s.x, s.y]);
+        const picks = pickStairs(shared.filter(([x, y]) => !kept.some((s) => s.x === x && s.y === y)), Math.max(0, p.target - kept.length), landed.concat(keptAt), null);
+        const fit = kept.length + picks.length;
+        score += (fit >= 1 ? 1000 : 0) + Math.min(fit, p.target) * 10 + kept.length;
+        if (fit < p.target) full = false;
+        plans.push({ p, kept, shared, fit });
+        // the stairs that leave this floor keep away from those that land on it
+        if (p.above) landed = [...keptAt, ...picks.map((s) => [s[0], s[1]])];
+      }
+      return { score, full, plans };
+    };
+
+    let best = null;
+    for (let t = 0; t < LEVEL_TRIES_MAX; t++) {
+      const m = generateFloor(params, `${fresh}:level${n}${t > 0 ? ':' + t : ''}`, n === 1);
+      const sq = stairSquares(m);
+      const W = Math.max(boxW, m.width);
+      const H = Math.max(boxH, m.height);
+      const rx = W - m.width;
+      const ry = H - m.height;
+      const spots = [];
+      if ((rx + 1) * (ry + 1) <= LEVEL_OFFSETS) {
+        for (let x = 0; x <= rx; x++) for (let y = 0; y <= ry; y++) spots.push([x, y]);
+      } else {
+        for (let k = 0; k < LEVEL_OFFSETS; k++) spots.push([stairRng.int(0, rx), stairRng.int(0, ry)]);
+      }
+      let top = null;
+      let tops = [];
+      for (const at of spots) {
+        const e = evaluate(sq, at);
+        if (!top || e.score > top.score) {
+          top = e;
+          tops = [{ at, e }];
+        } else if (e.score === top.score) tops.push({ at, e });
+      }
+      const pick = tops[stairRng.int(0, tops.length - 1)];
+      if (!best || pick.e.score > best.e.score) best = { m, at: pick.at, e: pick.e };
+      if (pick.e.full) break;
+      if (t + 1 >= LEVEL_TRIES && best.e.plans.every((pl) => pl.fit >= 1)) break;
+    }
+    if (!best.e.plans.every((pl) => pl.fit >= 1)) return { ok: false, reason: `a new level ${n} that joins its neighbours by stairs could not be built: nothing was changed.` };
+
+    // put the new floor in
+    const { m, at } = best;
+    moveFloor(m, at[0], at[1]);
+    for (const r of m.rooms) r.level = n;
+    const roomAt = (x, y) => m.rooms.find((r) => r.cells.some(([cx, cy]) => cx === x && cy === y)).id;
+    const target = floorObj(n);
+    const stats = { ...m.stats, levels: model.stats.levels, stairs: model.stats.stairs };
+    const oldWarnings = model.warnings;
+    if (n === 1) {
+      Object.assign(model, { rooms: m.rooms, halls: m.halls, connections: m.connections, entrances: m.entrances, stats });
+    } else {
+      Object.assign(target, { rooms: m.rooms, halls: m.halls, connections: m.connections, entrances: m.entrances, warnings: m.warnings, stats });
+    }
+    // the stairs: those kept, with their rooms on the new floor, then new ones with the next free letters
+    const mine = new Set(pairs.map((p) => p.upper));
+    const rest = model.stairs.filter((s) => !mine.has(s.upper));
+    const stairs = rest.slice();
+    const kept = [];
+    for (const { p, kept: keep } of best.e.plans) {
+      for (const s of keep) {
+        kept.push(s);
+        stairs.push(p.above ? { ...s, lowerRoom: roomAt(s.x, s.y) } : { ...s, upperRoom: roomAt(s.x, s.y) });
+      }
+    }
+    let added = 0;
+    let landed = anchorsAbove;
+    for (const { p, kept: keep, shared } of best.e.plans) {
+      const keptAt = keep.map((s) => [s.x, s.y]);
+      const free = shared.filter(([x, y]) => !keep.some((s) => s.x === x && s.y === y));
+      let picks = pickStairs(free, Math.max(0, p.target - keep.length), landed.concat(keptAt), stairRng);
+      // (the stairs landing here were chosen at random now, so as a last resort the first stair of a pair ignores them)
+      if (picks.length === 0 && keep.length === 0) picks = pickStairs(free, 1, [], stairRng);
+      for (const [x, y, room] of picks) {
+        const used = new Set(stairs.map((s) => s.letter));
+        let k = 0;
+        while (used.has(stairLetter(k))) k++;
+        const lowerRoom = p.above ? roomAt(x, y) : floorObj(n + 1).rooms.find((r) => r.cells.some(([cx, cy]) => cx === x && cy === y)).id;
+        stairs.push({ id: 0, letter: stairLetter(k), x, y, upper: p.upper, lower: p.upper + 1, upperRoom: room, lowerRoom });
+        added++;
+      }
+      if (p.above) landed = [...keptAt, ...picks.map((s) => [s[0], s[1]])];
+    }
+    model.stairs = stairs;
+    tidyStairs(model);
+
+    // warnings that were about this floor are replaced by the new floor's
+    const stale = (w) => new RegExp(`^Level ${n}: `).test(w) || pairs.some((p) => w.startsWith(`No stair could be placed between level ${p.upper} and`) || w.startsWith(`Levels ${p.upper} and ${p.upper + 1} could only get`));
+    const kept1 = n === 1 ? oldWarnings.filter((w) => /^Level \d+: |^No stair could be placed|^Levels \d+ and \d+ could only get/.test(w)) : oldWarnings;
+    const warnings = kept1.filter((w) => !stale(w));
+    for (const w of n === 1 ? m.warnings : m.warnings.map((x) => `Level ${n}: ${x}`)) warnings[n === 1 ? 'unshift' : 'push'](w);
+    for (const pl of best.e.plans) {
+      const have = stairs.filter((s) => s.upper === pl.p.upper).length;
+      if (have < want) warnings.push(`Levels ${pl.p.upper} and ${pl.p.upper + 1} could only get ${have} of ${want} stairs.`);
+    }
+    model.warnings = warnings;
+
+    const { dx, dy } = fitLevelsBox(model);
+    return { ok: true, level: n, seed: fresh, kept: kept.length, added, dx, dy };
+  }
+
   /** The stairs on a floor (level `n`, from 1), each as { id, letter, x, y, dir: 'down' | 'up', to: the level it leads to, room }. */
   function floorStairs(model, n) {
     const out = [];
@@ -2664,6 +2845,9 @@
   DM.allRooms = allRooms;
   DM.floorView = floorView;
   DM.moveFloor = moveFloor;
+  DM.tidyStairs = tidyStairs;
+  DM.fitLevelsBox = fitLevelsBox;
+  DM.regenerateLevel = regenerateLevel;
   DM.floorStairs = floorStairs;
   DM.stairLetter = stairLetter;
 

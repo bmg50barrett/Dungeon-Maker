@@ -352,6 +352,13 @@ are reached by stairs only.
   square where stairs lead to another level, and an entrance cannot be put on one. Entrances stay on level 1 (adding
   and removing them is the MCP server's). The **All** view is for looking: Edit mode goes off there. The MCP server's
   `edit_dungeon` takes a `level` too, and has `add_stair`, `move_stair` and `remove_stair` for the stairs.
+- **Regenerate level** (at the right of the level tabs, on a single level's tab) builds the level on the map again from
+  other random numbers, and leaves the others as they are. It has the dungeon's settings (room count, layout and so
+  on); its rooms are numbered from 1 and have no names. The stairs to the levels next to it stay where they still fit
+  on the new floor, and others are placed again on squares that work for both; if the new floor cannot be joined to
+  its neighbours, nothing changes. The map is fitted to all the levels afterwards, so it may grow or shrink and move
+  every level together. If that level was edited by hand, a box asks first. Like any edit, it is not in a share link
+  (the link rebuilds the dungeon from its settings and seed).
 - A share link holds `levels` and `lstairs` (stairs between levels), and rebuilds every floor from them.
 
 ## Share and export
@@ -435,6 +442,7 @@ the map, then writes the content for each room by the numbers printed on it.
 | `open_dungeon` | Opens a dungeon saved as **Data (JSON)**, from the page or from `save_dungeon`. A bare file name is looked for in the maps folder. |
 | `describe_dungeon` | The description alone: each room by its number on the map, with its shape, size in feet and place on the map, its doors and what they lead to. |
 | `edit_dungeon` | A list of edits: change a door (door, locked, secret, no door), draw a hallway through some squares, delete a stretch of hallway, add and remove entrances, renumber and name rooms, and (several levels) add, move and remove stairs. The rules are Edit mode's. |
+| `regenerate_level` | For a dungeon of several levels: builds one `level` again (from a random `seed`, or the one given) and leaves the others as they are, keeping the stairs that still fit. Answers with the new description and picture. |
 | `draw_map` | The picture alone, with the legend, grid, room numbers, number position and colors as chosen. For a dungeon of several levels, `level` draws just that one (the default is all, one above the other). |
 | `save_dungeon` | Writes the picture (`.png`) and the data (`.json`) to the maps folder. A name already used gets `-2`, `-3`, ... unless `overwrite` is set. |
 | `list_dungeons` | The dungeons in use, and the saved maps. |

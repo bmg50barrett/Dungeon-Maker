@@ -327,6 +327,31 @@ console.log('== levels');
       }
     }
 
+
+    // building a level again
+    {
+      const rooms2 = JSON.stringify(DM.floorView(d, 2).rooms.map((r) => r.cells));
+      const out = tools.regenerate_level.run({ id: 'd1', level: 1, seed: 'mcp-regen', picture: false });
+      if (!/Level 1 was built again \(seed mcp-regen\)/.test(out.text) || !/==== LEVEL 1 of 3 ====/.test(out.text)) fail('levels', `regenerate_level: ${out.text.slice(0, 300)}`);
+      const shifted = /moved by \((-?\+?\d+),(-?\+?\d+)\)/.exec(out.text);
+      const dx = shifted ? Number(shifted[1]) : 0;
+      const dy = shifted ? Number(shifted[2]) : 0;
+      const after2 = JSON.stringify(DM.floorView(d, 2).rooms.map((r) => r.cells.map(([x, y]) => [x - dx, y - dy])));
+      if (rooms2 !== after2) fail('levels', 'building level 1 again changed level 2');
+      if (DM.floorView(d, 1).rooms.some((r) => r.name)) fail('levels', 'a level built again kept room names');
+      const same = tools.regenerate_level.run({ id: 'd1', level: 3, seed: 'x', picture: false }).text;
+      const again = tools.regenerate_level.run({ id: 'd1', level: 3, seed: 'y', picture: false });
+      if (!/Level 3 was built again/.test(again.text) || same === again.text) fail('levels', 'two seeds gave the same level 3');
+      if (!store.isEdited(store.get('d1'))) fail('levels', 'a dungeon with a level built again is not counted as edited');
+      for (const [args, re] of [[{ level: 4 }, /no level 4/], [{ level: 0 }, /whole number|1 and 20|at least/i], [{ level: 2, seed: 5 }, /must be text/], [{ level: 2, extra: 1 }, /extra/]]) {
+        const err = toolError(() => tools.regenerate_level.run({ id: 'd1', picture: false, ...args }));
+        if (!err || !re.test(err.message)) fail('levels', `regenerate_level ${JSON.stringify(args)} should fail mentioning ${re}: ${err && err.message}`);
+      }
+      const flat = toolError(() => tools.regenerate_level.run({ id: 'd2', level: 1, picture: false }));
+      if (!flat || !/only one level/.test(flat.message)) fail('levels', `regenerate_level on one level: ${flat && flat.message}`);
+      store.get('d1'); // (the dungeon the tools use when no id is given is the last one asked for)
+    }
+
     // a hallway cannot be given a door into the square of a stair: plan one beside the stair
     const stair = d.stairs.find((s) => s.upper === 1);
     const f1 = DM.floorView(d, 1);
@@ -715,7 +740,7 @@ console.log('== the protocol');
 
   const list = call('tools/list').result.tools;
   const names = list.map((t) => t.name).sort().join();
-  if (names !== 'describe_dungeon,draw_map,edit_dungeon,generate_dungeon,list_dungeons,open_dungeon,save_dungeon') fail('protocol', `the tools are ${names}`);
+  if (names !== 'describe_dungeon,draw_map,edit_dungeon,generate_dungeon,list_dungeons,open_dungeon,regenerate_level,save_dungeon') fail('protocol', `the tools are ${names}`);
   for (const t of list) {
     if (!/^[a-z_]+$/.test(t.name) || typeof t.description !== 'string' || t.description.length < 40) fail('protocol', `${t.name} needs a name in snake_case and a real description`);
     const s = t.inputSchema;
@@ -785,7 +810,7 @@ console.log('== the real process');
   const byId = new Map(parsed.map((m) => [m.id, m]));
   if (parsed.length !== 5) fail('process', `${parsed.length} replies for 4 requests and 1 bad line (the notification gets none)`);
   if (!byId.get(1) || byId.get(1).result.protocolVersion !== '2025-06-18') fail('process', 'no answer to initialize');
-  if (!byId.get(2) || byId.get(2).result.tools.length !== 7) fail('process', 'no list of seven tools');
+  if (!byId.get(2) || byId.get(2).result.tools.length !== 8) fail('process', 'no list of eight tools');
   const generated = byId.get(3) && byId.get(3).result;
   if (!generated || generated.content.length !== 2 || !isPng(Buffer.from(generated.content[1].data, 'base64'))) fail('process', 'no dungeon with a picture');
   if (!parsed.some((m) => m.error && m.error.code === -32700 && m.id === null)) fail('process', 'a line that is not JSON should get a parse error');

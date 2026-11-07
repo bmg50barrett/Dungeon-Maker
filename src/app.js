@@ -321,14 +321,22 @@
 
   /** The doors and hallways as they were when the dungeon was built (DM.editState), to tell whether anything has been changed since. */
   let editsAsBuilt = '';
+  /** Each level's part of that text (DM.editState), kept up to date as levels are built again: to tell whether one level has been changed. */
+  let floorsAsBuilt = [];
+  const floorStates = (d) => DM.editState(d).split('||').slice(0, DM.levelCount(d));
   /** Has anything been changed (and not changed back) since the dungeon was built? */
   const editsMade = () => !!DM.current && DM.editState(DM.current) !== editsAsBuilt;
   let builtMs = 0; // how long the dungeon on the map took to build, for the summary
 
-  /** The warning before edits are thrown away. Resolves true if the user goes ahead. */
-  function askToDiscardEdits() {
+  const DISCARD_WORDS = { title: $('discardTitle').textContent, text: $('discardText').textContent, button: $('discardConfirm').textContent };
+
+  /** The warning before edits are thrown away (with other words for other things that throw them away). Resolves true if the user goes ahead. */
+  function askToDiscardEdits(words = DISCARD_WORDS) {
     const dialog = $('discardDialog');
-    if (typeof dialog.showModal !== 'function') return Promise.resolve(window.confirm('Re-generating the dungeon will lose all edits. Go ahead?'));
+    $('discardTitle').textContent = words.title;
+    $('discardText').textContent = words.text;
+    $('discardConfirm').textContent = words.button;
+    if (typeof dialog.showModal !== 'function') return Promise.resolve(window.confirm(`${words.text} Go ahead?`));
     return new Promise((resolve) => {
       dialog.returnValue = '';
       dialog.addEventListener('close', () => resolve(dialog.returnValue === 'discard'), { once: true });
@@ -527,6 +535,46 @@
     const all = levelButton('All', 'all', 'Show every level side by side');
     all.classList.add('level-tabs-all');
     bar.append(all);
+    // builds the level on the map again (not for the All view)
+    const again = document.createElement('button');
+    again.type = 'button';
+    again.id = 'regenLevel';
+    again.className = 'level-tabs-regen';
+    again.textContent = 'Regenerate level';
+    again.title = 'Build the level on the map again, from other random numbers; the other levels stay as they are, and stairs are kept where they still fit';
+    again.hidden = viewLevel === 'all';
+    again.addEventListener('click', regenerateLevel);
+    bar.append(again);
+  }
+
+  /** Build the level on the map again (DM.regenerateLevel), asking first if it was changed by hand. */
+  function regenerateLevel() {
+    const d = DM.current;
+    if (!d || viewLevel === 'all' || DM.levelCount(d) < 2) return;
+    const n = viewLevel;
+    const go = () => {
+      const res = DM.regenerateLevel(d, n);
+      if (!res.ok) {
+        $('canvasHint').textContent = res.reason.charAt(0).toUpperCase() + res.reason.slice(1);
+        return;
+      }
+      floorsAsBuilt[n - 1] = floorStates(d)[n - 1];
+      // the map may have changed size and moved every level: the view moves the other way, so the picture stays where it was
+      renderer.view.tx -= res.dx * renderer.view.scale;
+      renderer.view.ty -= res.dy * renderer.view.scale;
+      showFloor();
+      showSummary(d, builtMs);
+      if (namePanelOpen()) showRoomNames(d);
+      $('canvasHint').textContent = `Level ${n} built again${res.kept ? `, with ${res.kept} stair${res.kept === 1 ? '' : 's'} kept` : ''}.`;
+      const next = $('levelTabs').querySelector('.level-tabs-regen');
+      if (next) next.focus();
+    };
+    if (floorStates(d)[n - 1] === floorsAsBuilt[n - 1]) return go();
+    askToDiscardEdits({
+      title: 'Lose your edits to this level?',
+      text: `Building level ${n} again will lose the edits you made to its doors and hallways, and the room names you typed on it. The other levels stay as they are.`,
+      button: 'Regenerate level',
+    }).then((yes) => yes && go());
   }
 
   /** A small picture of every floor, in the all-levels view over the map. A click on one goes to that level. */
@@ -619,6 +667,7 @@
         const ms = performance.now() - t0;
         DM.current = dungeon;
         editsAsBuilt = DM.editState(dungeon);
+        floorsAsBuilt = floorStates(dungeon);
         builtMs = ms;
         showFloor();
         showSummary(dungeon, ms);

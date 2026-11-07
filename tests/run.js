@@ -2668,6 +2668,63 @@ console.log('== editing several levels');
     ok(!DM.addStair(flat, 1, 0, 0).ok, 'stairs were added to a dungeon of one level');
     console.log(`  stairs: ${added} added, ${moves} moved, ${removed} removed, ${refused} last ones kept, on 20 dungeons`);
   }
+  // building one level again
+  {
+    let made = 0, kept = 0, grew = 0, refused = 0;
+    for (let i = 0; i < 20; i++) {
+      const levels = [3, 4, 2][i % 3];
+      const dun = DM.generateDungeon({ ...base, levels, levelStairs: 1 + (i % 3), layout: ['random', 'gauntlet', 'wide'][i % 3], seed: `lvregen-${i}` });
+      const ctx = `lvregen ${i}`;
+      for (let n = 1; n <= levels; n++) {
+        const before = JSON.parse(JSON.stringify(dun));
+        const twin = JSON.parse(JSON.stringify(dun));
+        const was = DM.editState(dun);
+        const res = DM.regenerateLevel(dun, n, { seed: `again-${i}-${n}` });
+        if (!res.ok) {
+          refused++;
+          ok(JSON.stringify(dun) === JSON.stringify(before), `${ctx} level ${n}: a refused rebuild changed the dungeon`);
+          continue;
+        }
+        made++;
+        kept += res.kept;
+        check(dun, `${ctx} level ${n}`);
+        if (dun.width > before.width || dun.height > before.height) grew++;
+        // the same numbers give the same level
+        DM.regenerateLevel(twin, n, { seed: `again-${i}-${n}` });
+        ok(JSON.stringify(twin) === JSON.stringify(dun), `${ctx} level ${n}: the same seed gave another level`);
+        // every other level is as it was (all moved together)
+        const cellsOf = (m, lv) => JSON.stringify(DM.floorView(m, lv).rooms.map((r) => [r.label, r.kind, r.cells.map(([x, y]) => [x - (m === dun ? res.dx : 0), y - (m === dun ? res.dy : 0)])]));
+        for (let lv = 1; lv <= levels; lv++) {
+          if (lv === n) continue;
+          ok(cellsOf(dun, lv) === cellsOf(before, lv), `${ctx} level ${n}: level ${lv} changed`);
+          ok(JSON.stringify(DM.floorView(dun, lv).halls.map((h) => h.cells.map(([x, y]) => [x - res.dx, y - res.dy]))) === JSON.stringify(DM.floorView(before, lv).halls.map((h) => h.cells)), `${ctx} level ${n}: the hallways of level ${lv} changed`);
+        }
+        // the new level: its rooms are marked with it, it has the entrances only if it is the first, and it is joined to its neighbours
+        ok(dun.levels === levels && DM.floorView(dun, n).rooms.length === base.roomCount && DM.floorView(dun, n).rooms.every((r) => r.level === n), `${ctx} level ${n}: the new level is not whole`);
+        ok(DM.floorView(dun, n).rooms.some((r) => r.name) === false, `${ctx} level ${n}: a new level has room names`);
+        for (let up = 1; up < levels; up++) ok(dun.stairs.some((s) => s.upper === up), `${ctx} level ${n}: no stair between level ${up} and level ${up + 1}`);
+        // stairs between other levels did not move (but for the shift of the map)
+        for (const s of before.stairs.filter((x) => x.upper !== n - 1 && x.upper !== n)) {
+          ok(dun.stairs.some((t) => t.letter === s.letter && t.x === s.x + res.dx && t.y === s.y + res.dy && t.upper === s.upper), `${ctx} level ${n}: stair ${s.letter} between other levels changed`);
+        }
+        ok(new Set(dun.stairs.map((s) => s.letter)).size === dun.stairs.length, `${ctx} level ${n}: stair letters repeat`);
+        ok(dun.stats.stairs === dun.stairs.length && dun.stairs.every((s, k) => s.id === k), `${ctx} level ${n}: stair ids or count`);
+        ok(DM.editState(dun) !== was, `${ctx} level ${n}: a new level is not an edit`);
+        ok(JSON.stringify(JSON.parse(DM.dungeonJson(dun))) === JSON.stringify(dun), `${ctx} level ${n}: the data does not hold the new level`);
+        // (the edit tools work on the new level)
+        const view = DM.floorView(dun, n);
+        const from = view.rooms[0].cells[0];
+        ok(DM.addHallway(view, [from, ...DM.walkCells(from, [from[0] + 3, from[1]])]).ok !== undefined, 'edit after a rebuild');
+        check(dun, `${ctx} level ${n} then edited`);
+      }
+    }
+    const flat = DM.generateDungeon({ ...base, levels: 1, seed: 'flat-regen' });
+    ok(!DM.regenerateLevel(flat, 1).ok, 'a level of a dungeon of one level was rebuilt');
+    const deep = DM.generateDungeon({ ...base, seed: 'deep-regen' });
+    ok(!DM.regenerateLevel(deep, 0).ok && !DM.regenerateLevel(deep, 4).ok && !DM.regenerateLevel(deep, 1.5).ok, 'a level that does not exist was rebuilt');
+    ok(kept > 0, 'no stair was ever kept when a level was built again');
+    console.log(`  rebuilt levels: ${made} (${refused} refused), ${kept} stairs kept, the map grew ${grew} times`);
+  }
   console.log('  done');
 }
 

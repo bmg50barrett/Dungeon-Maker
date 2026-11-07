@@ -254,35 +254,11 @@
     const own = d.level > 1 ? root.floors[d.level - 2] : root;
     own.halls = d.halls;
     own.connections = d.connections;
-    const floors = [root, ...root.floors];
-    const b = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
-    const grow = ([x, y]) => {
-      b.x0 = Math.min(b.x0, x);
-      b.y0 = Math.min(b.y0, y);
-      b.x1 = Math.max(b.x1, x);
-      b.y1 = Math.max(b.y1, y);
-    };
-    for (const f of floors) {
-      for (const r of f.rooms) r.cells.forEach(grow);
-      for (const h of f.halls) h.cells.forEach(grow);
-    }
-    const dx = -b.x0;
-    const dy = -b.y0;
-    for (const f of floors) DM.moveFloor(f, dx, dy);
-    for (const s of root.stairs) {
-      s.x += dx;
-      s.y += dy;
-    }
-    root.width = b.x1 - b.x0 + 1;
-    root.height = b.y1 - b.y0 + 1;
-    for (const f of root.floors) {
-      f.width = root.width;
-      f.height = root.height;
-    }
+    const shift = DM.fitLevelsBox(root);
     d.width = root.width;
     d.height = root.height;
     d.stairs = DM.floorStairs(root, d.level);
-    return { dx, dy };
+    return shift;
   }
 
   /** The counts in `stats` that hallways change. (Room shapes, sizes and how the hallways were first made stay as built.) */
@@ -397,16 +373,9 @@
     return { ok: true, upperRoom: rooms[0], lowerRoom: rooms[1] };
   }
 
-  /** Stairs are kept in order of the level they leave, then their letters; ids are their places in the list. */
+  /** Keep the stairs in order, with ids that are their places (and the floor view, if given one, up to date). */
   function tidyStairs(root, d) {
-    const order = (s) => [s.upper, s.letter.length, s.letter];
-    root.stairs.sort((a, b) => {
-      const [ua, la, ta] = order(a);
-      const [ub, lb, tb] = order(b);
-      return ua - ub || la - lb || (ta < tb ? -1 : ta > tb ? 1 : 0);
-    });
-    root.stairs.forEach((s, i) => (s.id = i));
-    root.stats.stairs = root.stairs.length;
+    DM.tidyStairs(root);
     if (d && d._model) d.stairs = DM.floorStairs(root, d.level);
   }
 
