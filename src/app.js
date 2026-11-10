@@ -62,6 +62,44 @@
   }
   restoreBlades();
 
+  // ---- helper text ("tips"): to the right of the field, where it never covers the next field down ----------------------------
+  // A tip is shown by CSS (on hover or keyboard focus of its field). On a computer it is fixed to the window (the columns clip what
+  // sticks out of them), so this puts it beside the field it belongs to: at the right of it, or under it when there is no room.
+  const TIP_GAP = 10;
+  function placeTips(field) {
+    for (const tip of field.querySelectorAll(':scope > .tip, :scope > .seg-options > .tip')) {
+      const box = field.getBoundingClientRect();
+      const keep = [tip.style.display, tip.style.visibility];
+      tip.style.display = 'block'; // (measured even if it is not showing yet)
+      tip.style.visibility = 'hidden';
+      tip.style.setProperty('--tip-x', `${box.right + TIP_GAP}px`);
+      tip.style.setProperty('--tip-y', `${box.top}px`);
+      let at = tip.getBoundingClientRect();
+      if (at.right > window.innerWidth - 8) { // no room at the right: under the field
+        tip.style.setProperty('--tip-x', `${Math.max(8, Math.min(box.left, window.innerWidth - 8 - at.width))}px`);
+        tip.style.setProperty('--tip-y', `${box.bottom + 6}px`);
+        at = tip.getBoundingClientRect();
+      }
+      if (at.bottom > window.innerHeight - 8) tip.style.setProperty('--tip-y', `${Math.max(8, window.innerHeight - 8 - at.height)}px`);
+      [tip.style.display, tip.style.visibility] = keep;
+    }
+  }
+  const tipField = (e) => (e.target instanceof Element ? e.target.closest('.field') : null);
+  for (const type of ['mouseover', 'focusin']) {
+    document.addEventListener(type, (e) => {
+      const field = tipField(e);
+      if (field) placeTips(field);
+    });
+  }
+  // a column scrolled under the pointer, or the window resized, while a tip is showing: it follows its field
+  const showingTipField = () => document.querySelector('.field:hover, .field:has(:focus-visible)');
+  const keepTipsBeside = () => {
+    const field = showingTipField();
+    if (field) placeTips(field);
+  };
+  document.addEventListener('scroll', keepTipsBeside, true);
+  window.addEventListener('resize', keepTipsBeside);
+
   function readParams() {
     const params = {};
     for (const f of FIELDS) params[f] = $(f).value;

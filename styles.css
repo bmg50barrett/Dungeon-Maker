@@ -396,6 +396,12 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
   pointer-events: none;
 }
 .tip-end { left: auto; right: 0; }
+/* On a computer a tip is to the right of its field, not under it, so it never covers the next field down. The columns clip anything that
+   sticks out of them, so the tip is fixed to the window and src/app.js puts it at --tip-x, --tip-y (the right of the field; under it when
+   there is no room at the right). On a phone there is no room at the side: it stays under the field. */
+@media (min-width: 761px) {
+  .tip, .tip-end { position: fixed; top: var(--tip-y, 0); left: var(--tip-x, 0); right: auto; margin: 0; max-width: 280px; }
+}
 .seg-options label:hover + .tip,
 .seg-options input:focus-visible + label + .tip,
 .field:hover > .tip,

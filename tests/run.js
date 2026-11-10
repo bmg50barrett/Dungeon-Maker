@@ -2157,6 +2157,10 @@ console.log('== helper text as tooltips');
   if (!/\.field \{[^}]*position:\s*relative/.test(css)) fail('tips', 'a field must be positioned for its tip');
   if (!/\.field:hover > \.tip/.test(css) || !/\.field:has\(:focus-visible\) > \.tip/.test(css)) fail('tips', 'a field tip should show on hover and on keyboard focus');
   if (!/\.field:has\(\[aria-invalid='true'\]\) > \.tip[^{]*\{[^}]*display:\s*none/.test(css)) fail('tips', 'a tip should not cover an error');
+  // on a computer a tip is beside its field (to the right, so it never covers the next field down); the columns clip anything that sticks out,
+  // so it is fixed to the window and placed by app.js. On a phone it stays under the field
+  if (!/@media \(min-width: 761px\) \{\s*\.tip, \.tip-end \{[^}]*position:\s*fixed[^}]*top:\s*var\(--tip-y[^}]*left:\s*var\(--tip-x[^}]*\}\s*\}/.test(css)) fail('tips', 'on a computer a tip should be fixed to the window, at --tip-x and --tip-y');
+  if (!/function placeTips\(field\)/.test(app) || !/box\.right \+ TIP_GAP/.test(app) || !/'mouseover', 'focusin'/.test(app)) fail('tips', 'app.js should put a tip to the right of its field when the mouse or the focus gets to it');
   if (/\btitle="Least a room measures/.test(form)) fail('tips', 'the minimum size boxes should not have a native tooltip beside the tip');
   if (!/\.tip \{ animation: none !important; \}/.test(read('styles.css'))) fail('tips', 'tips should appear without the pause when motion is reduced');
   if (!/\.seg-options \{[^}]*position:\s*relative/.test(css)) fail('tips', 'the tip is placed against its control, which must be positioned');

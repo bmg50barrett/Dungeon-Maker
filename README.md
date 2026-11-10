@@ -330,8 +330,9 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
     is not an edit, so four clicks on a door, or drawing a hallway and deleting it, and the box does not
     appear. Changing the inputs or the colors, or the Display choices, never builds a new dungeon, so it
     never asks.
-- **Helper text is a tooltip.** The notes under the inputs (ranges, what a choice does, how many shapes are on) are tips that appear under a
-  field when the mouse rests on it (after a short pause) or it has the keyboard focus, and do not take up room in the column. They
+- **Helper text is a tooltip.** The notes under the inputs (ranges, what a choice does, how many shapes are on) are tips that appear to the
+  right of a field (so they never cover the field below it; under it when there is no room at the right, and on a phone) when the
+  mouse rests on it (after a short pause) or it has the keyboard focus, and do not take up room in the column. They
   update as you type. A tip does not cover an error, which stays on show. The status line under the share buttons is not helper
   text and stays a line.
 - The inputs are in five columns side by side: **Layout** (the overall layout, room spacing, levels, entrances and the seed), **Rooms** (count, sizes, shapes),
