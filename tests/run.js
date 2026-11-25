@@ -20,6 +20,8 @@ require('../src/history.js');
 require('../src/labels.js');
 require('../src/palette.js');
 require('../src/share.js');
+require('../src/tiles-catalog.js');
+require('../src/bom.js');
 const DM = globalThis.DM;
 const { DX, DY, OPP } = DM.DIRS;
 
@@ -4326,6 +4328,80 @@ console.log('== statistics');
   if (spots(5) !== '2,0 | 4,2 | 2,4 | 0,2') fail('tile mode', `5x5 door spots are ${spots(5)}`);
   if (spots(4) !== '1,0 | 3,1 | 2,3 | 0,2') fail('tile mode', `4x4 door spots are ${spots(4)}`);
   if (shortfalls > dungeons * 0.05) fail('tile mode', `${shortfalls} of ${dungeons} tile-mode dungeons could not fit every room`);
+}
+
+// ---------------------------------------------------------------------------
+// Tile list: the printed tiles a dungeon needs (src/bom.js), against the copy of the Dungeon Tiles catalog kept in the app.
+{
+  console.log('\nTile list');
+  const cat = DM.TILE_CATALOG;
+  // straight stretches are filled with the fewest straight pieces that add up exactly
+  const fills = { 9: 2, 8: 2, 10: 2, 4: 1, 5: 1, 12: 3, 0: 0 };
+  const straights = Object.entries(cat.faces).filter(([, f]) => f.kind === 'hall' && f.hall_width_ft === 5 && f.size[0] === 1 && f.size[1] > 1).map(([id, f]) => ({ id, length: f.size[1] })).sort((a, b) => b.length - a.length);
+  for (const [len, pieces] of Object.entries(fills)) {
+    const got = DM.fillStraight(Number(len), straights);
+    const count = got ? Object.values(got).reduce((a, n) => a + n, 0) : null;
+    const squares = got ? Object.entries(got).reduce((a, [id, n]) => a + n * cat.faces[id].size[1], 0) : null;
+    if (count !== pieces || squares !== Number(len)) fail('tile list', `a straight ${len} long fills as ${JSON.stringify(got)}`);
+  }
+  const rng = new DM.Rng('tile-list-tests');
+  let dungeons = 0;
+  let roomsMatched = 0;
+  let roomsTotal = 0;
+  let plansChecked = 0;
+  for (let i = 0; i < 120; i++) {
+    const raw = { roomCount: rng.int(1, 40), avgRoomSize: 30, sizeVariance: 30, entrances: rng.int(1, 4), tileMode: true, connectionType: rng.pick(['hall', 'door']),
+      connectionRandomness: rng.pick([0, 14, 50]), hallTypes: rng.pick([undefined, ['short'], ['spine'], ['curly'], ['short', 'spine', 'curly', 'branching']]),
+      edgeEntrancesOnly: rng.chance(0.8), spacing: rng.pick(DM.SPACINGS), layout: rng.pick(DM.LAYOUTS), seed: `tl-${i}` };
+    if (rng.chance(0.15)) raw.levels = rng.int(2, 3);
+    const dun = DM.generateDungeon(raw);
+    const list = DM.tileList(dun, cat);
+    dungeons++;
+    const floors = [dun, ...(dun.floors || [])];
+    floors.forEach((fl, f) => {
+      const lvl = list.levels[f];
+      // every room gets a tile, unless it has no doorway at all (a room reached by stairs only)
+      for (const r of lvl.rooms) {
+        roomsTotal++;
+        if (r.face) roomsMatched++;
+        else if (!/no doorways/.test(r.problem)) fail(`tile list ${i}`, `room ${r.label} has no tile: ${r.problem}`);
+      }
+      // the hallway pieces and the stretches no piece makes cover exactly the hallway squares
+      const hallSquares = fl.halls.reduce((a, h) => a + h.cells.length, 0);
+      const pieceSquares = Object.entries(lvl.needs).filter(([id]) => cat.faces[id].kind === 'hall').reduce((a, [id, n]) => a + n * cat.faces[id].size[0] * cat.faces[id].size[1], 0);
+      const unbuilt = lvl.problems.reduce((a, p) => a + Number((p.match(/stretch (\d+) square/) || [0, 0])[1]), 0);
+      if (pieceSquares + unbuilt !== hallSquares) fail(`tile list ${i}`, `level ${lvl.level}: hallway pieces cover ${pieceSquares} squares and ${unbuilt} are unbuilt, of ${hallSquares}`);
+    });
+    // the needs are the most any one level needs
+    for (const [id, n] of Object.entries(list.needs)) if (n !== Math.max(...list.levels.map((l) => l.needs[id] || 0))) fail(`tile list ${i}`, `${id}: needs ${n}, not the most of any level`);
+    // a print plan covers everything, and a single-sided one has enough copies of each tile
+    for (const two of [false, true]) {
+      const plan = DM.tilePrintPlan(list.needs, cat, two);
+      plansChecked++;
+      if (!plan.complete || Object.keys(plan.missing).length) fail(`tile list ${i}`, `${two ? 'double' : 'single'}-sided plan is short: ${JSON.stringify(plan.missing)}`);
+      if (!two) {
+        for (const [id, n] of Object.entries(list.needs)) {
+          const have = plan.editions.reduce((a, e) => a + e.copies * (cat.editions.find((x) => x.id === e.id).faces_available[id] || 0), 0);
+          if (have < n) fail(`tile list ${i}`, `single-sided plan prints ${have} x ${id}, needs ${n}`);
+        }
+      }
+      if (plan.sheets !== plan.editions.reduce((a, e) => a + e.sheets, 0)) fail(`tile list ${i}`, 'plan sheet count does not add up');
+    }
+    const text = DM.tileListText(list, cat, [{ ...DM.tilePrintPlan(list.needs, cat, false), doubleSided: false }]);
+    if (!/^Tiles needed: \d+/.test(text) || !text.includes('Rooms:')) fail(`tile list ${i}`, 'the text list is malformed');
+  }
+  // one printing is enough for a small dungeon, and nothing is printed for nothing
+  const none = DM.tilePrintPlan({}, cat, false);
+  if (none.sheets !== 0 || !none.complete) fail('tile list', 'an empty list should need no printing');
+  const one = DM.tilePrintPlan({ 'R5-1': 1 }, cat, false);
+  if (one.sheets !== 4 || one.editions.length !== 1 || one.editions[0].id !== 'full-rooms') fail('tile list', `one 5x5 room should be one printing of Full Rooms, got ${JSON.stringify(one.editions)}`);
+  const two = DM.tilePrintPlan({ 'R5-1': 2 }, cat, true);
+  if (!two.complete || two.editions[0].copies !== 1) fail('tile list', `two 5x5 one-door rooms fit one double-sided printing, got ${JSON.stringify(two.editions)}`);
+  // a dungeon not made in tile mode: its odd rooms are listed, not dropped
+  const plain = DM.generateDungeon({ roomCount: 12, avgRoomSize: 30, sizeVariance: 30, entrances: 1, connectionType: 'hall', roomShapes: ['L', 'T'], seed: 'tile-list-plain' });
+  const plainList = DM.tileList(plain, cat);
+  if (plainList.problems.filter((p) => /^Room /.test(p)).length < 10) fail('tile list', `L and T rooms should be listed as having no tile: ${plainList.problems.slice(0, 3)}`);
+  console.log(`  ${dungeons} dungeons: ${roomsMatched} of ${roomsTotal} rooms have a tile, ${plansChecked} print plans checked`);
 }
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} FAILURE(S)`);

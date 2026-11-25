@@ -101,7 +101,30 @@ Tile mode makes dungeons you can lay out on the table with the printed
   `tileMode` at all, so older dungeons and links are unchanged.
 - Edit mode does not hold you to it: a room you resize or a door you move by hand can leave tile sizes behind.
 
-The Dungeon Tiles repo's `catalog/tiles.json` lists every tile and its doorways, for working out which tiles a dungeon needs.
+### Tile list
+
+The **Tile list** button (Share & export) shows which printed tiles the dungeon on show needs, and what to print to get
+them. It is made for Tile mode dungeons; any other dungeon gets a list too, with whatever no tile can make listed.
+
+- **Tiles needed**: each tile by name and ID (as in the Dungeon Tiles catalog) and how many. A dungeon of several levels
+  is laid out one level at a time, so this is the most any one level needs.
+- **To print**: the fewest sheets that hold every tile needed, single-sided or double-sided (the switch in the list).
+  A double-sided piece shows one face at a time, and the plan allows for that.
+- **Room by room**: which tile each room takes, by the numbers on the map. Turn the tile to match the map.
+- **Not buildable with the tiles**: anything no tile can make, such as a room of another size or shape, a room reached
+  only by stairs (no tile has no doors), a hallway wider than 5 ft, or a straight stretch of hallway that the straight
+  hallway tiles cannot add up to. It is listed, never dropped.
+- Doors and stairs on the map are counted as notes: the tiles show every doorway as an opening, and the room tiles have no
+  stairs, so mark those on the table.
+- **Copy as text** puts the whole list on the clipboard. Claude's `tile_list` tool gives the same list.
+
+Each room is matched by its size and where its doorways are, in any of 4 turns. Each hallway square is a dead end,
+corner, T or crossroads piece by how many ways it opens; the straight stretches between them are filled with the fewest
+straight pieces that add up exactly.
+
+The tiles are described by the Dungeon Tiles catalog (`catalog/tiles.json` in the Dungeon Tiles repo). A copy is kept in
+the app (`src/tiles-catalog.js`), so the tile list works offline and the page fetches nothing. After the tiles change,
+refresh the copy with `node tools/update-tile-catalog.js` (from GitHub), or give it a local `tiles.json`.
 
 ## The map
 
@@ -528,6 +551,7 @@ the map, then writes the content for each room by the numbers printed on it.
 | --- | --- |
 | `generate_dungeon` | Makes a dungeon from any of the page's settings (all optional, with the page's starting values) and a seed. Answers with the picture and a description of every room, door, hallway and entrance. `levels` (1-20) and `levelStairs` (1-10) make a dungeon of several floors: the description then lists the stairs, then each level in turn, with rooms named like `2-5`, and the picture shows every level one above the other. |
 | `open_dungeon` | Opens a dungeon saved as **Data (JSON)**, from the page or from `save_dungeon`. A bare file name is looked for in the maps folder. |
+| `tile_list` | Which printed [Dungeon Tiles](https://github.com/bmg50barrett/Dungeon-Tiles) the dungeon needs: tiles by ID and how many, which room takes which tile, what to print (fewest sheets, single-sided and double-sided, or just one with `doubleSided`), and anything no tile can make. Made for dungeons built with `tileMode`. |
 | `describe_dungeon` | The description alone: each room by its number on the map, with its shape, size in feet and place on the map, its doors and what they lead to. |
 | `edit_dungeon` | A list of edits: change a door (door, locked, secret, no door), add or remove one, draw a hallway through some squares, delete a stretch of hallway, add and remove entrances, renumber and name rooms, draw, move and delete rooms, and (several levels) add, move and remove stairs. The rules are Edit mode's. |
 | `regenerate_level` | For a dungeon of several levels: builds one `level` again (from a random `seed`, or the one given) and leaves the others as they are, keeping the stairs that still fit. Answers with the new description and picture. |
@@ -567,6 +591,8 @@ src/generator.js         layout: placement, hallway routing (A*), entrances, out
 src/labels.js            where room numbers go (inside, or outside the walls): `DM.placeOutsideLabels`
 src/palette.js           map colors: the ready-made choices per category, `DM.themeFrom`
 src/share.js             share links, file names, JSON and caption for exports: `DM.encodeShare`, `DM.decodeShare`
+src/bom.js               the tile list: which printed Dungeon Tiles a dungeon needs, and what to print: `DM.tileList`, `DM.tilePrintPlan`, `DM.tileListText`
+src/tiles-catalog.js     the Dungeon Tiles catalog kept in the app (`DM.TILE_CATALOG`); refresh with  node tools/update-tile-catalog.js
 src/edit.js              hallway and room editing on the data: `DM.planHallway`, `DM.addHallway`, `DM.deleteHallStretch`, `DM.planRoom`, `DM.addRoom`, `DM.planMoveRoom`, `DM.moveRoom`, `DM.deleteRoom`, `DM.editState`, `DM.walkCells`
 src/history.js           undo and redo: `DM.EditHistory`, steps kept as copies of the dungeon
 src/render.js            canvas drawing, zoom/pan, the Edit mode tools (clicks, strokes), the exported picture (`exportImage`)
@@ -578,6 +604,7 @@ mcp/lib/dm.js            loads src/ into Node, and draws the picture with the pa
 mcp/lib/describe.js      a dungeon in words, by the numbers on the map
 mcp/lib/store.js         dungeons in use, saving and opening files
 tests/mcp.js             tests of the server:  node tests/mcp.js  (after npm install in mcp/)
+tools/update-tile-catalog.js  copies the Dungeon Tiles catalog into src/tiles-catalog.js, from GitHub or a local file (run by hand)
 ```
 
 `DM.generateDungeon(params)` returns plain JSON-serialisable data, which is what

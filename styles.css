@@ -854,7 +854,7 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
 }
 
 /* the warning before edits are thrown away: a small plate in the same double gold frame */
-#discardDialog {
+#discardDialog, #tileDialog {
   max-width: min(440px, calc(100vw - 32px));
   padding: 0;
   color: var(--ink);
@@ -863,9 +863,9 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
   outline: var(--stroke-frame-inner) solid var(--gold);
   outline-offset: calc(-1 * var(--space-frame-inset));
 }
-#discardDialog::backdrop { background: var(--backdrop); }
-#discardDialog form { padding: 24px 26px; }
-#discardDialog h2 {
+#discardDialog::backdrop, #tileDialog::backdrop { background: var(--backdrop); }
+#discardDialog form, #tileDialog form { padding: 24px 26px; }
+#discardDialog h2, #tileDialog h2 {
   margin: 0 0 12px;
   padding-bottom: 4px;
   font-family: var(--font-display);
@@ -951,3 +951,18 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
 }
 
 .toolbar button[hidden] { display: none; }
+
+/* the tile list */
+#tileDialog { width: min(640px, 94vw); max-height: 90vh; }
+#tileDialog form { max-height: calc(90vh - 20px); overflow-y: auto; }
+#tileDialog h3 { margin: 18px 0 6px; font-family: var(--font-display); font-size: 19px; font-weight: 400; color: var(--heading); }
+#tileDialog p { margin: 0 0 10px; font-size: 15px; line-height: 1.4; }
+#tileDialog table { width: 100%; border-collapse: collapse; font-size: 15px; }
+#tileDialog th, #tileDialog td { padding: 4px 6px; text-align: left; border-bottom: 1px solid var(--tint); vertical-align: top; }
+#tileDialog th { font-weight: 600; }
+#tileDialog td.num { text-align: right; width: 3em; font-variant-numeric: tabular-nums; }
+#tileDialog code { font-size: 13px; }
+#tileDialog ul { margin: 0 0 10px; padding-left: 20px; font-size: 15px; line-height: 1.4; }
+#tileDialog details { margin: 6px 0 10px; font-size: 15px; }
+#tileDialog .tile-problems li { color: var(--wine); }
+#tileDialog .toggle-field { margin: 14px 0 4px; }

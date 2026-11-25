@@ -271,6 +271,7 @@
                 <button type="button" id="downloadPng" title="Save the map as a picture">Picture (PNG)</button>
                 <button type="button" id="downloadJson" title="Save the dungeon as data that other programs can read">Data (JSON)</button>
                 <button type="button" id="printMap" title="Print the map on one page">Print</button>
+                <button type="button" id="tileList" title="Which printed Dungeon Tiles this dungeon needs, and what to print">Tile list</button>
               </div>
               <div class="field toggle-field">
                 <label class="switch" for="exportLegend">
@@ -458,6 +459,27 @@
     </form>
   </dialog>
 
+  <!-- the tile list: which printed Dungeon Tiles the dungeon on show needs (filled by app.js) -->
+  <dialog id="tileDialog" aria-labelledby="tileTitle">
+    <form method="dialog">
+      <h2 id="tileTitle">Tile list</h2>
+      <div id="tileBody"></div>
+      <div class="field toggle-field">
+        <label class="switch" for="tileDoubleSided">
+          <span class="switch-title">Print double-sided</span>
+          <input type="checkbox" id="tileDoubleSided" role="switch">
+          <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+          <span class="switch-state" id="tileDoubleSidedState" aria-hidden="true">Off</span>
+        </label>
+      </div>
+      <p class="hint" id="tileStatus" role="status" aria-live="polite"></p>
+      <div class="dialog-buttons">
+        <button type="button" id="tileCopy">Copy as text</button>
+        <button type="submit" value="close" autofocus>Close</button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="src/rng.js"></script>
   <script src="src/shapes.js"></script>
   <script src="src/layout.js"></script>
@@ -467,6 +489,8 @@
   <script src="src/labels.js"></script>
   <script src="src/palette.js"></script>
   <script src="src/share.js"></script>
+  <script src="src/tiles-catalog.js"></script>
+  <script src="src/bom.js"></script>
   <script src="src/render.js"></script>
   <script src="src/app.js"></script>
 </body>

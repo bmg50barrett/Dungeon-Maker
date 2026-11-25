@@ -1257,6 +1257,76 @@
     setExportStatus(`Saved ${name}`);
   }
 
+  // ---- tile list: which printed Dungeon Tiles the dungeon on show needs ----------------------------------------------
+
+  // the catalog is the copy kept in the app (src/tiles-catalog.js): the page fetches nothing
+  const tileCatalog = DM.TILE_CATALOG;
+
+  let tileText = '';
+  function renderTileList() {
+    const cat = tileCatalog;
+    const d = DM.current;
+    const doubleSided = $('tileDoubleSided').checked;
+    $('tileDoubleSidedState').textContent = doubleSided ? 'On' : 'Off';
+    const list = DM.tileList(d, cat);
+    const plan = { ...DM.tilePrintPlan(list.needs, cat, doubleSided), doubleSided };
+    tileText = DM.tileListText(list, cat, [plan]);
+    const name = (id) => escapeHtml(cat.faces[id] ? cat.faces[id].name : id);
+    const total = Object.values(list.needs).reduce((a, n) => a + n, 0);
+    const html = [];
+    if (!d.params.tileMode) html.push('<p>This dungeon was not made in Tile mode, so much of it may not match a tile. Switch on <b>Tile mode</b> (Rooms column) for a dungeon the tiles can build.</p>');
+    html.push(`<h3>Tiles needed: ${total}</h3>`);
+    if (list.levels.length > 1) html.push('<p>The most any one level needs: lay out one level at a time.</p>');
+    if (total > 0) {
+      html.push('<table><thead><tr><th class="num">Qty</th><th>Tile</th><th>ID</th></tr></thead><tbody>');
+      for (const [id, n] of Object.entries(list.needs)) html.push(`<tr><td class="num">${n}</td><td>${name(id)}</td><td><code>${escapeHtml(id)}</code></td></tr>`);
+      html.push('</tbody></table>');
+    }
+    html.push(`<h3>To print: ${plan.sheets} sheet${plan.sheets === 1 ? '' : 's'} ${doubleSided ? 'double-sided' : 'single-sided'}</h3>`);
+    if (plan.editions.length > 0) {
+      html.push('<ul>');
+      for (const e of plan.editions) html.push(`<li>${e.copies} &times; <b>${escapeHtml(e.name)}</b> (${e.sheets} sheet${e.sheets === 1 ? '' : 's'}), with its cut guide</li>`);
+      html.push('</ul>');
+    }
+    const short = Object.entries(plan.missing);
+    if (short.length > 0) html.push(`<p>Still short: ${short.map(([id, k]) => `${k} &times; ${name(id)}`).join(', ')}. No ${doubleSided ? 'double-sided' : 'single-sided'} file has ${short.length === 1 ? 'that tile' : 'those tiles'}.</p>`);
+    if (list.problems.length > 0) {
+      html.push(`<h3>Not buildable with the tiles: ${list.problems.length}</h3><ul class="tile-problems">`);
+      for (const p of list.problems) html.push(`<li>${escapeHtml(p)}</li>`);
+      html.push('</ul>');
+    }
+    const byNumber = (a, b) => String(a.label).localeCompare(String(b.label), undefined, { numeric: true });
+    html.push('<details><summary>Room by room</summary><ul>');
+    for (const l of list.levels) for (const r of l.rooms.slice().sort(byNumber)) html.push(`<li>Room ${escapeHtml(r.label)}: ${r.face ? `${name(r.face)} (<code>${escapeHtml(r.face)}</code>)` : `no tile (${escapeHtml(r.problem)})`}</li>`);
+    html.push('</ul></details>');
+    if (list.doors > 0) html.push(`<p>${list.doors} doorway${list.doors === 1 ? ' has a door' : 's have doors'} on the map. The tiles show every doorway as an opening, so mark doors on the table if you want them.</p>`);
+    if (list.stairs > 0) html.push(`<p>${list.stairs} stair${list.stairs === 1 ? '' : 's'} on the map. The room tiles have none, so mark them on the table.</p>`);
+    html.push(`<p class="hint">Tile catalog version ${escapeHtml(String(cat.catalog_version))}, as kept in the app.</p>`);
+    $('tileBody').innerHTML = html.join('');
+  }
+
+  function showTileList() {
+    if (!DM.current) return setExportStatus(NO_DUNGEON);
+    const dialog = $('tileDialog');
+    $('tileStatus').textContent = '';
+    try {
+      renderTileList();
+    } catch (err) {
+      $('tileBody').innerHTML = `<p>The tile list could not be made (${escapeHtml(err.message || String(err))}).</p>`;
+    }
+    if (typeof dialog.showModal === 'function') dialog.showModal();
+  }
+
+  async function copyTileList() {
+    if (!tileText) return;
+    try {
+      await navigator.clipboard.writeText(tileText);
+      $('tileStatus').textContent = 'Copied.';
+    } catch {
+      $('tileStatus').textContent = 'Could not copy here. Select the list and copy it by hand.';
+    }
+  }
+
   /** The link for the dungeon on show: its inputs (with the seed it really used) and how it is drawn. */
   function shareLink() {
     const text = DM.encodeShare({ params: DM.current.params, display: currentDisplay() });
@@ -1354,6 +1424,9 @@
 
   $('downloadPng').addEventListener('click', downloadPicture);
   $('downloadJson').addEventListener('click', downloadData);
+  $('tileList').addEventListener('click', showTileList);
+  $('tileDoubleSided').addEventListener('change', () => DM.current && renderTileList());
+  $('tileCopy').addEventListener('click', copyTileList);
   $('copyLink').addEventListener('click', copyLink);
   $('printMap').addEventListener('click', printMap);
   // the link box sits inside the form: Enter there should not build a new dungeon

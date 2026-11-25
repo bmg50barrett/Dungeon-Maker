@@ -939,7 +939,7 @@ console.log('== the protocol');
 
   const list = call('tools/list').result.tools;
   const names = list.map((t) => t.name).sort().join();
-  if (names !== 'describe_dungeon,draw_map,edit_dungeon,generate_dungeon,list_dungeons,open_dungeon,redo_edit,regenerate_level,save_dungeon,undo_edit') fail('protocol', `the tools are ${names}`);
+  if (names !== 'describe_dungeon,draw_map,edit_dungeon,generate_dungeon,list_dungeons,open_dungeon,redo_edit,regenerate_level,save_dungeon,tile_list,undo_edit') fail('protocol', `the tools are ${names}`);
   for (const t of list) {
     if (!/^[a-z_]+$/.test(t.name) || typeof t.description !== 'string' || t.description.length < 40) fail('protocol', `${t.name} needs a name in snake_case and a real description`);
     const s = t.inputSchema;
@@ -1009,7 +1009,7 @@ console.log('== the real process');
   const byId = new Map(parsed.map((m) => [m.id, m]));
   if (parsed.length !== 5) fail('process', `${parsed.length} replies for 4 requests and 1 bad line (the notification gets none)`);
   if (!byId.get(1) || byId.get(1).result.protocolVersion !== '2025-06-18') fail('process', 'no answer to initialize');
-  if (!byId.get(2) || byId.get(2).result.tools.length !== 10) fail('process', 'no list of ten tools');
+  if (!byId.get(2) || byId.get(2).result.tools.length !== 11) fail('process', 'no list of eleven tools');
   const generated = byId.get(3) && byId.get(3).result;
   if (!generated || generated.content.length !== 2 || !isPng(Buffer.from(generated.content[1].data, 'base64'))) fail('process', 'no dungeon with a picture');
   if (!parsed.some((m) => m.error && m.error.code === -32700 && m.id === null)) fail('process', 'a line that is not JSON should get a parse error');
@@ -1017,6 +1017,25 @@ console.log('== the real process');
   if (!saved || saved.isError || !fs.existsSync(path.join(dir, 'from-process.json')) || !isPng(fs.readFileSync(path.join(dir, 'from-process.png')))) fail('process', 'DUNGEON_MAKER_MAPS did not choose where files go, or they were not written');
   if (!/ready/.test(run.stderr)) fail('process', 'the server should say on stderr that it is ready');
   fs.rmSync(dir, { recursive: true, force: true });
+  console.log('  done');
+}
+
+console.log('== tile list');
+{
+  const { tools, done } = freshTools();
+  tools.generate_dungeon.run({ seed: 'tiles-mcp', roomCount: 8, entrances: 2, tileMode: true, picture: false });
+  const both = tools.tile_list.run({}).text;
+  if (!/^Tile list for d1:\nTiles needed: \d+/.test(both)) fail('tile list', `the answer does not start with the tiles needed: ${both.slice(0, 80)}`);
+  if (!both.includes('To print (single-sided):') || !both.includes('To print (double-sided):')) fail('tile list', 'without doubleSided, both print plans should be given');
+  if (!/Room 1: R(4P|5)-/.test(both)) fail('tile list', 'room 1 has no tile in the answer');
+  if (both.includes('not made with tileMode')) fail('tile list', 'a tile-mode dungeon is said not to be one');
+  const one = tools.tile_list.run({ doubleSided: true }).text;
+  if (one.includes('single-sided') || !one.includes('double-sided')) fail('tile list', 'doubleSided:true should give only the double-sided plan');
+  try { tools.tile_list.run({ doubleSided: 'yes' }); fail('tile list', 'doubleSided "yes" was accepted'); } catch (err) { if (!/true or false/.test(err.message)) fail('tile list', `odd refusal: ${err.message}`); }
+  tools.generate_dungeon.run({ seed: 'plain-mcp', roomCount: 6, roomShapes: ['L'], picture: false });
+  const plain = tools.tile_list.run({}).text;
+  if (!plain.startsWith('This dungeon was not made with tileMode') || !plain.includes('no tile has that shape')) fail('tile list', 'a dungeon without tileMode should be called out, with its rooms listed as having no tile');
+  if (done) done();
   console.log('  done');
 }
 

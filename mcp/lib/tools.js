@@ -8,7 +8,6 @@ const { load, renderPng } = require('./dm');
 const { describeDungeon, SIDES, STYLES } = require('./describe');
 const { Store } = require('./store');
 const { ToolError } = require('./errors');
-
 /** What the app starts with (see index.html), so a call with no settings gives the dungeon the page would. */
 const APP_DEFAULTS = {
   roomCount: 12,
@@ -216,6 +215,32 @@ function createTools({ store = new Store() } = {}) {
     run(args) {
       only(args, ['id'], 'describe_dungeon');
       return answer(store.get(args.id), { picture: false });
+    },
+  });
+
+  tools.push({
+    name: 'tile_list',
+    description:
+      'Which printed Dungeon Tiles (github.com/bmg50barrett/Dungeon-Tiles) a dungeon needs: the tiles by ID and how many, which room takes which tile, ' +
+      'what to print (fewest sheets, single-sided and double-sided), and anything no tile can make, listed rather than dropped. ' +
+      'Made for dungeons built with tileMode; a dungeon made without it will mostly not match. A dungeon of several levels needs the most any one level needs.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: ID, doubleSided: { type: 'boolean', description: 'Plan the printing for double-sided sheets only (true) or single-sided only (false). Leave out for both.' } },
+      additionalProperties: false,
+    },
+    annotations: { title: 'List the tiles a dungeon needs', readOnlyHint: true, openWorldHint: false },
+    run(args) {
+      only(args, ['id', 'doubleSided'], 'tile_list');
+      if (args.doubleSided !== undefined && typeof args.doubleSided !== 'boolean') throw new ToolError('"doubleSided" must be true or false.');
+      const item = store.get(args.id);
+      const DM = load();
+      const cat = DM.TILE_CATALOG;
+      const list = DM.tileList(item.dungeon, cat);
+      const sides = args.doubleSided === undefined ? [false, true] : [args.doubleSided];
+      const plans = sides.map((two) => ({ ...DM.tilePrintPlan(list.needs, cat, two), doubleSided: two }));
+      const intro = item.dungeon.params.tileMode ? '' : 'This dungeon was not made with tileMode, so much of it may not match a tile.\n\n';
+      return { text: `${intro}Tile list for ${item.id}:\n${DM.tileListText(list, cat, plans)}` };
     },
   });
 
