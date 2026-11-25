@@ -14,6 +14,7 @@
 require('../src/rng.js');
 require('../src/shapes.js');
 require('../src/layout.js');
+require('../src/building.js');
 require('../src/generator.js');
 require('../src/edit.js');
 require('../src/history.js');
@@ -959,6 +960,8 @@ console.log('== share and export');
     { roomCount: 10, avgRoomSize: 20, sizeVariance: 30, entrances: 1, levels: 4, levelStairs: 3, connectionType: 'hall', seed: 'deep' },
   ];
   samples.push({ roomCount: 9, avgRoomSize: 30, sizeVariance: 30, entrances: 2, connectionType: 'hall', tileMode: true, seed: 'tiles' });
+  samples.push({ roomCount: 11, avgRoomSize: 30, sizeVariance: 30, entrances: 2, connectionType: 'door', layout: 'ring', spacing: 'spaced', building: true, footprint: 'courtyard', circulation: 'mix', levels: 2, seed: 'bld' });
+  samples.push({ roomCount: 14, avgRoomSize: 25, sizeVariance: 60, entrances: 1, building: true, circulation: 'rooms', seed: 'bld-2' });
   {
     const tileText = DM.encodeShare({ params: DM.generateDungeon({ roomCount: 9, avgRoomSize: 30, sizeVariance: 30, entrances: 2, connectionType: 'hall', tileMode: true, seed: 'tiles' }).params, display: {} });
     for (const key of ['size=', 'minw=', 'minl=', 'var=', 'hallw=', 'shapes=']) if (tileText.includes(key)) fail('share', `a tile-mode link names ${key.slice(0, -1)}, which tile mode sets itself: ${tileText}`);
@@ -978,7 +981,7 @@ console.log('== share and export');
         // (the link names only what differs from the page's usual values; the rest is the usual)
         // (a tile-mode link leaves out the room settings tile mode sets itself, so compare what those inputs make)
         const want = { ...dun.params };
-        const got = dun.params.tileMode ? DM.validateParams({ ...DM.formDefaults(), ...link.form }).params : { ...DM.formDefaults(), ...link.form };
+        const got = dun.params.tileMode || dun.params.building ? DM.validateParams({ ...DM.formDefaults(), ...link.form }).params : { ...DM.formDefaults(), ...link.form };
         if (JSON.stringify(Object.entries(got).sort()) !== JSON.stringify(Object.entries(want).sort())) fail('share', `sample ${i}: the link gave back other inputs: ${JSON.stringify(link.form)}`);
         for (const [k, v] of Object.entries(link.form)) if (k !== 'seed' && JSON.stringify(v) === JSON.stringify(DM.FORM_DEFAULTS[k])) fail('share', `sample ${i}: the link names ${k}, which has its usual value`);
         const gotLook = { labelPosition: link.display.labelPosition || 'inside', showGrid: link.display.showGrid !== false, showLabels: link.display.showLabels !== false, colors: { ...DM.defaultColors(), ...link.display.colors } };
@@ -2004,7 +2007,7 @@ console.log('== page layout');
     return col;
   };
   const expected = {
-    layout: ['name="layout"', 'name="spacing"', 'id="levels"', 'id="levelStairs"', 'id="entrances"', 'id="edgeEntrancesOnly"', 'id="seed"'],
+    layout: ['id="building"', 'name="footprint"', 'name="circulation"', 'name="layout"', 'name="spacing"', 'id="levels"', 'id="levelStairs"', 'id="entrances"', 'id="edgeEntrancesOnly"', 'id="seed"'],
     rooms: ['id="roomCount"', 'id="tileMode"', 'id="avgRoomSize"', 'id="minRoomWidth"', 'id="minRoomLength"', 'id="sizeVariance"', 'name="roomShape"'],
     hallways: ['name="connectionType"', 'id="connectionRandomness"', 'name="hallType"', 'id="hallWidth"', 'name="hallDoors"'],
     export: ['id="summary"'],
@@ -4328,6 +4331,192 @@ console.log('== statistics');
   if (spots(5) !== '2,0 | 4,2 | 2,4 | 0,2') fail('tile mode', `5x5 door spots are ${spots(5)}`);
   if (spots(4) !== '1,0 | 3,1 | 2,3 | 0,2') fail('tile mode', `4x4 door spots are ${spots(4)}`);
   if (shortfalls > dungeons * 0.05) fail('tile mode', `${shortfalls} of ${dungeons} tile-mode dungeons could not fit every room`);
+}
+
+// ---------------------------------------------------------------------------
+// Building mode (src/building.js): a neat outline cut into rectangular rooms that share walls.
+{
+  console.log('\nBuilding mode');
+  const rng = new DM.Rng('building-suite');
+  // the squares a floor covers, and its outer box
+  const covered = (f) => {
+    const s = new Set();
+    for (const r of f.rooms) for (const [x, y] of r.cells) s.add(`${x},${y}`);
+    for (const h of f.halls) for (const [x, y] of h.cells) s.add(`${x},${y}`);
+    return s;
+  };
+  const boxOf = (s) => {
+    let a = Infinity, b = Infinity, c = -1, e = -1;
+    for (const k of s) { const [x, y] = k.split(',').map(Number); a = Math.min(a, x); b = Math.min(b, y); c = Math.max(c, x); e = Math.max(e, y); }
+    return { x: a, y: b, w: c - a + 1, h: e - b + 1 };
+  };
+  let made = 0, floorsChecked = 0, fallbacks = 0, fillTotal = 0, stairsChecked = 0;
+  const seen = new Set();
+  for (let i = 0; i < 260; i++) {
+    const footprint = DM.BUILDING_FOOTPRINTS[i % 3];
+    const circulation = DM.BUILDING_CIRCULATIONS[Math.floor(i / 3) % 4];
+    const levels = i % 5 === 4 ? rng.int(2, 3) : 1;
+    const raw = {
+      roomCount: rng.pick([3, 5, 7, 9, 12, 16, 20, 28, 40]), avgRoomSize: rng.pick([12, 16, 25, 30, 40, 60]), minRoomWidth: rng.int(2, 4), minRoomLength: rng.int(2, 4),
+      sizeVariance: rng.pick([0, 30, 60, 100]), entrances: rng.int(1, 4), edgeEntrancesOnly: rng.chance(0.5), hallWidth: rng.pick([1, 1, 2]), hallDoors: rng.pick(['all', 'more', 'less', 'none']),
+      connectionRandomness: rng.int(0, 100), levels, levelStairs: rng.int(1, 3), building: true, footprint, circulation, seed: `bld-${i}`,
+    };
+    const ctx = `building ${raw.seed} (${footprint}/${circulation}, ${raw.roomCount} rooms${levels > 1 ? `, ${levels} levels` : ''})`;
+    let d;
+    try { d = DM.generateDungeon(raw); } catch (err) { fail(ctx, `threw ${err.message}`); continue; }
+    made++;
+    seen.add(`${d.building.footprint}/${d.building.circulation}`);
+    if (d.params.building !== true || d.params.spacing !== 'compact' || d.params.hallTypes.join() !== 'spine' || d.params.roomShapes.join() !== 'rect') fail(ctx, 'building mode should set compact spacing, rectangular rooms and spine hallways');
+    if (footprint !== 'random' && d.building.footprint !== footprint && !(raw.roomCount < 5 && d.warnings.some((w) => /courtyard needs at least 5 rooms/.test(w)))) fail(ctx, `asked for ${footprint}, got ${d.building.footprint}`);
+    if (!DM.BUILDING_FOOTPRINTS.includes(d.building.footprint) || d.building.footprint === 'random') fail(ctx, `the model's footprint is ${d.building.footprint}`);
+    if (d.warnings.some((w) => /Too few rooms/.test(w))) fallbacks++;
+    const floors = [d, ...(d.floors || [])];
+    const boxes = new Set();
+    for (const [k, fl] of floors.entries()) {
+      const lctx = levels > 1 ? `${ctx} level ${k + 1}` : ctx;
+      floorsChecked++;
+      checkDungeon(k === 0 ? d : { ...fl, params: { ...d.params, entrances: fl.entrances.length }, level: fl.level, stairs: d.stairs }, lctx);
+      if (fl.rooms.some((r) => r.kind !== 'rect' || r.cells.length !== r.bbox.w * r.bbox.h)) fail(lctx, 'every room in a building should be a full rectangle');
+      const sq = covered(fl);
+      const box = boxOf(sq);
+      boxes.add(JSON.stringify(box));
+      // the outline: nothing but floor and a few blocks of solid stone inside the box
+      const fill = sq.size / (box.w * box.h);
+      fillTotal += fill;
+      if (fill < 0.8) fail(lctx, `only ${Math.round(fill * 100)}% of the outline is floor`);
+      // every edge square of the box is floor, so the outside is a clean rectangle
+      for (let x = box.x; x < box.x + box.w; x++) for (const y of [box.y, box.y + box.h - 1]) if (!sq.has(`${x},${y}`)) fail(lctx, `the outline has a notch at (${x},${y})`);
+      for (let y = box.y; y < box.y + box.h; y++) for (const x of [box.x, box.x + box.w - 1]) if (!sq.has(`${x},${y}`)) fail(lctx, `the outline has a notch at (${x},${y})`);
+      // rooms share walls: every room touches another room or a corridor
+      for (const r of fl.rooms) if (!r.cells.some(([x, y]) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => sq.has(`${x + dx},${y + dy}`) && !r.cells.some(([a, b]) => a === x + dx && b === y + dy)))) fail(lctx, `room ${r.label} stands apart`);
+      // the special rooms: a courtyard only on level 1 of a courtyard building, and stairs never in it
+      const court = fl.rooms.filter((r) => r.role === 'courtyard');
+      if (court.length > (k === 0 && d.building.footprint === 'courtyard' ? 1 : 0)) fail(lctx, `${court.length} courtyards on this level`);
+      if (k === 0 && d.building.footprint === 'courtyard' && court.length !== 1) fail(lctx, 'a courtyard building should have its courtyard on level 1');
+    }
+    if (boxes.size !== 1) fail(ctx, `the levels have different outlines: ${[...boxes].join(' / ')}`);
+    if (levels > 1 && d.building.footprint === 'courtyard') {
+      // below level 1 the courtyard's space is a hall, in the same place
+      const spot = floors.map((f, k) => JSON.stringify((f.rooms.find((r) => r.role === (k === 0 ? 'courtyard' : 'hall')) || {}).bbox));
+      if (new Set(spot).size !== 1) fail(ctx, `the courtyard space moves between levels: ${spot.join(' / ')}`);
+    }
+    for (const st of d.stairs || []) {
+      stairsChecked++;
+      const up = floors[st.upper - 1].rooms.find((r) => r.id === st.upperRoom);
+      const lo = floors[st.lower - 1].rooms.find((r) => r.id === st.lowerRoom);
+      if (!up || !lo || !up.cells.some(([x, y]) => x === st.x && y === st.y) || !lo.cells.some(([x, y]) => x === st.x && y === st.y)) fail(ctx, `stair ${st.letter} is not in its rooms on both levels`);
+      if (up && up.role === 'courtyard') fail(ctx, `stair ${st.letter} is in the open courtyard`);
+    }
+    // the same seed makes the same building
+    if (i % 20 === 0 && JSON.stringify(DM.generateDungeon(raw).rooms.map((r) => r.cells)) !== JSON.stringify(d.rooms.map((r) => r.cells))) fail(ctx, 'the same seed made a different building');
+  }
+  if (seen.size !== 8) fail('building', `only these footprint/circulation pairs were made: ${[...seen].join(', ')}`);
+
+  // circulation does what it says
+  const one = (extra) => DM.generateDungeon({ roomCount: 16, avgRoomSize: 30, minRoomWidth: 3, minRoomLength: 3, sizeVariance: 30, entrances: 2, building: true, seed: 'bld-circ', ...extra });
+  {
+    const rooms = one({ circulation: 'rooms' });
+    if (rooms.halls.length !== 0) fail('building', 'room to room should have no corridors');
+    const hall = one({ circulation: 'hall' });
+    const great = hall.rooms.filter((r) => r.role === 'hall');
+    if (great.length !== 1 || hall.halls.length !== 0) fail('building', 'a great hall building should have one great hall and no corridors');
+    else if (great[0].area < Math.max(...hall.rooms.filter((r) => r !== great[0]).map((r) => r.area))) fail('building', 'the great hall should be the biggest room');
+    const corr = one({ circulation: 'corridor' });
+    if (corr.halls.length !== 1 || corr.halls[0].rooms.length < 8) fail('building', `corridors should serve most rooms, not ${corr.halls[0] && corr.halls[0].rooms.length}`);
+    const mix = one({ circulation: 'mix' });
+    if (mix.halls.length !== 1 || mix.rooms.filter((r) => r.role === 'hall').length !== 1) fail('building', 'mix should have a corridor and a great hall');
+    // round a courtyard, mix is a cloister on three sides with rooms opening straight onto the courtyard
+    const cm = one({ footprint: 'courtyard', circulation: 'mix' });
+    const yard = cm.rooms.find((r) => r.role === 'courtyard');
+    const ontoYard = cm.connections.filter((c) => c.type === 'door' && c.rooms.includes(yard.id)).length;
+    if (cm.halls.length !== 1 || ontoYard === 0) fail('building', `courtyard mix should have a cloister and rooms opening onto the courtyard (${ontoYard} do)`);
+    const cc = one({ footprint: 'courtyard', circulation: 'corridor' });
+    const ccYard = cc.rooms.find((r) => r.role === 'courtyard');
+    if (cc.connections.some((c) => c.type === 'door' && c.rooms.includes(ccYard.id))) fail('building', 'with a full cloister, no room should open straight onto the courtyard');
+    if (!cc.halls[0].rooms.includes(ccYard.id)) fail('building', 'the cloister should open onto the courtyard');
+  }
+
+  // settings: errors, defaults, and what building mode leaves out
+  {
+    const base = { roomCount: 9, avgRoomSize: 30, sizeVariance: 30, entrances: 1, seed: 'bld-set' };
+    const err = (raw) => { try { DM.generateDungeon(raw); return null; } catch (e) { return e.message; } };
+    if (!/cannot both be on/.test(err({ ...base, building: true, tileMode: true }) || '')) fail('building', 'building and tile mode together should be refused');
+    if (!err({ ...base, building: true, footprint: 'oval' })) fail('building', 'an unknown footprint should be refused');
+    if (!err({ ...base, building: true, circulation: 'stairs' })) fail('building', 'an unknown circulation should be refused');
+    if (!err({ ...base, building: 'yes' })) fail('building', 'building should have to be true or false');
+    const dflt = DM.generateDungeon({ ...base, building: true });
+    if (dflt.building.footprint !== 'rect' || dflt.building.circulation !== 'corridor') fail('building', `the defaults should be rectangle and corridors, not ${JSON.stringify(dflt.building)}`);
+    const off = DM.generateDungeon({ ...base, connectionType: 'hall' });
+    if ('building' in off.params || 'footprint' in off.params || 'circulation' in off.params || off.building) fail('building', 'a dungeon made without building mode should carry none of its settings');
+    // the settings building mode sets itself are not asked for: odd ones are simply overridden
+    const odd = DM.generateDungeon({ ...base, building: true, roomShapes: ['L'], spacing: 'wide', hallTypes: ['curly'], connectionType: 'door' });
+    if (odd.rooms.some((r) => r.kind !== 'rect')) fail('building', 'building mode should override room shapes');
+  }
+
+  // links: building, footprint and circulation go in; the settings building mode sets itself stay out; and back again
+  for (const [footprint, circulation] of [['rect', 'corridor'], ['courtyard', 'mix'], ['random', 'hall'], ['rect', 'rooms']]) {
+    const d = DM.generateDungeon({ roomCount: 12, avgRoomSize: 30, sizeVariance: 30, entrances: 2, building: true, footprint, circulation, seed: `bld-link-${footprint}` });
+    const text = DM.encodeShare({ params: d.params, display: {} });
+    if (!text.includes('bld=1')) fail('building link', `a building link does not name building mode: ${text}`);
+    for (const key of ['shapes=', 'spacing=', 'halls=', 'conn=']) if (text.includes(key)) fail('building link', `a building link names ${key.slice(0, -1)}, which building mode sets itself: ${text}`);
+    const back = DM.decodeShare(text).form;
+    if (back.building !== true || back.footprint !== footprint || back.circulation !== circulation) fail('building link', `${footprint}/${circulation} came back as ${back.footprint}/${back.circulation}`);
+    const again = DM.generateDungeon({ ...DM.formDefaults(), ...back });
+    if (JSON.stringify(again) !== JSON.stringify(d)) fail('building link', `${footprint}/${circulation}: the link made a different building`);
+  }
+  if (DM.encodeShare({ params: DM.generateDungeon({ roomCount: 9, avgRoomSize: 30, sizeVariance: 30, entrances: 1, connectionType: 'hall', seed: 'nb' }).params, display: {} }).includes('bld=')) fail('building link', 'a link without building mode names it');
+
+  // editing a building: doors, hallways and rooms can be changed like any other dungeon, and it keeps its rooms' roles
+  {
+    const d = DM.generateDungeon({ roomCount: 14, avgRoomSize: 30, minRoomWidth: 3, minRoomLength: 3, sizeVariance: 30, entrances: 2, building: true, footprint: 'courtyard', circulation: 'corridor', seed: 'bld-edit' });
+    checkEdited(d, 'building edit (as made)');
+    // take a doorway or opening out, then put a door back in the same wall
+    const conn = d.connections.find((c) => c.type === 'door') || d.connections[0];
+    const o = conn.openings[0];
+    const at = { x: o.x, y: o.y, d: o.d };
+    if (!DM.removeOpening(d, o).ok) fail('building edit', 'a door could not be taken out');
+    checkEdited(d, 'building edit (door out)');
+    const back = DM.addDoor(d, at.x, at.y, at.d);
+    if (!back.ok) fail('building edit', `the door could not be put back: ${back.reason}`);
+    checkEdited(d, 'building edit (door back)');
+    // delete the cloister, then a room
+    if (d.halls.length && !DM.deleteHall(d, d.halls[0].id).ok) fail('building edit', 'the cloister could not be deleted');
+    checkEdited(d, 'building edit (cloister gone)');
+    const victim = d.rooms.find((r) => !r.role && !d.entrances.some((e) => e.room === r.id));
+    if (victim && !DM.deleteRoomProblem(d, victim.id) && !DM.deleteRoom(d, victim.id).ok) fail('building edit', 'a room could not be deleted');
+    checkEdited(d, 'building edit (room gone)');
+    if (!d.rooms.some((r) => r.role === 'courtyard')) fail('building edit', 'the courtyard lost its role after editing');
+    if (!d.building) fail('building edit', 'the building summary was lost after editing');
+  }
+
+  // building a level again (with other numbers) keeps the building's outline, its courtyard on level 1 only, and its stairs out of the courtyard
+  for (const [i, footprint] of ['courtyard', 'rect', 'courtyard', 'random'].entries()) {
+    const d = DM.generateDungeon({ roomCount: 12, avgRoomSize: 25, minRoomWidth: 3, minRoomLength: 3, sizeVariance: 30, entrances: 2, building: true, footprint, circulation: DM.BUILDING_CIRCULATIONS[i], levels: 3, levelStairs: 2, seed: `bld-regen-${i}` });
+    const outline = (f) => JSON.stringify(boxOf(covered(f)));
+    const before = outline(d);
+    for (const n of [2, 1, 3]) {
+      const r = DM.regenerateLevel(d, n, { seed: `again-${n}` });
+      const ctx = `building regenerate ${d.seed} level ${n}`;
+      if (!r.ok) { fail(ctx, r.reason); continue; }
+      const floors = [d, ...d.floors];
+      const boxes = floors.map(outline);
+      if (new Set(boxes).size !== 1 || boxes[0] !== before) fail(ctx, `the outline changed: ${before} became ${boxes.join(' / ')}`);
+      if (d.building.footprint === 'courtyard' && floors[0].rooms.filter((r2) => r2.role === 'courtyard').length !== 1) fail(ctx, 'level 1 lost its courtyard');
+      if (floors.slice(1).some((f) => f.rooms.some((r2) => r2.role === 'courtyard'))) fail(ctx, 'a courtyard below level 1');
+      for (const st of d.stairs) if (floors[st.upper - 1].rooms.find((r2) => r2.id === st.upperRoom)?.role === 'courtyard') fail(ctx, `stair ${st.letter} is in the courtyard`);
+      for (const [k, fl] of floors.entries()) checkDungeon(k === 0 ? d : { ...fl, params: { ...d.params, entrances: fl.entrances.length }, level: fl.level, stairs: d.stairs }, `${ctx} (floor ${k + 1})`);
+    }
+  }
+
+  // the tile list on a building: it works, and its rooms are listed honestly
+  {
+    const d = DM.generateDungeon({ roomCount: 12, avgRoomSize: 25, sizeVariance: 30, entrances: 1, building: true, footprint: 'rect', circulation: 'rooms', seed: 'bld-tiles' });
+    const list = DM.tileList(d, DM.TILE_CATALOG);
+    const counted = Object.values(list.needs).reduce((a, n) => a + n, 0) + list.problems.filter((p) => /^Room /.test(p)).length;
+    if (counted < d.rooms.length) fail('building tile list', `only ${counted} of ${d.rooms.length} rooms are on the tile list or its problems`);
+  }
+
+  console.log(`  ${made} buildings (${floorsChecked} floors) across all 8 kinds, outlines ${Math.round((fillTotal / floorsChecked) * 100)}% floor on average, ${stairsChecked} stairs checked, ${fallbacks} small buildings fell back to simpler circulation (with a warning)`);
 }
 
 // ---------------------------------------------------------------------------

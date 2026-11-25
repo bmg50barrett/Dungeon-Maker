@@ -38,6 +38,7 @@ Duckweed's Aeldara is a printed-book look: parchment, ink, and two accents, wine
 
 | Input | Range | Meaning |
 |---|---|---|
+| Building | On / Off (default Off) | At the top of the Layout column. On: the dungeon is laid out like architecture, with a neat outline cut into rooms that share walls; see *Building mode* below. Two dropdowns appear under it, Footprint and Circulation. While it is on, Overall layout, Room spacing, Room shapes, Connections and Hallway types are switched off (and tinted), and Building and Tile mode cannot both be on: switching one on switches the other off |
 | Overall layout | A dropdown: Random / Cathedral / Ring / Spiral / Gauntlet / Radial / Main St. / Square / Long / Wide (default Random) | The shape the dungeon as a whole leans towards; see below. Hover over it (or focus it) and a tip says what the one chosen does |
 | Room count | 1-99 | Number of rooms |
 | Tile mode | On / Off (default Off) | In the Rooms column. On: build only what the printed [Dungeon Tiles](https://github.com/bmg50barrett/Dungeon-Tiles) can make; see *Tile mode* below. While it is on, the room size, room shape and hallway width inputs are switched off |
@@ -100,6 +101,41 @@ Tile mode makes dungeons you can lay out on the table with the printed
 - A shared link keeps tile mode (`tile=1`), and the saved settings record it as `tileMode`. A dungeon made without it has no
   `tileMode` at all, so older dungeons and links are unchanged.
 - Edit mode does not hold you to it: a room you resize or a door you move by hand can leave tile sizes behind.
+
+### Building mode
+
+Building mode makes a dungeon that looks like a building: a keep, a temple, a manor, a monastery. The other layouts place
+rooms one at a time with rock between them. A building works the other way round: it starts from the outline and carves it
+into rooms, so the rooms share walls and the outside is a neat shape.
+
+- **Footprint** is the outline. *Rectangle* is a plain rectangle, square to about 2:1, and it can come out either way round.
+  *Courtyard* is a ring of rooms round an open courtyard; the courtyard is drawn and numbered as a room of its own.
+  *Random* picks one of the two.
+- **Circulation** is how you get from room to room.
+  - *Corridors*: straight corridors with rooms off both sides. Round a courtyard, this is a cloister (a corridor running
+    all the way round it), and the rooms open off the cloister.
+  - *Great hall*: one big room that most others open off. Round a courtyard, the courtyard itself plays that part.
+  - *Room to room*: no corridors at all; rooms open into one another.
+  - *Mix*: a corridor leading to a great hall at one end. Round a courtyard, the cloister runs round three sides, and the
+    rooms on the fourth (south) side open straight onto the courtyard.
+- Almost all of the outline is floor. A few inner pieces are left as solid stone (pillars of masonry, or a space nobody can
+  reach), but never on the outer wall, never as thin slivers, and never in a way that cuts any room off.
+- Rooms are rectangles. Room count, average room size, minimum room size, size variance, hallway width, hallway doors,
+  connection randomization (more of it means more extra doorways between neighbours) and the entrance settings all work as
+  usual. Overall layout, room spacing, room shapes, connections and hallway types are set by Building mode itself.
+- Entrances are doors in the outer wall, spread round it. With *Entrances on outer edge only* off, later entrances can be
+  stairs inside a room, as usual.
+- **Levels**: every level of a building has the same outline, stacked one above the other, and the stairs line up. Only
+  level 1 has the open courtyard; on the levels below, that space is a great hall instead. Stairs never go in the courtyard.
+  **Generate Level** (and the MCP server's `regenerate_level`) keeps the outline too.
+- Small buildings fall back to simpler circulation and say so: a courtyard needs at least 5 rooms (it builds a plain
+  rectangle with fewer), and corridors need at least 8 (with fewer it builds a great hall, or room to room).
+- A shared link keeps it (`bld=1`, plus `fp=` and `circ=` when they are not the defaults), and the saved settings record
+  it as `building`, `footprint` and `circulation`. A dungeon made without it carries none of these, so older dungeons and
+  links are unchanged.
+- Edit mode works on a building like any other dungeon. It does not hold you to the outline: a room you move or add can
+  stick out of it.
+- Tile mode is not supported in Building mode yet: the two cannot both be on.
 
 ### Tile list
 
@@ -590,6 +626,7 @@ src/theme.js             Parchment or Dark: sets `data-theme` on the page, remem
 src/rng.js               seedable random numbers
 src/shapes.js            room shapes (rectilinear polyominoes), `DM.SHAPE_KINDS`
 src/layout.js            the overall layouts and the shape each leans towards: `DM.LAYOUTS`, `DM.makeLayout`
+src/building.js          Building mode: footprints, circulation, and the floor cut into rooms: `DM.buildingFloor`
 src/generator.js         layout: placement, hallway routing (A*), entrances, output model
 src/labels.js            where room numbers go (inside, or outside the walls): `DM.placeOutsideLabels`
 src/palette.js           map colors: the ready-made choices per category, `DM.themeFrom`

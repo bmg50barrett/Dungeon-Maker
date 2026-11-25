@@ -27,6 +27,39 @@
             </button>
           </h2>
           <div class="blade-body" id="blade-layout-body">
+            <div class="field toggle-field">
+              <label class="switch" for="building">
+                <span class="switch-title">Building</span>
+                <input type="checkbox" id="building" name="building" role="switch" aria-describedby="buildingHint">
+                <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+                <span class="switch-state" id="buildingState" aria-hidden="true">Off</span>
+              </label>
+              <p class="tip" role="tooltip" id="buildingHint">Off: rooms are placed one by one, with rock between them.</p>
+            </div>
+
+            <div id="buildingOptions" hidden>
+              <div class="field select-field">
+                <label for="footprintSelect">Footprint</label>
+                <select id="footprintSelect" name="footprint" aria-describedby="footprintHint">
+                  <option value="rect" selected>Rectangle</option>
+                  <option value="courtyard">Courtyard</option>
+                  <option value="random">Random</option>
+                </select>
+                <p class="tip" role="tooltip" id="footprintHint">The outline: a rectangle, or rooms round an open courtyard</p>
+              </div>
+
+              <div class="field select-field">
+                <label for="circulationSelect">Circulation</label>
+                <select id="circulationSelect" name="circulation" aria-describedby="circulationHint">
+                  <option value="corridor" selected>Corridors</option>
+                  <option value="hall">Great hall</option>
+                  <option value="rooms">Room to room</option>
+                  <option value="mix">Mix</option>
+                </select>
+                <p class="tip" role="tooltip" id="circulationHint">How people get about: corridors with rooms off them</p>
+              </div>
+            </div>
+
             <div class="field select-field" id="layout">
               <label for="layoutSelect">Overall layout</label>
               <select id="layoutSelect" name="layout" aria-describedby="layoutHint err-layout">
@@ -483,6 +516,7 @@
   <script src="src/rng.js"></script>
   <script src="src/shapes.js"></script>
   <script src="src/layout.js"></script>
+  <script src="src/building.js"></script>
   <script src="src/generator.js"></script>
   <script src="src/edit.js"></script>
   <script src="src/history.js"></script>

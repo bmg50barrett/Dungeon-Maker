@@ -110,8 +110,8 @@ console.log('== defaults: the same as the page');
   // the share links leave out what is usual, so the usual must be what the page starts with
   if (JSON.stringify(DM.formDefaults()) !== JSON.stringify(APP_DEFAULTS)) fail('defaults', `the share links' usual values ${JSON.stringify(DM.formDefaults())} differ from the page's ${JSON.stringify(APP_DEFAULTS)}`);
   const settings = Object.keys(SETTINGS).sort().join();
-  // tile mode is off unless given (so dungeons made without it carry no tileMode at all), the one setting with no usual value
-  if (settings !== [...Object.keys(APP_DEFAULTS), 'seed', 'tileMode'].sort().join()) fail('defaults', `the settings Claude can give are [${settings}]`);
+  // tile mode and building mode (with its footprint and circulation) are off unless given, so dungeons made without them carry none of them
+  if (settings !== [...Object.keys(APP_DEFAULTS), 'seed', 'tileMode', 'building', 'footprint', 'circulation'].sort().join()) fail('defaults', `the settings Claude can give are [${settings}]`);
   if (/id="tileMode"[^>]*checked/.test(html) || 'tileMode' in APP_DEFAULTS) fail('defaults', 'tile mode should start off, as on the page');
   // a call with only a seed makes the dungeon the page makes with its starting values
   const { tools, done } = freshTools();
@@ -1035,6 +1035,46 @@ console.log('== tile list');
   tools.generate_dungeon.run({ seed: 'plain-mcp', roomCount: 6, roomShapes: ['L'], picture: false });
   const plain = tools.tile_list.run({}).text;
   if (!plain.startsWith('This dungeon was not made with tileMode') || !plain.includes('no tile has that shape')) fail('tile list', 'a dungeon without tileMode should be called out, with its rooms listed as having no tile');
+  if (done) done();
+  console.log('  done');
+}
+
+console.log('== building');
+{
+  const { tools, done } = freshTools();
+  // made through the tool, described, drawn, edited, saved and opened again
+  const made = tools.generate_dungeon.run({ seed: 'bld-mcp', roomCount: 12, entrances: 2, building: true, footprint: 'courtyard', circulation: 'mix', levels: 2, picture: false });
+  if (!/12 rooms|24 rooms/.test(made.text)) fail('building', `generate did not report the rooms: ${made.text.slice(0, 120)}`);
+  const desc = tools.describe_dungeon.run({}).text;
+  if (!desc.includes('A building: a footprint round an open courtyard')) fail('building', 'describe does not say it is a building round a courtyard');
+  if (!/Room 1-\d+: the open courtyard/.test(desc)) fail('building', 'describe does not name the courtyard room');
+  if (!/Room 2-\d+: the great hall/.test(desc)) fail('building', 'describe does not name the hall below the courtyard');
+  if (!desc.includes('Every level has the same outline')) fail('building', 'describe does not say the levels share an outline');
+  if (!isPng(tools.draw_map.run({}).png)) fail('building', 'a building could not be drawn');
+  // a door in, a door out: edit_dungeon works on a building
+  const dun = tools.generate_dungeon.run({ seed: 'bld-mcp-1', roomCount: 10, entrances: 1, building: true, circulation: 'rooms', picture: false });
+  const id = dun.text.match(/Dungeon (d\d+)/)?.[1] || 'd2';
+  const desc1 = tools.describe_dungeon.run({ id }).text;
+  const spot = desc1.match(/door to room \d+\s+\[\((\d+),(\d+)\) (north|east|south|west)\]/);
+  if (!spot) fail('building', 'no doorway to take out in the description');
+  else {
+    const side = { north: 'N', east: 'E', south: 'S', west: 'W' }[spot[3]];
+    const out = tools.edit_dungeon.run({ id, edits: [{ type: 'remove_door', x: Number(spot[1]), y: Number(spot[2]), side }], picture: false });
+    if (!out.text.startsWith('1 of 1 edits made')) fail('building', `a doorway could not be taken out: ${out.text.slice(0, 120)}`);
+  }
+  // building a level again keeps the outline
+  tools.generate_dungeon.run({ seed: 'bld-mcp-lv', roomCount: 9, entrances: 1, building: true, levels: 3, picture: false });
+  const re = tools.regenerate_level.run({ level: 2, seed: 'other', picture: false });
+  if (!/Level 2 was built again/.test(re.text)) fail('building', `regenerate_level failed on a building: ${re.text.slice(0, 120)}`);
+  if (!tools.describe_dungeon.run({}).text.includes('A building:')) fail('building', 'a building forgot it was one after a level was built again');
+  // refusals
+  for (const [args, want] of [[{ building: true, tileMode: true }, /cannot both be on/], [{ building: true, footprint: 'oval' }, /footprint|Footprint/], [{ building: true, circulation: 'stairs' }, /irculation/], [{ footprint: 'courtyard' }, null]]) {
+    const err = toolError(() => tools.generate_dungeon.run({ seed: 'bld-bad', roomCount: 8, picture: false, ...args }));
+    if (want && (!err || !want.test(err))) fail('building', `${JSON.stringify(args)} should be refused (${want}), got ${err}`);
+  }
+  // a dungeon not made in building mode says nothing about buildings
+  tools.generate_dungeon.run({ seed: 'not-bld', roomCount: 6, picture: false });
+  if (tools.describe_dungeon.run({}).text.includes('A building')) fail('building', 'an ordinary dungeon is described as a building');
   if (done) done();
   console.log('  done');
 }

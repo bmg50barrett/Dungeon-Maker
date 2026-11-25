@@ -106,6 +106,11 @@
     params.connectionType = $('connectionTypeSelect').value;
     params.edgeEntrancesOnly = $('edgeEntrancesOnly').checked;
     params.tileMode = $('tileMode').checked;
+    params.building = $('building').checked;
+    if (params.building) {
+      params.footprint = $('footprintSelect').value;
+      params.circulation = $('circulationSelect').value;
+    }
     params.roomShapes = shapeBoxes().filter((box) => box.checked).map((box) => box.value);
     params.hallTypes = hallBoxes().filter((box) => box.checked).map((box) => box.value);
     params.hallDoors = $('hallDoorsSelect').value;
@@ -313,22 +318,44 @@
       : 'Entrances can be in any room. Rooms buried inside get a stairway to the surface.';
   }
 
-  // Tile mode builds only what the printed dungeon tiles can make, so the room size, shape and hallway width inputs it sets
-  // itself are switched off while it is on.
+  // Tile mode and Building mode each set some inputs themselves, so those are switched off (and tinted) while either is on;
+  // the two cannot both be on, so switching one on switches the other off.
   const TILE_LOCKED = ['avgRoomSize', 'minRoomWidth', 'minRoomLength', 'sizeVariance', 'hallWidth'];
-  function updateTileModeHint() {
-    const on = $('tileMode').checked;
-    $('tileModeState').textContent = on ? 'On' : 'Off';
-    $('tileModeHint').textContent = on
+  const BUILDING_LOCKED = ['layoutSelect', 'spacingSelect', 'connectionTypeSelect'];
+  const FOOTPRINT_TIPS = { rect: 'The outline: a plain rectangle', courtyard: 'The outline: rooms round an open courtyard', random: 'The outline: a rectangle or a courtyard, picked at random' };
+  const CIRCULATION_TIPS = {
+    corridor: 'Corridors with rooms off both sides (a cloister round a courtyard)',
+    hall: 'One great hall (or the courtyard) that most rooms open off',
+    rooms: 'No corridors: rooms open into one another',
+    mix: 'A corridor leading to a great hall (a three-sided cloister round a courtyard)',
+  };
+  function updateModes() {
+    const tile = $('tileMode').checked;
+    const building = $('building').checked;
+    $('tileModeState').textContent = tile ? 'On' : 'Off';
+    $('tileModeHint').textContent = tile
       ? 'Only what the printed tiles can build: 4x4 and 5x5 rooms with doors where the tiles have them, and 5 ft hallways.'
       : 'Off: rooms take any size and shape.';
-    for (const f of TILE_LOCKED) {
-      $(f).disabled = on;
-      $(f).closest('.field').classList.toggle('tile-locked', on); // tinted, so it is plain which inputs tile mode has taken over
-    }
-    for (const box of shapeBoxes()) box.disabled = on;
-    $('roomShapes').classList.toggle('tile-locked', on);
-    for (const id of ['shapesAll', 'shapesNone']) if ($(id)) $(id).disabled = on;
+    $('buildingState').textContent = building ? 'On' : 'Off';
+    $('buildingHint').textContent = building
+      ? 'Laid out like architecture: a neat outline cut into rooms that share walls.'
+      : 'Off: rooms are placed one by one, with rock between them.';
+    $('buildingOptions').hidden = !building;
+    $('footprintHint').textContent = FOOTPRINT_TIPS[$('footprintSelect').value] || '';
+    $('circulationHint').textContent = CIRCULATION_TIPS[$('circulationSelect').value] || '';
+    const lock = (id, on) => {
+      $(id).disabled = on;
+      $(id).closest('.field').classList.toggle('locked', on); // tinted, so it is plain which inputs are taken over
+    };
+    for (const f of TILE_LOCKED) lock(f, tile);
+    for (const f of BUILDING_LOCKED) lock(f, building);
+    const shapes = tile || building;
+    for (const box of shapeBoxes()) box.disabled = shapes;
+    $('roomShapes').classList.toggle('locked', shapes);
+    for (const id of ['shapesAll', 'shapesNone']) if ($(id)) $(id).disabled = shapes;
+    for (const box of hallBoxes()) box.disabled = building;
+    $('hallTypes').classList.toggle('locked', building);
+    for (const btn of $('hallTypes').querySelectorAll('.link-btn')) btn.disabled = building;
   }
 
   function row(label, value) {
@@ -350,6 +377,7 @@
     $('summary').innerHTML =
       '<dl>' +
       (levels > 1 ? row('Levels', levels) + row('Stairs', d.stairs.length) : '') +
+      (d.building ? row('Building', `${{ rect: 'Rectangle', courtyard: 'Courtyard' }[d.building.footprint]}, ${{ corridor: 'corridors', hall: 'great hall', rooms: 'room to room', mix: 'mix' }[d.building.circulation]}`) : '') +
       row('Rooms', rooms) +
       row('Avg room size', `${mean.toFixed(1)} sq`) +
       row('Hallways', multi > 0 ? `${halls} (${multi} serve 3+ rooms)` : halls) +
@@ -983,7 +1011,16 @@
   $('connectionTypeSelect').addEventListener('change', updateRandomnessHint);
 
   $('edgeEntrancesOnly').addEventListener('change', updateEdgeOnlyHint);
-  $('tileMode').addEventListener('change', updateTileModeHint);
+  $('tileMode').addEventListener('change', () => {
+    if ($('tileMode').checked) $('building').checked = false;
+    updateModes();
+  });
+  $('building').addEventListener('change', () => {
+    if ($('building').checked) $('tileMode').checked = false;
+    updateModes();
+  });
+  $('footprintSelect').addEventListener('change', updateModes);
+  $('circulationSelect').addEventListener('change', updateModes);
 
   for (const box of shapeBoxes()) box.addEventListener('change', updateShapesHint);
   $('shapesAll').addEventListener('click', () => {
@@ -1451,13 +1488,16 @@
     if (form.layout !== undefined) setSelect('layoutSelect', form.layout);
     if (form.edgeEntrancesOnly !== undefined) $('edgeEntrancesOnly').checked = form.edgeEntrancesOnly;
     $('tileMode').checked = form.tileMode === true; // (off unless the link or kept settings say on)
+    $('building').checked = form.building === true && form.tileMode !== true; // (off unless said; never both)
+    if (form.footprint !== undefined) setSelect('footprintSelect', form.footprint);
+    if (form.circulation !== undefined) setSelect('circulationSelect', form.circulation);
     if (form.roomShapes !== undefined) for (const box of shapeBoxes()) box.checked = form.roomShapes.includes(box.value);
     if (form.hallTypes !== undefined) for (const box of hallBoxes()) box.checked = form.hallTypes.includes(box.value);
     // a link without a seed asks for a random dungeon, not whatever is left in the box
     $('seed').value = form.seed !== undefined ? form.seed : '';
     updateHints();
     updateEdgeOnlyHint();
-    updateTileModeHint();
+    updateModes();
     updateShapesHint();
   }
 

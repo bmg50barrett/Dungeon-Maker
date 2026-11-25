@@ -51,6 +51,21 @@ function whereOnMap(d, room) {
  * @param {boolean} [about.edited]  has it been changed by hand since it was made or opened here?
  * @returns {string}
  */
+// one line saying what kind of building a building-mode dungeon is
+function buildingLine(b, levels = 1) {
+  const fp = { rect: 'a rectangular footprint', courtyard: 'a footprint round an open courtyard' }[b.footprint];
+  const how = b.footprint === 'courtyard' && b.circulation === 'hall' ? 'rooms opening onto the courtyard'
+    : b.footprint === 'courtyard' && b.circulation === 'mix' ? 'rooms off a cloister and the courtyard'
+    : { corridor: 'rooms off corridors', hall: 'rooms opening off a great hall', rooms: 'rooms opening into one another', mix: 'a corridor leading to a great hall' }[b.circulation];
+  // round a courtyard, the courtyard itself is the hub, and the cloister (if any) takes the corridors' place
+  const court = b.footprint !== 'courtyard' ? ''
+    : b.circulation === 'corridor' ? ' (a cloister runs round the courtyard)'
+    : b.circulation === 'mix' ? ' (a cloister runs round three sides of the courtyard; the rooms on the south side open straight onto it)'
+    : '';
+  const stack = levels > 1 ? ` Every level has the same outline${b.footprint === 'courtyard' ? '; only level 1 has the open courtyard, and below it that space is a hall' : ''}.` : '';
+  return `A building: ${fp}, ${how}${court}. Rooms share walls; any gaps inside are solid stone.${stack}`;
+}
+
 function describeDungeon(d, { id, edited, part = false } = {}) {
   const dm = load();
   if (!part && dm.levelCount(d) > 1) return describeLevels(d, { id, edited });
@@ -82,6 +97,7 @@ function describeDungeon(d, { id, edited, part = false } = {}) {
     lines.push(`${title} (seed ${d.seed}${edited ? ', edited by hand in this session' : ''}): ${count(d.rooms.length, 'room')}, ${count(d.halls.length, 'hallway')}, ${d.width}×${d.height} squares (${d.width * ft}×${d.height * ft} ft).`);
     lines.push(`One square is ${ft} ft. North is up. Rooms are numbered as on the map. Squares are written (x,y), counted from the top left corner (0,0): x grows to the east, y to the south.`);
     lines.push('A door written like "(12,7) east" is on the east side of square (12,7); edit_dungeon takes that square and side to change it.');
+    if (d.building) lines.push(buildingLine(d.building));
     for (const w of d.warnings) lines.push(`Note: ${w}`);
   }
 
@@ -94,7 +110,7 @@ function describeDungeon(d, { id, edited, part = false } = {}) {
 
   lines.push('', 'ROOMS');
   for (const r of [...d.rooms].sort((a, b) => a.label - b.label)) {
-    const shape = SHAPES[r.kind] || r.kind;
+    const shape = (r.role === 'courtyard' ? 'the open courtyard, ' : r.role === 'hall' ? 'the great hall, ' : '') + (SHAPES[r.kind] || r.kind);
     lines.push(`Room ${dm.roomTag(r)}${r.name ? ` (${r.name})` : ''}: ${shape}, ${r.bbox.w * ft}×${r.bbox.h * ft} ft overall (${r.bbox.w}×${r.bbox.h} squares), ${count(r.area, 'square')} of floor (${r.area * ft * ft} sq ft), in the ${whereOnMap(d, r)} of the map.`);
     for (const e of d.entrances.filter((x) => x.room === r.id)) lines.push(`  - entrance ${e.label} (${e.kind === 'stairs' ? 'stairs' : `door in its ${SIDES[e.d]} wall`})`);
     const mine = exits.get(r.id).sort((a, b) => a.wall - b.wall || a.y - b.y || a.x - b.x);
@@ -144,6 +160,7 @@ function describeLevels(d, { id, edited } = {}) {
   lines.push(`${title} (seed ${d.seed}${edited ? ', edited by hand in this session' : ''}): ${roomsText}, ${d.width}×${d.height} squares (${d.width * ft}×${d.height * ft} ft) on every level.`);
   lines.push(`One square is ${ft} ft. North is up. Squares are written (x,y), counted from the top left corner (0,0): x grows to the east, y to the south. Every level has the same size of map, and a square (x,y) is the same place on every level.`);
   lines.push('Level 1 is the top, with the entrances from outside; stairs lead down to level 2, and so on. Rooms are numbered by level and number as on the map: "2-5" is room 5 of level 2.');
+  if (d.building) lines.push(buildingLine(d.building, n));
   lines.push('edit_dungeon changes one level at a time: give the "level" of each edit. The doors and hallways of a level are written as (x,y) squares of the shared map, and if a hallway makes the map bigger every level and every stair moves with it.');
   for (const w of d.warnings) lines.push(`Note: ${w}`);
 

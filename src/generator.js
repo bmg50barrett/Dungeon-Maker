@@ -308,6 +308,25 @@
       delete errors.avgRoomSize; delete errors.minRoomWidth; delete errors.minRoomLength;
       delete errors.sizeVariance; delete errors.hallWidth; delete errors.roomShapes;
     }
+    // Building mode: laid out like architecture (src/building.js). Rooms are rectangles that share walls, so the room shapes,
+    // spacing and hallway types are set to match; the footprint and circulation say what kind of building. (Left out of the
+    // settings when off, so dungeons made without it are unchanged.)
+    const building = raw.building === undefined || raw.building === null ? false : raw.building;
+    if (typeof building !== 'boolean') {
+      errors.building = 'Building must be true or false.';
+    } else if (building) {
+      if (params.tileMode) errors.building = 'Building and Tile mode cannot both be on.';
+      const footprint = raw.footprint === undefined || raw.footprint === null ? 'rect' : raw.footprint;
+      const circulation = raw.circulation === undefined || raw.circulation === null ? 'corridor' : raw.circulation;
+      if (!DM.BUILDING_FOOTPRINTS.includes(footprint)) errors.footprint = `Footprint must be one of: ${DM.BUILDING_FOOTPRINTS.join(', ')}.`;
+      if (!DM.BUILDING_CIRCULATIONS.includes(circulation)) errors.circulation = `Circulation must be one of: ${DM.BUILDING_CIRCULATIONS.join(', ')}.`;
+      // the outline and circulation decide the overall shape, spacing, room shapes, hallways and how rooms are joined, so those
+      // inputs are set here, whatever was given (and a dungeon remade from a link that leaves them out comes out the same)
+      // (taken out and put back, so they always come in the same order, given or not)
+      for (const k of ['layout', 'roomShapes', 'spacing', 'hallTypes', 'connectionType']) delete params[k];
+      Object.assign(params, { building: true, footprint, circulation, layout: DM.DEFAULT_LAYOUT, roomShapes: ['rect'], spacing: 'compact', hallTypes: ['spine'], connectionType: 'hall' });
+      for (const k of ['layout', 'roomShapes', 'spacing', 'hallTypes', 'connectionType']) delete errors[k];
+    }
     params.seed = raw.seed === undefined || raw.seed === null || String(raw.seed).trim() === '' ? null : String(raw.seed).trim();
     return { ok: Object.keys(errors).length === 0, errors, params };
   }
@@ -2367,6 +2386,14 @@
    * leaves out the entrances (a floor below the first is reached by its stairs only).
    */
   function generateFloor(params, seed, entrances = true) {
+    // a building is laid out from its outline inwards (src/building.js), into the same kind of model
+    if (params.building) {
+      return DM.buildingFloor(params, seed, entrances, {
+        baseRoomArea,
+        hallDoorChance: CONFIG.hallDoorChance,
+        modelOf: (parts, s) => Builder.prototype.buildModel.call(Object.assign(Object.create(Builder.prototype), parts), s),
+      });
+    }
     const rng = new DM.Rng(seed);
     // Rooms are built around the average size, or around the smallest room if that is bigger.
     const base = baseRoomArea(params);
@@ -2513,6 +2540,7 @@
     const cells = [];
     const keys = new Set();
     for (const r of f.rooms) {
+      if (r.role === 'courtyard') continue; // (a building's courtyard is open sky: no stairs)
       for (const [x, y] of r.cells) {
         if (blocked.has(cellKey(x, y))) continue;
         cells.push([x, y, r.id]);
@@ -2796,6 +2824,14 @@
       return { score, full, plans };
     };
 
+    // the top left corner of what a floor covers; for a building, where the outline sits on the map now
+    const cornerOf = (f) => {
+      let x0 = Infinity, y0 = Infinity;
+      for (const p of [...f.rooms, ...f.halls]) for (const [x, y] of p.cells) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); }
+      return [x0, y0];
+    };
+    const outlineAt = params.building ? cornerOf(model) : null;
+
     let best = null;
     for (let t = 0; t < LEVEL_TRIES_MAX; t++) {
       const m = generateFloor(params, `${fresh}:level${n}${t > 0 ? ':' + t : ''}`, n === 1);
@@ -2805,7 +2841,10 @@
       const rx = W - m.width;
       const ry = H - m.height;
       const spots = [];
-      if ((rx + 1) * (ry + 1) <= LEVEL_OFFSETS) {
+      if (params.building) {
+        // a building's floors all share one outline: the new floor goes exactly over the old one
+        spots.push([Math.max(0, Math.min(rx, outlineAt[0] - cornerOf(m)[0])), Math.max(0, Math.min(ry, outlineAt[1] - cornerOf(m)[1]))]);
+      } else if ((rx + 1) * (ry + 1) <= LEVEL_OFFSETS) {
         for (let x = 0; x <= rx; x++) for (let y = 0; y <= ry; y++) spots.push([x, y]);
       } else {
         for (let k = 0; k < LEVEL_OFFSETS; k++) spots.push([stairRng.int(0, rx), stairRng.int(0, ry)]);

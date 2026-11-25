@@ -54,7 +54,7 @@
 
 :root,
 [data-theme='parchment'] {
-  --locked: color-mix(in srgb, var(--wine) 14%, var(--field)); /* inputs Tile mode has taken over */
+  --locked: color-mix(in srgb, var(--wine) 14%, var(--field)); /* inputs Tile mode or Building mode has taken over */
   color-scheme: light;
   --paper: #f4ecd9; /* the sheet: panels, the frame round the map */
   --stock: #f4ecd9; /* the ground behind the sheet */
@@ -969,15 +969,16 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
 #tileDialog .tile-problems li { color: var(--wine); }
 #tileDialog .toggle-field { margin: 14px 0 4px; }
 
-/* the inputs Tile mode sets itself, while it is on: a faint wash of the theme's wine red, and a not-allowed cursor */
-.tile-locked input[type='number'],
-.tile-locked .chip-body,
-.tile-locked .chip input:checked + .chip-body {
+/* inputs Tile mode or Building mode sets itself, while it is on: a faint wash of the theme's wine red, a not-allowed cursor */
+.locked input[type='number'],
+.locked select,
+.locked .chip-body,
+.locked .chip input:checked + .chip-body {
   background: var(--locked, color-mix(in srgb, var(--wine) 14%, var(--field)));
   border-color: color-mix(in srgb, var(--wine) 45%, var(--write-in));
   cursor: not-allowed;
 }
-.tile-locked input[type='number'] { color: var(--muted); }
-.tile-locked label, .tile-locked legend, .tile-locked .chip { cursor: not-allowed; }
-.tile-locked .chip:hover .chip-body { border-color: color-mix(in srgb, var(--wine) 45%, var(--write-in)); }
-.tile-locked .link-btn:disabled { cursor: not-allowed; opacity: 0.55; }
+.locked input[type='number'], .locked select { color: var(--muted); }
+.locked label, .locked legend, .locked .chip, .locked select { cursor: not-allowed; }
+.locked .chip:hover .chip-body { border-color: color-mix(in srgb, var(--wine) 45%, var(--write-in)); }
+.locked .link-btn:disabled { cursor: not-allowed; opacity: 0.55; }
