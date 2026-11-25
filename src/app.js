@@ -1300,6 +1300,7 @@
     for (const l of list.levels) for (const r of l.rooms.slice().sort(byNumber)) html.push(`<li>Room ${escapeHtml(r.label)}: ${r.face ? `${name(r.face)} (<code>${escapeHtml(r.face)}</code>)` : `no tile (${escapeHtml(r.problem)})`}</li>`);
     html.push('</ul></details>');
     if (list.doors > 0) html.push(`<p>${list.doors} doorway${list.doors === 1 ? ' has a door' : 's have doors'} on the map. The tiles show every doorway as an opening, so mark doors on the table if you want them.</p>`);
+    if (list.overlap > 0) html.push(`<p>Some straight hallway pieces are longer than their stretch and run under a room tile or a corner, T or crossroads tile (${list.overlap} square${list.overlap === 1 ? '' : 's'} in all). Lay the straights first and the other tiles on top.</p>`);
     if (list.stairs > 0) html.push(`<p>${list.stairs} stair${list.stairs === 1 ? '' : 's'} on the map. The room tiles have none, so mark them on the table.</p>`);
     html.push(`<p class="hint">Tile catalog version ${escapeHtml(String(cat.catalog_version))}, as kept in the app.</p>`);
     $('tileBody').innerHTML = html.join('');

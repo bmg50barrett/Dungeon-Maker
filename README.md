@@ -113,14 +113,17 @@ them. It is made for Tile mode dungeons; any other dungeon gets a list too, with
 - **Room by room**: which tile each room takes, by the numbers on the map. Turn the tile to match the map.
 - **Not buildable with the tiles**: anything no tile can make, such as a room of another size or shape, a room reached
   only by stairs (no tile has no doors), a hallway wider than 5 ft, or a straight stretch of hallway that the straight
-  hallway tiles cannot add up to. It is listed, never dropped.
+  hallway tiles cannot make even running under the tiles at its ends. It is listed, never dropped.
 - Doors and stairs on the map are counted as notes: the tiles show every doorway as an opening, and the room tiles have no
   stairs, so mark those on the table.
 - **Copy as text** puts the whole list on the clipboard. Claude's `tile_list` tool gives the same list.
 
 Each room is matched by its size and where its doorways are, in any of 4 turns. Each hallway square is a dead end,
 corner, T or crossroads piece by how many ways it opens; the straight stretches between them are filled with the fewest
-straight pieces that add up exactly.
+straight pieces. A straight does not have to fit its stretch exactly: where the stretch meets a room through a doorway,
+a longer piece can run under the room tile (as far as the room is deep), and where it meets a corner, T or crossroads
+piece, 1 square under that tile. Lay the straights first and the other tiles on top; the list says how many squares of
+straight end up underneath.
 
 The tiles are described by the Dungeon Tiles catalog (`catalog/tiles.json` in the Dungeon Tiles repo). A copy is kept in
 the app (`src/tiles-catalog.js`), so the tile list works offline and the page fetches nothing. After the tiles change,

@@ -7,7 +7,9 @@
  *
  *   rooms     each room is matched to the face with the same size and the same doorways, in any of 4 turns
  *   hallways  each hallway square is a dead end, corner, T or crossroads piece by how many ways it opens, and the straight
- *             stretches between them are filled with the straight pieces (longest first)
+ *             stretches between them are filled with the fewest straight pieces. Where a stretch ends at a room doorway, the
+ *             pieces may run longer and slide under the room tile, as far as the room is deep; where it ends at a corner,
+ *             T or crossroads piece, 1 square under that tile
  *   problems  anything no tile can make (a room of another size or shape, a straight stretch no straight pieces add up to,
  *             a hallway wider than 5 ft) is listed, never dropped
  *
@@ -87,42 +89,49 @@
   /** Straight pieces in the catalog for 5 ft hallways, longest first: [{ id, length }]. */
   function straightPieces(catalog) {
     return Object.entries(catalog.faces)
-      .filter(([, f]) => f.kind === 'hall' && f.hall_width_ft === 5 && f.size[0] === 1 && f.size[1] > 1)
+      // a straight opens at both ends and nowhere else (a 1-square one is told from a dead end or corner by that)
+      .filter(([, f]) => f.kind === 'hall' && f.hall_width_ft === 5 && f.size[0] === 1 && (f.openings.N || []).length === 1 && (f.openings.S || []).length === 1 && !(f.openings.E || []).length && !(f.openings.W || []).length)
       .map(([id, f]) => ({ id, length: f.size[1] }))
       .sort((a, b) => b.length - a.length);
   }
 
-  /** The fewest straight pieces that add up to `length` exactly: { id: count }, or null if none do. */
-  function fillStraight(length, straights) {
+  /**
+   * The fewest straight pieces for a stretch `length` squares long: { used: { id: count }, over }, or null if none will do.
+   * Pieces may run up to `maxOver` squares past the stretch (`over` is how far they do), for the ends that meet a room: the
+   * extra slides under the room tile. Fewest pieces first, then the least overlap.
+   */
+  function fillStraight(length, straights, maxOver = 0) {
     let best = null;
-    const walk = (i, left, used, count) => {
-      if (left === 0) {
-        if (!best || count < best.count) best = { used: { ...used }, count };
-        return;
+    const walk = (i, sum, used, count) => {
+      if (sum >= length && sum <= length + maxOver) {
+        const over = sum - length;
+        if (!best || count < best.count || (count === best.count && over < best.over)) best = { used: { ...used }, count, over };
       }
-      if (i >= straights.length || (best && count >= best.count)) return;
+      if (i >= straights.length || sum >= length || (best && count >= best.count)) return;
       const { id, length: L } = straights[i];
-      for (let n = Math.floor(left / L); n >= 0; n--) {
+      for (let n = Math.ceil((length + maxOver - sum) / L); n >= 0; n--) {
+        if (sum + n * L > length + maxOver) continue;
         if (n > 0) used[id] = n;
         else delete used[id];
-        walk(i + 1, left - n * L, used, count + n);
+        walk(i + 1, sum + n * L, used, count + n);
       }
       delete used[id];
     };
-    walk(0, length, {}, 0);
-    return best ? best.used : null;
+    walk(0, 0, {}, 0);
+    return best && { used: best.used, over: best.over };
   }
 
   /** One square's piece by the ways it opens: 1 a dead end, 2 a corner (a straight is handled with its stretch), 3 a T, 4 crossroads. */
   const JUNCTION = { 1: 'H5-D', 2: 'H5-L', 3: 'H5-T', 4: 'H5-X' };
 
-  function hallPieces(floor, hall, catalog, hallName) {
+  function hallPieces(floor, hall, catalog, hallName, roomAt) {
     const pieces = {};
     const problems = [];
+    let overlap = 0;
     const cells = new Set(hall.cells.map(([x, y]) => cellKey(x, y)));
     for (const [x, y] of hall.cells) {
       if (cells.has(cellKey(x + 1, y)) && cells.has(cellKey(x, y + 1)) && cells.has(cellKey(x + 1, y + 1))) {
-        return { pieces: {}, problems: [`${hallName}: wider than 5 ft, and the hallway tiles are 5 ft wide`] };
+        return { pieces: {}, problems: [`${hallName}: wider than 5 ft, and the hallway tiles are 5 ft wide`], overlap: 0 };
       }
     }
     // which ways each square opens: into the hallway's own squares, or through a doorway into a room
@@ -169,11 +178,28 @@
         seen.add(cellKey(cx, cy));
         length++;
       }
-      const fill = fillStraight(length, straights);
-      if (fill) for (const [id, n] of Object.entries(fill)) add(id, n);
-      else problems.push(`${hallName}: a straight stretch ${length} square${length === 1 ? '' : 's'} (${length * 5} ft) long, which the straight hallway tiles (${straights.map((s) => s.length).join(' and ')} squares) cannot add up to`);
+      // A longer piece can run past an end and be covered: through a doorway, under the room tile (as far as the room is
+      // deep that way), or 1 square under the corner, T or crossroads tile the stretch ends at (that square is hidden anyway).
+      const ex = sx + DX[d] * (length - 1);
+      const ey = sy + DY[d] * (length - 1);
+      const room = (cx, cy, dir) => (links.has(`${cellKey(cx, cy)},${dir}`) ? roomAt.get(cellKey(cx + DX[dir], cy + DY[dir])) : null);
+      const spare = (cx, cy, dir) => {
+        const r = room(cx, cy, dir);
+        if (r) return dir % 2 === 0 ? r.bbox.h : r.bbox.w;
+        return cells.has(cellKey(cx + DX[dir], cy + DY[dir])) ? 1 : 0;
+      };
+      const maxOver = spare(sx, sy, OPP[d]) + spare(ex, ey, d);
+      const endsAtRoom = !!(room(sx, sy, OPP[d]) || room(ex, ey, d));
+      const fill = fillStraight(length, straights, maxOver);
+      if (fill) {
+        for (const [id, n] of Object.entries(fill.used)) add(id, n);
+        overlap += fill.over;
+      } else {
+        const why = endsAtRoom ? 'even running under the room tile at its end' : 'even running 1 square under the hallway tile at each end';
+        problems.push(`${hallName}: a straight stretch ${length} square${length === 1 ? '' : 's'} (${length * 5} ft) long, which the straight hallway tiles (${straights.map((s) => s.length).join(' and ')} squares) cannot make, ${why}`);
+      }
     }
-    return { pieces, problems };
+    return { pieces, problems, overlap };
   }
 
   // ---- the whole dungeon --------------------------------------------------------------------------------------------
@@ -196,6 +222,9 @@
       const needs = {};
       const problems = [];
       const doorways = roomDoorways(fl);
+      const roomAt = new Map();
+      for (const r of fl.rooms) for (const [x, y] of r.cells) roomAt.set(cellKey(x, y), r);
+      let overlap = 0;
       const rooms = fl.rooms.map((r) => {
         const m = matchRoom(r, doorways.get(r.id) || [], faces);
         if (m.face) needs[m.face] = (needs[m.face] || 0) + 1;
@@ -204,14 +233,15 @@
       });
       fl.halls.forEach((h, i) => {
         const name = `Hallway ${many ? `${fl.level}-` : ''}${String.fromCharCode(65 + (i % 26))}${i >= 26 ? Math.floor(i / 26) : ''}`;
-        const got = hallPieces(fl, h, catalog, name);
+        const got = hallPieces(fl, h, catalog, name, roomAt);
         for (const [id, n] of Object.entries(got.pieces)) needs[id] = (needs[id] || 0) + n;
         problems.push(...got.problems);
+        overlap += got.overlap;
       });
       // doorways with a door in them (not open archways), which the tiles show only as an opening
       let doors = 0;
       for (const c of fl.connections) for (const o of c.openings) if (c.type === 'door' || o.style === 'door') doors++;
-      return { level: fl.level, rooms, needs, problems, doors };
+      return { level: fl.level, rooms, needs, problems, doors, overlap };
     });
     const needs = {};
     for (const l of levels) for (const [id, n] of Object.entries(l.needs)) needs[id] = Math.max(needs[id] || 0, n);
@@ -220,6 +250,7 @@
       needs: Object.fromEntries(Object.entries(needs).sort()),
       problems: levels.flatMap((l) => l.problems),
       doors: Math.max(0, ...levels.map((l) => l.doors)),
+      overlap: levels.reduce((a, l) => a + l.overlap, 0),
       stairs: (dungeon.stairs || []).length + (dungeon.entrances || []).filter((e) => e.kind === 'stairs').length,
       catalogVersion: catalog.catalog_version,
     };
@@ -350,6 +381,7 @@
     }
     const notes = [];
     if (list.doors > 0) notes.push(`${list.doors} doorway${list.doors === 1 ? ' has a door' : 's have doors'} on the map; the tiles show every doorway as an opening, so mark doors on the table if you want them`);
+    if (list.overlap > 0) notes.push(`some straight hallway pieces are longer than their stretch and run under a room tile or a corner, T or crossroads tile (${list.overlap} square${list.overlap === 1 ? '' : 's'} in all): lay the straights first and the other tiles on top`);
     if (list.stairs > 0) notes.push(`${list.stairs} stair${list.stairs === 1 ? '' : 's'} on the map; the room tiles have none, so mark them on the table`);
     if (notes.length) {
       lines.push('');

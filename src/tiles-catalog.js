@@ -469,6 +469,31 @@
           "W": []
         }
       },
+      "H5-S1": {
+        "name": "5 ft hall, straight, 1 long (5 ft)",
+        "kind": "hall",
+        "size": [
+          1,
+          1
+        ],
+        "hall_width_ft": 5,
+        "openings": {
+          "N": [
+            [
+              0,
+              1
+            ]
+          ],
+          "E": [],
+          "S": [
+            [
+              0,
+              1
+            ]
+          ],
+          "W": []
+        }
+      },
       "H10-S5": {
         "name": "10 ft hall, straight, 5 long (25 ft)",
         "kind": "hall",
@@ -1837,6 +1862,947 @@
           "R4P-2O": 5,
           "R4P-3": 3,
           "R4P-4": 1
+        }
+      },
+      {
+        "id": "halls-5ft",
+        "name": "5 ft Hallways",
+        "file": "pdf/Dungeon Tiles - 5 ft Hallways.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 5 ft Hallways Cut Guide.pdf",
+        "double_sided": false,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              1,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              2,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              3,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              5,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              4
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              1,
+              4
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              2,
+              4
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              9
+            ]
+          },
+          {
+            "faces": [
+              "H5-L"
+            ],
+            "sheet": 1,
+            "at": [
+              3,
+              4
+            ]
+          },
+          {
+            "faces": [
+              "H5-L"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              4
+            ]
+          },
+          {
+            "faces": [
+              "H5-L"
+            ],
+            "sheet": 1,
+            "at": [
+              5,
+              4
+            ]
+          },
+          {
+            "faces": [
+              "H5-L"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              4
+            ]
+          },
+          {
+            "faces": [
+              "H5-L"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              4
+            ]
+          },
+          {
+            "faces": [
+              "H5-L"
+            ],
+            "sheet": 1,
+            "at": [
+              3,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-L"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-L"
+            ],
+            "sheet": 1,
+            "at": [
+              5,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-L"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-L"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-L"
+            ],
+            "sheet": 1,
+            "at": [
+              3,
+              6
+            ]
+          },
+          {
+            "faces": [
+              "H5-L"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              6
+            ]
+          },
+          {
+            "faces": [
+              "H5-L"
+            ],
+            "sheet": 1,
+            "at": [
+              5,
+              6
+            ]
+          },
+          {
+            "faces": [
+              "H5-L"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              6
+            ]
+          },
+          {
+            "faces": [
+              "H5-L"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              6
+            ]
+          },
+          {
+            "faces": [
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              3,
+              7
+            ]
+          },
+          {
+            "faces": [
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              7
+            ]
+          },
+          {
+            "faces": [
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              5,
+              7
+            ]
+          },
+          {
+            "faces": [
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              7
+            ]
+          },
+          {
+            "faces": [
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              7
+            ]
+          },
+          {
+            "faces": [
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              1,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              2,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              3,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-T"
+            ],
+            "sheet": 1,
+            "at": [
+              5,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-T"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-T"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-T"
+            ],
+            "sheet": 1,
+            "at": [
+              5,
+              9
+            ]
+          },
+          {
+            "faces": [
+              "H5-X"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              9
+            ]
+          },
+          {
+            "faces": [
+              "H5-D"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              9
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-D": 1,
+          "H5-L": 15,
+          "H5-S1": 10,
+          "H5-S4": 11,
+          "H5-S5": 1,
+          "H5-T": 4,
+          "H5-X": 1
+        }
+      },
+      {
+        "id": "halls-5ft-duplex",
+        "name": "5 ft Hallways, Double-Sided",
+        "file": "pdf/Dungeon Tiles - 5 ft Hallways Double-Sided.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 5 ft Hallways Double-Sided Cut Guide.pdf",
+        "double_sided": true,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "H5-S4",
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4",
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              1,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4",
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              2,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4",
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              3,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4",
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4",
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              5,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4",
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4",
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4",
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              4
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4",
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              1,
+              4
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4",
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              2,
+              4
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              9
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              3,
+              4
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              4
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              5,
+              4
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              4
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              4
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              3,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              5,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              3,
+              6
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              6
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              5,
+              6
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              6
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              6
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              3,
+              7
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-T"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              7
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-T"
+            ],
+            "sheet": 1,
+            "at": [
+              5,
+              7
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-T"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              7
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-T"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              7
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-T"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-T"
+            ],
+            "sheet": 1,
+            "at": [
+              1,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-T"
+            ],
+            "sheet": 1,
+            "at": [
+              2,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-T"
+            ],
+            "sheet": 1,
+            "at": [
+              3,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-L"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-L"
+            ],
+            "sheet": 1,
+            "at": [
+              5,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-L",
+              "H5-L"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-S1",
+              "H5-X"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-S1",
+              "H5-X"
+            ],
+            "sheet": 1,
+            "at": [
+              5,
+              9
+            ]
+          },
+          {
+            "faces": [
+              "H5-S1",
+              "H5-D"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              9
+            ]
+          },
+          {
+            "faces": [
+              "H5-S1",
+              "H5-D"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              9
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-D": 2,
+          "H5-L": 27,
+          "H5-S1": 20,
+          "H5-S4": 11,
+          "H5-S5": 1,
+          "H5-T": 8,
+          "H5-X": 2
         }
       }
     ]

@@ -4337,13 +4337,23 @@ console.log('== statistics');
   const cat = DM.TILE_CATALOG;
   // straight stretches are filled with the fewest straight pieces that add up exactly
   const fills = { 9: 2, 8: 2, 10: 2, 4: 1, 5: 1, 12: 3, 0: 0 };
-  const straights = Object.entries(cat.faces).filter(([, f]) => f.kind === 'hall' && f.hall_width_ft === 5 && f.size[0] === 1 && f.size[1] > 1).map(([id, f]) => ({ id, length: f.size[1] })).sort((a, b) => b.length - a.length);
+  const straights = Object.entries(cat.faces).filter(([, f]) => f.kind === 'hall' && f.hall_width_ft === 5 && f.size[0] === 1 && (f.openings.N || []).length === 1 && (f.openings.S || []).length === 1 && !(f.openings.E || []).length && !(f.openings.W || []).length).map(([id, f]) => ({ id, length: f.size[1] })).sort((a, b) => b.length - a.length);
   for (const [len, pieces] of Object.entries(fills)) {
     const got = DM.fillStraight(Number(len), straights);
-    const count = got ? Object.values(got).reduce((a, n) => a + n, 0) : null;
-    const squares = got ? Object.entries(got).reduce((a, [id, n]) => a + n * cat.faces[id].size[1], 0) : null;
-    if (count !== pieces || squares !== Number(len)) fail('tile list', `a straight ${len} long fills as ${JSON.stringify(got)}`);
+    const count = got ? Object.values(got.used).reduce((a, n) => a + n, 0) : null;
+    const squares = got ? Object.entries(got.used).reduce((a, [id, n]) => a + n * cat.faces[id].size[1], 0) : null;
+    if (count !== pieces || squares !== Number(len) || got.over !== 0) fail('tile list', `a straight ${len} long fills as ${JSON.stringify(got)}`);
   }
+  // a stretch can take a longer piece when it can run under the tiles at its ends: the fewest pieces, then the least overlap
+  const under = (len, over) => JSON.stringify(DM.fillStraight(len, straights, over));
+  const expect = (len, over, want, why) => { if (under(len, over) !== JSON.stringify(want)) fail('tile list', `${why}: ${len} squares with ${over} to spare gave ${under(len, over)}`); };
+  expect(3, 0, { used: { 'H5-S1': 3 }, over: 0 }, 'with nothing to spare, three 1-square straights');
+  expect(3, 4, { used: { 'H5-S4': 1 }, over: 1 }, 'one 4-long piece running 1 square under beats three pieces');
+  expect(2, 2, { used: { 'H5-S4': 1 }, over: 2 }, 'between two junction tiles, a 4-long piece running 1 square under each');
+  expect(6, 5, { used: { 'H5-S5': 1, 'H5-S1': 1 }, over: 0 }, 'two pieces either way, so the one with no overlap');
+  expect(1, 2, { used: { 'H5-S1': 1 }, over: 0 }, 'a single square takes the 1-square straight');
+  // without the 1-square straight, a lone square between two junction tiles cannot be made
+  if (DM.fillStraight(1, straights.filter((x) => x.length > 1), 2) !== null) fail('tile list', 'without a 1-square straight, 1 square with 2 to spare should have no fill');
   const rng = new DM.Rng('tile-list-tests');
   let dungeons = 0;
   let roomsMatched = 0;
@@ -4370,7 +4380,9 @@ console.log('== statistics');
       const hallSquares = fl.halls.reduce((a, h) => a + h.cells.length, 0);
       const pieceSquares = Object.entries(lvl.needs).filter(([id]) => cat.faces[id].kind === 'hall').reduce((a, [id, n]) => a + n * cat.faces[id].size[0] * cat.faces[id].size[1], 0);
       const unbuilt = lvl.problems.reduce((a, p) => a + Number((p.match(/stretch (\d+) square/) || [0, 0])[1]), 0);
-      if (pieceSquares + unbuilt !== hallSquares) fail(`tile list ${i}`, `level ${lvl.level}: hallway pieces cover ${pieceSquares} squares and ${unbuilt} are unbuilt, of ${hallSquares}`);
+      if (pieceSquares - lvl.overlap + unbuilt !== hallSquares) fail(`tile list ${i}`, `level ${lvl.level}: hallway pieces cover ${pieceSquares} squares (${lvl.overlap} under rooms) and ${unbuilt} are unbuilt, of ${hallSquares}`);
+      // every stretch that cannot be made says why
+      for (const p of lvl.problems) if (/stretch/.test(p) && !/even running (under the room tile|1 square under the hallway tile)/.test(p)) fail(`tile list ${i}`, `a stretch problem gives no reason: ${p}`);
     });
     // the needs are the most any one level needs
     for (const [id, n] of Object.entries(list.needs)) if (n !== Math.max(...list.levels.map((l) => l.needs[id] || 0))) fail(`tile list ${i}`, `${id}: needs ${n}, not the most of any level`);
