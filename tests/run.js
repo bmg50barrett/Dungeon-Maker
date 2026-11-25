@@ -4405,10 +4405,16 @@ console.log('== statistics');
   // one printing is enough for a small dungeon, and nothing is printed for nothing
   const none = DM.tilePrintPlan({}, cat, false);
   if (none.sheets !== 0 || !none.complete) fail('tile list', 'an empty list should need no printing');
-  const one = DM.tilePrintPlan({ 'R5-1': 1 }, cat, false);
-  if (one.sheets !== 4 || one.editions.length !== 1 || one.editions[0].id !== 'full-rooms') fail('tile list', `one 5x5 room should be one printing of Full Rooms, got ${JSON.stringify(one.editions)}`);
-  const two = DM.tilePrintPlan({ 'R5-1': 2 }, cat, true);
-  if (!two.complete || two.editions[0].copies !== 1) fail('tile list', `two 5x5 one-door rooms fit one double-sided printing, got ${JSON.stringify(two.editions)}`);
+  // small asks get the cheapest printing the catalog offers: no edition alone gives the same tiles on fewer sheets
+  for (const [want, two] of [[{ 'R5-1': 1 }, false], [{ 'R5-1': 2 }, true], [{ 'R4P-1': 1, 'R4P-2O': 1 }, false], [{ 'H5-L': 3, 'H5-S4': 1 }, true]]) {
+    const plan = DM.tilePrintPlan(want, cat, two);
+    if (!plan.complete) fail('tile list', `${JSON.stringify(want)} should be printable`);
+    const cheapest = Math.min(...cat.editions.filter((e) => !!e.double_sided === two).map((e) => {
+      const per = Object.entries(want).map(([id, n]) => (e.faces_available[id] ? Math.ceil(n / e.faces_available[id]) : Infinity));
+      return Math.max(...per) * e.sheets;
+    }));
+    if (plan.sheets > cheapest) fail('tile list', `${JSON.stringify(want)} (${two ? 'double' : 'single'}-sided) takes ${plan.sheets} sheets, but one file gives it in ${cheapest}`);
+  }
   // a dungeon not made in tile mode: its odd rooms are listed, not dropped
   const plain = DM.generateDungeon({ roomCount: 12, avgRoomSize: 30, sizeVariance: 30, entrances: 1, connectionType: 'hall', roomShapes: ['L', 'T'], seed: 'tile-list-plain' });
   const plainList = DM.tileList(plain, cat);
