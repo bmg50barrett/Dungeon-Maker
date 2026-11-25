@@ -376,25 +376,28 @@
   }
 
   /**
-   * A room for tile mode: a size x size square (5 by default, matching the printed 5x5 room tiles) whose only door spots are
-   * the middle square of each wall, so every doorway it gets is centered. `tile` marks it, so the generator keeps doors placed
-   * on it centered too.
+   * The one square on each wall of a size x size tile room that may take a door, as matched by the printed room tiles:
+   * k squares in from the wall's left end going clockwise round the room, where k = floor((size - 1) / 2). On an odd room
+   * (5x5) that is the middle of the wall; on an even one (4x4) a 5 ft door cannot be in the middle, so it sits one square
+   * clockwise of it, and the doors make a pinwheel. Every door following the one rule is what lets 5 tile layouts cover
+   * every room once a tile is turned. (x, y) is the square inside the room, d the wall it is on (0 N, 1 E, 2 S, 3 W).
    */
+  function isTileDoor(size, x, y, d) {
+    const k = Math.floor((size - 1) / 2);
+    return [x === k, y === k, x === size - 1 - k, y === size - 1 - k][d];
+  }
+
+  /** A room for tile mode: a size x size square (4 or 5, as the printed room tiles) whose only door spots are those of isTileDoor. */
   function makeTileRoom(size = 5) {
     const shape = finishShape({ g: fullGrid(size, size), W: size, H: size, kind: 'rect' });
-    const mid = (size - 1) / 2;
-    shape.open = shape.open.map((list, d) =>
-      list.filter((i) => {
-        const [x, y] = shape.cells[i];
-        return d === 0 || d === 2 ? x === mid : y === mid;
-      })
-    );
+    shape.open = shape.open.map((list, d) => list.filter((i) => isTileDoor(size, shape.cells[i][0], shape.cells[i][1], d)));
     shape.tile = true;
     return shape;
   }
 
   DM.makeRoomShape = makeRoomShape;
   DM.makeTileRoom = makeTileRoom;
+  DM.isTileDoor = isTileDoor;
   DM.isValidShape = isValidShape; // exposed for tests
   DM.SHAPE_KINDS = KIND_NAMES;
   /** Smallest room area (squares) at which each shape is offered; below it, only rectangles fit. */

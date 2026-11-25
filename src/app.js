@@ -320,7 +320,7 @@
     const on = $('tileMode').checked;
     $('tileModeState').textContent = on ? 'On' : 'Off';
     $('tileModeHint').textContent = on
-      ? 'Only what the printed tiles can build: 5x5 rooms with centered doorways, and 5 ft hallways.'
+      ? 'Only what the printed tiles can build: 4x4 and 5x5 rooms with doors where the tiles have them, and 5 ft hallways.'
       : 'Off: rooms take any size and shape.';
     for (const f of TILE_LOCKED) $(f).disabled = on;
     for (const box of shapeBoxes()) box.disabled = on;

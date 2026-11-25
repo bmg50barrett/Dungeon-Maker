@@ -4252,19 +4252,18 @@ console.log('== statistics');
 }
 
 // ---------------------------------------------------------------------------
-// Tile mode: only what the printed dungeon tiles can build. Every room is a 5x5 square, every doorway (into a hallway, into
-// another room, or out of the dungeon) is the middle square of its wall, a doorway between two rooms is centered on both
-// rooms' walls so the two tiles' openings line up, and hallways are 1 square wide.
+// Tile mode: only what the printed dungeon tiles can build. Every room is a 4x4 or 5x5 square, every doorway (into a hallway,
+// into another room, or out of the dungeon) is at a tile door spot (the middle of a 5x5 wall, one square clockwise of the
+// middle on a 4x4), a doorway between two rooms is at the tile door spot of both rooms so the two tiles' openings line up,
+// and hallways are 1 square wide. Both sizes turn up.
 {
   console.log('\nTile mode');
   const rng = new DM.Rng('tile-mode-tests');
   let dungeons = 0;
   let doorsChecked = 0;
   let shortfalls = 0;
-  const centered = (room, x, y, d) => {
-    const b = room.bbox;
-    return d === 0 || d === 2 ? (x - b.x) * 2 === b.w - 1 : (y - b.y) * 2 === b.h - 1;
-  };
+  const centered = (room, x, y, d) => DM.isTileDoor(room.bbox.w, x - room.bbox.x, y - room.bbox.y, d);
+  const sizesSeen = {};
   const floorsOf = (dun) => [dun, ...(dun.floors || [])];
   for (let i = 0; i < 300; i++) {
     const raw = { ...randomParams(rng), tileMode: true, layout: rng.pick(DM.LAYOUTS), seed: `tile-${i}` };
@@ -4281,26 +4280,28 @@ console.log('== statistics');
     for (const fl of floorsOf(dun)) {
       const byId = new Map(fl.rooms.map((r) => [r.id, r]));
       for (const r of fl.rooms) {
-        if (r.bbox.w !== 5 || r.bbox.h !== 5 || r.area !== 25) fail(`tile ${i}`, `room ${r.id} is ${r.bbox.w}x${r.bbox.h} (${r.area} squares), not 5x5`);
+        const ok = (r.bbox.w === 4 || r.bbox.w === 5) && r.bbox.h === r.bbox.w && r.area === r.bbox.w * r.bbox.w;
+        if (!ok) fail(`tile ${i}`, `room ${r.id} is ${r.bbox.w}x${r.bbox.h} (${r.area} squares), not 4x4 or 5x5`);
+        sizesSeen[`${r.bbox.w}x${r.bbox.h}`] = (sizesSeen[`${r.bbox.w}x${r.bbox.h}`] || 0) + 1;
       }
       for (const c of fl.connections) {
         for (const o of c.openings) {
           const room = byId.get(o.room);
           if (!room) continue;
           doorsChecked++;
-          if (!centered(room, o.x, o.y, o.d)) fail(`tile ${i}`, `doorway at ${o.x},${o.y} is not centered on room ${o.room}'s wall`);
+          if (!centered(room, o.x, o.y, o.d)) fail(`tile ${i}`, `doorway at ${o.x},${o.y} is not at room ${o.room}'s tile door spot`);
           if (c.type === 'door') {
             // the square on the other side belongs to the other room, and must be the middle of its wall too
             const other = byId.get(c.rooms.find((id) => id !== o.room));
             const nx = o.x + DX[o.d];
             const ny = o.y + DY[o.d];
-            if (!other || !centered(other, nx, ny, OPP[o.d])) fail(`tile ${i}`, `doorway between rooms ${c.rooms} does not line up with the middle of both walls`);
+            if (!other || !centered(other, nx, ny, OPP[o.d])) fail(`tile ${i}`, `doorway between rooms ${c.rooms} is not at both rooms' tile door spots`);
           }
         }
       }
       for (const e of fl.entrances || []) {
         const room = byId.get(e.room);
-        if (room && e.kind === 'door' && !centered(room, e.x, e.y, e.d)) fail(`tile ${i}`, `entrance ${e.label} is not centered on room ${e.room}'s wall`);
+        if (room && e.kind === 'door' && !centered(room, e.x, e.y, e.d)) fail(`tile ${i}`, `entrance ${e.label} is not at room ${e.room}'s tile door spot`);
       }
       for (const h of fl.halls) {
         const cells = new Set(h.cells.map(([x, y]) => `${x},${y}`));
@@ -4313,12 +4314,17 @@ console.log('== statistics');
   // tile mode overrides the room size settings, even ones that would otherwise be refused
   const forced = DM.validateParams({ roomCount: 5, avgRoomSize: 0, sizeVariance: 500, entrances: 1, connectionType: 'hall', hallWidth: 4, roomShapes: ['L'], tileMode: true });
   if (!forced.ok) fail('tile mode', `out-of-range room settings should be overridden in tile mode: ${JSON.stringify(forced.errors)}`);
-  else if (forced.params.hallWidth !== 1 || forced.params.avgRoomSize !== 25 || forced.params.roomShapes.join() !== 'rect') fail('tile mode', 'tile mode did not set the room and hallway settings');
+  else if (forced.params.hallWidth !== 1 || forced.params.minRoomWidth !== 4 || forced.params.roomShapes.join() !== 'rect') fail('tile mode', 'tile mode did not set the room and hallway settings');
   if (DM.validateParams({ roomCount: 5, avgRoomSize: 20, sizeVariance: 0, entrances: 1, connectionType: 'hall', tileMode: 'yes' }).ok) fail('tile mode', 'a tile mode that is not true or false was accepted');
   // off by default, and left out of the settings, so dungeons made without it are unchanged
   const plain = DM.generateDungeon({ roomCount: 8, avgRoomSize: 30, sizeVariance: 30, entrances: 1, connectionType: 'hall', seed: 'tile-off' });
   if ('tileMode' in plain.params) fail('tile mode', 'tile mode shows up in the settings of a dungeon made without it');
-  console.log(`  ${dungeons} dungeons, ${doorsChecked} doorways checked, ${shortfalls} could not fit every room (warned)`);
+  console.log(`  ${dungeons} dungeons, ${doorsChecked} doorways checked, ${shortfalls} could not fit every room (warned); room sizes ${JSON.stringify(sizesSeen)}`);
+  if (!sizesSeen['4x4'] || !sizesSeen['5x5']) fail('tile mode', `tile mode should make both 4x4 and 5x5 rooms, made ${JSON.stringify(sizesSeen)}`);
+  // the door spots themselves: the middle of each wall on a 5x5, one square clockwise of the middle on a 4x4
+  const spots = (n) => [0, 1, 2, 3].map((d) => { const out = []; for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const edge = [y === 0, x === n - 1, y === n - 1, x === 0][d]; if (edge && DM.isTileDoor(n, x, y, d)) out.push(`${x},${y}`); } return out.join(' '); }).join(' | ');
+  if (spots(5) !== '2,0 | 4,2 | 2,4 | 0,2') fail('tile mode', `5x5 door spots are ${spots(5)}`);
+  if (spots(4) !== '1,0 | 3,1 | 2,3 | 0,2') fail('tile mode', `4x4 door spots are ${spots(4)}`);
   if (shortfalls > dungeons * 0.05) fail('tile mode', `${shortfalls} of ${dungeons} tile-mode dungeons could not fit every room`);
 }
 

@@ -83,13 +83,17 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
 ### Tile mode
 
 Tile mode makes dungeons you can lay out on the table with the printed
-[Dungeon Tiles](https://github.com/bmg50barrett/Dungeon-Tiles) Full Rooms set, one tile per room and hallway.
+[Dungeon Tiles](https://github.com/bmg50barrett/Dungeon-Tiles) room sets, one tile per room and hallway.
 
-- Every room is a 5 x 5 square (25 ft), like the room tiles. Average room size, minimum room size, size variance, room
-  shapes and hallway width are ignored (and switched off on the page).
-- Every doorway is the middle square of its wall, the only place the room tiles have doors. That holds for doorways into
-  hallways, for entrances, and for doorways joining two rooms directly. Two rooms joined by a doorway sit exactly side by
-  side, so both rooms' centered doors line up.
+- Every room is a 4x4 (20 ft) or 5x5 (25 ft) square, like the room tiles, picked at random for each room (about half and
+  half). Average room size, minimum room size, size variance, room shapes and hallway width are ignored (and switched off on
+  the page).
+- Every doorway is where the room tiles have one. On a 5x5 room that is the middle square of the wall. On a 4x4 room a 5 ft
+  door cannot sit in the middle, so it is one square clockwise of the middle: one square in from the wall's left end,
+  going clockwise round the room, so the doors make a pinwheel. That holds for doorways into hallways, for entrances, and
+  for doorways joining two rooms directly; two rooms joined by a doorway sit so both rooms' doors line up.
+- Because every door follows that one rule, 5 tile layouts per room size (1 door, 2 opposite, 2 at a corner, 3, 4) cover
+  every room once the tile is turned.
 - Hallways are 1 square (5 ft) wide, like the hallway tiles.
 - A room has only 4 places for a door, one on each wall. A big dungeon, especially a Radial one, where every hallway runs out
   of the one hub room, can run out of places to hang rooms; it then has fewer rooms than asked for and says so.
