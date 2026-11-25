@@ -78,12 +78,18 @@
   function encodeShare({ params = {}, display = {} } = {}) {
     const parts = [];
     // an input is left out when it has the usual value (or none)
-    const differs = (name) => params[name] !== undefined && params[name] !== null && !isUsual(name, params[name]);
+    // Tile mode sets the room size, shape and hallway width itself, so a tile-mode link leaves those out: opening it gives the
+    // same dungeon (tile mode sets them again), and switching tile mode off afterwards goes back to the usual room settings.
+    const TILE_SET = ['avgRoomSize', 'minRoomWidth', 'minRoomLength', 'sizeVariance', 'hallWidth', 'roomShapes'];
+    const differs = (name) =>
+      params[name] !== undefined && params[name] !== null && !isUsual(name, params[name]) && !(params.tileMode === true && TILE_SET.includes(name));
     for (const [key, name] of NUMBERS) {
       if (differs(name)) parts.push(pair(key, params[name]));
     }
     if (params.connectionType && differs('connectionType')) parts.push(pair('conn', params.connectionType));
     if (typeof params.edgeEntrancesOnly === 'boolean' && differs('edgeEntrancesOnly')) parts.push(pair('edge', params.edgeEntrancesOnly ? 1 : 0));
+    // tile mode is off unless named, and only named when on (a dungeon made without it has no tileMode at all)
+    if (params.tileMode === true) parts.push(pair('tile', 1));
     if (Array.isArray(params.roomShapes) && differs('roomShapes')) parts.push(pair('shapes', params.roomShapes.join(',')));
     if (Array.isArray(params.hallTypes) && differs('hallTypes')) parts.push(pair('halls', params.hallTypes.join(',')));
     if (params.hallDoors && differs('hallDoors')) parts.push(pair('doors', params.hallDoors));
@@ -137,6 +143,7 @@
     if (q.get('shapes') !== null) accept('roomShapes', q.get('shapes').split(',').filter(Boolean));
     if (q.get('halls') !== null) accept('hallTypes', q.get('halls').split(',').filter(Boolean));
     if (q.get('edge') === '1' || q.get('edge') === '0') form.edgeEntrancesOnly = q.get('edge') === '1';
+    if (q.get('tile') === '1') form.tileMode = true;
     const seed = q.get('seed');
     if (seed !== null && seed.trim() !== '' && seed.length <= 100) form.seed = seed;
 

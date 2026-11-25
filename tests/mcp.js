@@ -110,7 +110,9 @@ console.log('== defaults: the same as the page');
   // the share links leave out what is usual, so the usual must be what the page starts with
   if (JSON.stringify(DM.formDefaults()) !== JSON.stringify(APP_DEFAULTS)) fail('defaults', `the share links' usual values ${JSON.stringify(DM.formDefaults())} differ from the page's ${JSON.stringify(APP_DEFAULTS)}`);
   const settings = Object.keys(SETTINGS).sort().join();
-  if (settings !== [...Object.keys(APP_DEFAULTS), 'seed'].sort().join()) fail('defaults', `the settings Claude can give are [${settings}]`);
+  // tile mode is off unless given (so dungeons made without it carry no tileMode at all), the one setting with no usual value
+  if (settings !== [...Object.keys(APP_DEFAULTS), 'seed', 'tileMode'].sort().join()) fail('defaults', `the settings Claude can give are [${settings}]`);
+  if (/id="tileMode"[^>]*checked/.test(html) || 'tileMode' in APP_DEFAULTS) fail('defaults', 'tile mode should start off, as on the page');
   // a call with only a seed makes the dungeon the page makes with its starting values
   const { tools, done } = freshTools();
   const viaTool = tools.generate_dungeon.run({ seed: 'same-as-page', picture: false });

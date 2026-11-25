@@ -105,6 +105,7 @@
     for (const f of FIELDS) params[f] = $(f).value;
     params.connectionType = $('connectionTypeSelect').value;
     params.edgeEntrancesOnly = $('edgeEntrancesOnly').checked;
+    params.tileMode = $('tileMode').checked;
     params.roomShapes = shapeBoxes().filter((box) => box.checked).map((box) => box.value);
     params.hallTypes = hallBoxes().filter((box) => box.checked).map((box) => box.value);
     params.hallDoors = $('hallDoorsSelect').value;
@@ -310,6 +311,20 @@
     $('edgeOnlyHint').textContent = on
       ? 'Entrances are doors in the outer walls.'
       : 'Entrances can be in any room. Rooms buried inside get a stairway to the surface.';
+  }
+
+  // Tile mode builds only what the printed dungeon tiles can make, so the room size, shape and hallway width inputs it sets
+  // itself are switched off while it is on.
+  const TILE_LOCKED = ['avgRoomSize', 'minRoomWidth', 'minRoomLength', 'sizeVariance', 'hallWidth'];
+  function updateTileModeHint() {
+    const on = $('tileMode').checked;
+    $('tileModeState').textContent = on ? 'On' : 'Off';
+    $('tileModeHint').textContent = on
+      ? 'Only what the printed tiles can build: 5x5 rooms with centered doorways, and 5 ft hallways.'
+      : 'Off: rooms take any size and shape.';
+    for (const f of TILE_LOCKED) $(f).disabled = on;
+    for (const box of shapeBoxes()) box.disabled = on;
+    for (const id of ['shapesAll', 'shapesNone']) if ($(id)) $(id).disabled = on;
   }
 
   function row(label, value) {
@@ -964,6 +979,7 @@
   $('connectionTypeSelect').addEventListener('change', updateRandomnessHint);
 
   $('edgeEntrancesOnly').addEventListener('change', updateEdgeOnlyHint);
+  $('tileMode').addEventListener('change', updateTileModeHint);
 
   for (const box of shapeBoxes()) box.addEventListener('change', updateShapesHint);
   $('shapesAll').addEventListener('click', () => {
@@ -1356,12 +1372,14 @@
     if (form.spacing !== undefined) setSelect('spacingSelect', form.spacing);
     if (form.layout !== undefined) setSelect('layoutSelect', form.layout);
     if (form.edgeEntrancesOnly !== undefined) $('edgeEntrancesOnly').checked = form.edgeEntrancesOnly;
+    $('tileMode').checked = form.tileMode === true; // (off unless the link or kept settings say on)
     if (form.roomShapes !== undefined) for (const box of shapeBoxes()) box.checked = form.roomShapes.includes(box.value);
     if (form.hallTypes !== undefined) for (const box of hallBoxes()) box.checked = form.hallTypes.includes(box.value);
     // a link without a seed asks for a random dungeon, not whatever is left in the box
     $('seed').value = form.seed !== undefined ? form.seed : '';
     updateHints();
     updateEdgeOnlyHint();
+    updateTileModeHint();
     updateShapesHint();
   }
 

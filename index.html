@@ -112,6 +112,16 @@
               <p class="error" id="err-roomCount" role="alert"></p>
             </div>
 
+            <div class="field toggle-field">
+              <label class="switch" for="tileMode">
+                <span class="switch-title">Tile mode</span>
+                <input type="checkbox" id="tileMode" name="tileMode" role="switch" aria-describedby="tileModeHint">
+                <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+                <span class="switch-state" id="tileModeState" aria-hidden="true">Off</span>
+              </label>
+              <p class="tip" role="tooltip" id="tileModeHint">Off: rooms take any size and shape.</p>
+            </div>
+
             <div class="field">
               <label for="avgRoomSize">Average room size</label>
               <div class="with-suffix">

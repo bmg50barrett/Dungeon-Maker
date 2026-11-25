@@ -52,6 +52,9 @@
     levelStairs: [1, 10],
   };
 
+  /** Side of the square rooms tile mode makes, in squares: the printed room tiles are 5x5 (25 ft). */
+  const TILE_ROOM_SIZE = 5;
+
   /** Used when a caller does not supply connectionRandomness: 14% is the nearest whole percent to 1 in 7. */
   const DEFAULT_CONNECTION_RANDOMNESS = 14;
 
@@ -287,6 +290,23 @@
       params.layout = layout;
     } else {
       errors.layout = `Layout must be one of: ${DM.LAYOUTS.join(', ')}.`;
+    }
+    // Tile mode: build only what the printed dungeon tiles can make. Every room is a 5x5 square with its doorways centered in
+    // the walls, and hallways are 1 square (5 ft) wide, so the settings for room size, shape and hallway width are set to match.
+    // (Left out of the settings when off, so dungeons made without it are unchanged.)
+    const tileMode = raw.tileMode === undefined || raw.tileMode === null ? false : raw.tileMode;
+    if (typeof tileMode !== 'boolean') {
+      errors.tileMode = 'Tile mode must be true or false.';
+    } else if (tileMode) {
+      params.tileMode = true;
+      params.avgRoomSize = TILE_ROOM_SIZE * TILE_ROOM_SIZE;
+      params.minRoomWidth = TILE_ROOM_SIZE;
+      params.minRoomLength = TILE_ROOM_SIZE;
+      params.sizeVariance = 0;
+      params.hallWidth = 1;
+      params.roomShapes = ['rect'];
+      delete errors.avgRoomSize; delete errors.minRoomWidth; delete errors.minRoomLength;
+      delete errors.sizeVariance; delete errors.hallWidth; delete errors.roomShapes;
     }
     params.seed = raw.seed === undefined || raw.seed === null || String(raw.seed).trim() === '' ? null : String(raw.seed).trim();
     return { ok: Object.keys(errors).length === 0, errors, params };
@@ -562,6 +582,13 @@
           edges.push(edge);
           if (interior) interiorEdges.push(edge);
         }
+      }
+
+      // a tile room takes doors only in the middle of each wall (see DM.makeTileRoom)
+      if (shape.tile) {
+        const centered = (e) => (e.d === 0 || e.d === 2 ? (e.x - ox) * 2 === shape.w - 1 : (e.y - oy) * 2 === shape.h - 1);
+        edges.splice(0, edges.length, ...edges.filter(centered));
+        interiorEdges.splice(0, interiorEdges.length, ...interiorEdges.filter(centered));
       }
 
       // perim: the cells with a wall on them, which are all that matter for how near two rooms are
@@ -1818,7 +1845,9 @@
 
     connectByDoor(a, b) {
       const { rng, W, occ } = this;
-      const shared = a.edges.filter((e) => occ[(e.y + DY[e.d]) * W + e.x + DX[e.d]] === b.id + 1);
+      let shared = a.edges.filter((e) => occ[(e.y + DY[e.d]) * W + e.x + DX[e.d]] === b.id + 1);
+      // a tile room's doorway has to be in the middle of its wall on its own side too, so the two doors line up
+      if (b.shape.tile) shared = shared.filter((e) => b.edges.some((f) => f.x === e.x + DX[e.d] && f.y === e.y + DY[e.d] && f.d === OPP[e.d]));
       if (shared.length === 0) return false;
       const interior = shared.filter((e) => e.interior);
       const e = rng.pick(interior.length > 0 ? interior : shared);
@@ -2345,11 +2374,11 @@
     const sampleArea = makeAreaSampler(rng, base, (base * params.sizeVariance) / 100, minRoomWidth * minRoomLength);
     const shapes = [];
     for (let i = 0; i < params.roomCount; i++) {
-      shapes.push(DM.makeRoomShape(rng, sampleArea(), params.roomShapes, minRoomWidth, minRoomLength));
+      shapes.push(params.tileMode ? DM.makeTileRoom(TILE_ROOM_SIZE) : DM.makeRoomShape(rng, sampleArea(), params.roomShapes, minRoomWidth, minRoomLength));
     }
 
     // every room shape that is switched on turns up at least once (where there are rooms enough, and a room big enough for it)
-    ensureEachShape(new DM.Rng(`${seed}:shapes`), shapes, params);
+    if (!params.tileMode) ensureEachShape(new DM.Rng(`${seed}:shapes`), shapes, params);
 
     // a radial dungeon has its biggest room in the middle, as the hub
     if (params.layout === 'radial') {

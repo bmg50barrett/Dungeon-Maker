@@ -375,7 +375,26 @@
     return finishShape(built);
   }
 
+  /**
+   * A room for tile mode: a size x size square (5 by default, matching the printed 5x5 room tiles) whose only door spots are
+   * the middle square of each wall, so every doorway it gets is centered. `tile` marks it, so the generator keeps doors placed
+   * on it centered too.
+   */
+  function makeTileRoom(size = 5) {
+    const shape = finishShape({ g: fullGrid(size, size), W: size, H: size, kind: 'rect' });
+    const mid = (size - 1) / 2;
+    shape.open = shape.open.map((list, d) =>
+      list.filter((i) => {
+        const [x, y] = shape.cells[i];
+        return d === 0 || d === 2 ? x === mid : y === mid;
+      })
+    );
+    shape.tile = true;
+    return shape;
+  }
+
   DM.makeRoomShape = makeRoomShape;
+  DM.makeTileRoom = makeTileRoom;
   DM.isValidShape = isValidShape; // exposed for tests
   DM.SHAPE_KINDS = KIND_NAMES;
   /** Smallest room area (squares) at which each shape is offered; below it, only rectangles fit. */
