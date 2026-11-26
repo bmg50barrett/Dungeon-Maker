@@ -111,7 +111,7 @@ console.log('== defaults: the same as the page');
   if (JSON.stringify(DM.formDefaults()) !== JSON.stringify(APP_DEFAULTS)) fail('defaults', `the share links' usual values ${JSON.stringify(DM.formDefaults())} differ from the page's ${JSON.stringify(APP_DEFAULTS)}`);
   const settings = Object.keys(SETTINGS).sort().join();
   // tile mode and building mode (with its footprint and circulation) are off unless given, so dungeons made without them carry none of them
-  if (settings !== [...Object.keys(APP_DEFAULTS), 'seed', 'tileMode', 'building', 'footprint', 'circulation'].sort().join()) fail('defaults', `the settings Claude can give are [${settings}]`);
+  if (settings !== [...Object.keys(APP_DEFAULTS), 'seed', 'tileMode', 'tileSizes', 'building', 'footprint', 'circulation'].sort().join()) fail('defaults', `the settings Claude can give are [${settings}]`);
   if (/id="tileMode"[^>]*checked/.test(html) || 'tileMode' in APP_DEFAULTS) fail('defaults', 'tile mode should start off, as on the page');
   // a call with only a seed makes the dungeon the page makes with its starting values
   const { tools, done } = freshTools();
@@ -1032,6 +1032,14 @@ console.log('== tile list');
   const one = tools.tile_list.run({ doubleSided: true }).text;
   if (one.includes('single-sided') || !one.includes('double-sided')) fail('tile list', 'doubleSided:true should give only the double-sided plan');
   try { tools.tile_list.run({ doubleSided: 'yes' }); fail('tile list', 'doubleSided "yes" was accepted'); } catch (err) { if (!/true or false/.test(err.message)) fail('tile list', `odd refusal: ${err.message}`); }
+  // long room tiles: asked for, built, and listed from the long room files
+  tools.generate_dungeon.run({ seed: 'long-mcp', roomCount: 10, entrances: 1, tileMode: true, tileSizes: ['5x6', '5x7'], picture: false });
+  const longList = tools.tile_list.run({}).text;
+  if (!/Room 1: R5[67]-/.test(longList) || /Room \d+: R(4P|5)-/.test(longList)) fail('tile list', `a 5x6 and 5x7 dungeon should list only long room tiles: ${longList.slice(0, 200)}`);
+  if (!/5x[67] Room/.test(longList)) fail('tile list', 'the print plan should use the long room files');
+  if (/no tile/.test(longList)) fail('tile list', `every long room should have a tile: ${longList.slice(0, 300)}`);
+  const badSize = toolError(() => tools.generate_dungeon.run({ seed: 'bad', roomCount: 4, tileMode: true, tileSizes: ['6x6'], picture: false }));
+  if (!badSize) fail('tile list', 'an unknown room tile size should be refused');
   tools.generate_dungeon.run({ seed: 'plain-mcp', roomCount: 6, roomShapes: ['L'], picture: false });
   const plain = tools.tile_list.run({}).text;
   if (!plain.startsWith('This dungeon was not made with tileMode') || !plain.includes('no tile has that shape')) fail('tile list', 'a dungeon without tileMode should be called out, with its rooms listed as having no tile');

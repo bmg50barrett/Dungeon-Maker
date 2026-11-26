@@ -376,21 +376,23 @@
   }
 
   /**
-   * The one square on each wall of a size x size tile room that may take a door, as matched by the printed room tiles:
-   * k squares in from the wall's left end going clockwise round the room, where k = floor((size - 1) / 2). On an odd room
-   * (5x5) that is the middle of the wall; on an even one (4x4) a 5 ft door cannot be in the middle, so it sits one square
-   * clockwise of it, and the doors make a pinwheel. Every door following the one rule is what lets 5 tile layouts cover
-   * every room once a tile is turned. (x, y) is the square inside the room, d the wall it is on (0 N, 1 E, 2 S, 3 W).
+   * The one square on each wall of a w x h tile room that may take a door, as matched by the printed room tiles: k squares
+   * in from the wall's left end going clockwise round the room, where k = floor((length - 1) / 2) for that wall's length.
+   * On an odd wall (5 or 7 long) that is the middle of the wall; on an even one (4 or 6) a 5 ft door cannot be in the
+   * middle, so it sits one square clockwise of it, and the doors make a pinwheel. The rule reads the same from every wall,
+   * so it holds however the tile is turned, which is what lets a few tile layouts cover every room. (x, y) is the square
+   * inside the room, d the wall it is on (0 N, 1 E, 2 S, 3 W).
    */
-  function isTileDoor(size, x, y, d) {
-    const k = Math.floor((size - 1) / 2);
-    return [x === k, y === k, x === size - 1 - k, y === size - 1 - k][d];
+  function isTileDoor(w, h, x, y, d) {
+    const kw = Math.floor((w - 1) / 2);
+    const kh = Math.floor((h - 1) / 2);
+    return [x === kw, y === kh, x === w - 1 - kw, y === h - 1 - kh][d];
   }
 
-  /** A room for tile mode: a size x size square (4 or 5, as the printed room tiles) whose only door spots are those of isTileDoor. */
-  function makeTileRoom(size = 5) {
-    const shape = finishShape({ g: fullGrid(size, size), W: size, H: size, kind: 'rect' });
-    shape.open = shape.open.map((list, d) => list.filter((i) => isTileDoor(size, shape.cells[i][0], shape.cells[i][1], d)));
+  /** A room for tile mode: a w x h rectangle (as the printed room tiles) whose only door spots are those of isTileDoor. */
+  function makeTileRoom(w = 5, h = w) {
+    const shape = finishShape({ g: fullGrid(w, h), W: w, H: h, kind: 'rect' });
+    shape.open = shape.open.map((list, d) => list.filter((i) => isTileDoor(w, h, shape.cells[i][0], shape.cells[i][1], d)));
     shape.tile = true;
     return shape;
   }

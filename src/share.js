@@ -92,7 +92,11 @@
     if (params.connectionType && differs('connectionType')) parts.push(pair('conn', params.connectionType));
     if (typeof params.edgeEntrancesOnly === 'boolean' && differs('edgeEntrancesOnly')) parts.push(pair('edge', params.edgeEntrancesOnly ? 1 : 0));
     // tile mode is off unless named, and only named when on (a dungeon made without it has no tileMode at all)
-    if (params.tileMode === true) parts.push(pair('tile', 1));
+    if (params.tileMode === true) {
+      parts.push(pair('tile', 1));
+      // the room tiles, when not the original 4x4 and 5x5 (a tile link without them always means those two)
+      if (Array.isArray(params.tileSizes) && params.tileSizes.join() !== '4x4,5x5') parts.push(pair('tsz', params.tileSizes.join(',')));
+    }
     // building mode is off unless named; its footprint and circulation go with it
     if (params.building === true) {
       parts.push(pair('bld', 1));
@@ -152,7 +156,10 @@
     if (q.get('shapes') !== null) accept('roomShapes', q.get('shapes').split(',').filter(Boolean));
     if (q.get('halls') !== null) accept('hallTypes', q.get('halls').split(',').filter(Boolean));
     if (q.get('edge') === '1' || q.get('edge') === '0') form.edgeEntrancesOnly = q.get('edge') === '1';
-    if (q.get('tile') === '1') form.tileMode = true;
+    if (q.get('tile') === '1') {
+      form.tileMode = true;
+      form.tileSizes = q.get('tsz') ? q.get('tsz').split(',') : ['4x4', '5x5'];
+    }
     if (q.get('bld') === '1') {
       form.building = true;
       form.footprint = q.get('fp') || 'rect';

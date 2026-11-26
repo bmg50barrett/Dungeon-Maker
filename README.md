@@ -41,7 +41,8 @@ Duckweed's Aeldara is a printed-book look: parchment, ink, and two accents, wine
 | Building | On / Off (default Off) | At the top of the Layout column. On: the dungeon is laid out like architecture, with a neat outline cut into rooms that share walls; see *Building mode* below. Two dropdowns appear under it, Footprint and Circulation. While it is on, Overall layout, Room spacing, Room shapes, Connections and Hallway types are switched off (and tinted), and Building and Tile mode cannot both be on: switching one on switches the other off |
 | Overall layout | A dropdown: Random / Cathedral / Ring / Spiral / Gauntlet / Radial / Main St. / Square / Long / Wide (default Random) | The shape the dungeon as a whole leans towards; see below. Hover over it (or focus it) and a tip says what the one chosen does |
 | Room count | 1-99 | Number of rooms |
-| Tile mode | On / Off (default Off) | In the Rooms column. On: build only what the printed [Dungeon Tiles](https://github.com/bmg50barrett/Dungeon-Tiles) can make; see *Tile mode* below. While it is on, the room size, room shape and hallway width inputs are switched off |
+| Tile mode | On / Off (default Off) | In the Rooms column. On: build only what the printed [Dungeon Tiles](https://github.com/bmg50barrett/Dungeon-Tiles) can make; see *Tile mode* below. While it is on, the room size, room shape and hallway width inputs are switched off, and the Room tiles chips appear under it |
+| Room tiles | 4x4, 5x5, 5x6, 5x7, at least one (default 4x4 and 5x5) | Shown while Tile mode is on. Which printed room tiles to build from; rooms are picked evenly among the sizes that are on, and a 5x6 or 5x7 room can lie either way round |
 | Average room size | 1-999 | Mean room area, in grid squares (1 square = 5 ft x 5 ft) |
 | Minimum room size: width and length | 1-30 each (default 3 x 3 on the page and for Claude) | The least a room can measure across the map (width) and up and down it (length): 3 x 8 means every room is at least 3 wide and 8 long. 1 x 1 means no minimum (and is what the generator uses when a program leaves the minimum out) |
 | Room size variance | 0-100 | Standard deviation of room area, as a % of the average |
@@ -86,20 +87,25 @@ larger than asked. Hallway lengths follow the size rooms are built around. A min
 Tile mode makes dungeons you can lay out on the table with the printed
 [Dungeon Tiles](https://github.com/bmg50barrett/Dungeon-Tiles) room sets, one tile per room and hallway.
 
-- Every room is a 4x4 (20 ft) or 5x5 (25 ft) square, like the room tiles, picked at random for each room (about half and
-  half). Average room size, minimum room size, size variance, room shapes and hallway width are ignored (and switched off on
+- Every room is the size of a room tile, picked at random for each room from the **Room tiles** that are on: 4x4 (20 ft)
+  and 5x5 (25 ft) squares, and the long 5x6 (25 x 30 ft) and 5x7 (25 x 35 ft) rooms, which can lie either way round. Only
+  4x4 and 5x5 are on to begin with, since those are the tiles printed first; switch on the long ones once you have printed
+  them. Average room size, minimum room size, size variance, room shapes and hallway width are ignored (and switched off on
   the page).
-- Every doorway is where the room tiles have one. On a 5x5 room that is the middle square of the wall. On a 4x4 room a 5 ft
-  door cannot sit in the middle, so it is one square clockwise of the middle: one square in from the wall's left end,
-  going clockwise round the room, so the doors make a pinwheel. That holds for doorways into hallways, for entrances, and
+- Every doorway is where the room tiles have one: as near the middle of the wall as a 5 ft door can get. On an odd-length
+  wall (5 or 7 squares) that is the middle square. On an even one (4 or 6) a door cannot sit in the middle, so it is one
+  square clockwise of the middle, and the doors make a pinwheel. That holds for doorways into hallways, for entrances, and
   for doorways joining two rooms directly; two rooms joined by a doorway sit so both rooms' doors line up.
-- Because every door follows that one rule, 5 tile layouts per room size (1 door, 2 opposite, 2 at a corner, 3, 4) cover
-  every room once the tile is turned.
+- Because every door follows that one rule, a few tile layouts cover every room once the tile is turned: 5 for each square
+  size (1 door, 2 opposite, 2 at a corner, 3, 4) and 9 for each long size, since a long tile only matches itself turned
+  end for end.
 - Hallways are 1 square (5 ft) wide, like the hallway tiles.
 - A room has only 4 places for a door, one on each wall. A big dungeon, especially a Radial one, where every hallway runs out
   of the one hub room, can run out of places to hang rooms; it then has fewer rooms than asked for and says so.
 - A shared link keeps tile mode (`tile=1`), and the saved settings record it as `tileMode`. A dungeon made without it has no
-  `tileMode` at all, so older dungeons and links are unchanged.
+  `tileMode` at all, so older dungeons and links are unchanged. The room tiles go in the link as `tsz=` (and in the settings
+  as `tileSizes`) only when they are not the original 4x4 and 5x5, so a tile link made before the long rooms still builds
+  the same dungeon.
 - Edit mode does not hold you to it: a room you resize or a door you move by hand can leave tile sizes behind.
 
 ### Building mode

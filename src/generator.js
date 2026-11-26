@@ -52,8 +52,14 @@
     levelStairs: [1, 10],
   };
 
-  /** The square rooms tile mode makes, in squares across: the printed room tiles come 4x4 (20 ft) and 5x5 (25 ft). */
-  const TILE_ROOM_SIZES = [4, 5];
+  /**
+   * The rooms tile mode can make, as the printed room tiles come: width x length in squares (a long room can be turned
+   * either way). A dungeon uses the ones in params.tileSizes; with none named it uses the first two, the original square
+   * tiles, so older tile dungeons and links come out as they always did.
+   */
+  const TILE_ROOM_SIZES = ['4x4', '5x5', '5x6', '5x7'];
+  const TILE_SIZES_DEFAULT = ['4x4', '5x5'];
+  const tileDims = (id) => id.split('x').map(Number);
 
   /** Used when a caller does not supply connectionRandomness: 14% is the nearest whole percent to 1 in 7. */
   const DEFAULT_CONNECTION_RANDOMNESS = 14;
@@ -291,7 +297,7 @@
     } else {
       errors.layout = `Layout must be one of: ${DM.LAYOUTS.join(', ')}.`;
     }
-    // Tile mode: build only what the printed dungeon tiles can make. Every room is a 4x4 or 5x5 square with its doorways where
+    // Tile mode: build only what the printed dungeon tiles can make. Every room is a room tile's size (4x4 or 5x5 unless tileSizes says) with its doorways where
     // the room tiles have them (see DM.isTileDoor), and hallways are 1 square (5 ft) wide, so the settings for room size, shape and hallway width are set to match.
     // (Left out of the settings when off, so dungeons made without it are unchanged.)
     const tileMode = raw.tileMode === undefined || raw.tileMode === null ? false : raw.tileMode;
@@ -299,9 +305,17 @@
       errors.tileMode = 'Tile mode must be true or false.';
     } else if (tileMode) {
       params.tileMode = true;
-      params.avgRoomSize = Math.round(TILE_ROOM_SIZES.reduce((a, n) => a + n * n, 0) / TILE_ROOM_SIZES.length);
-      params.minRoomWidth = Math.min(...TILE_ROOM_SIZES);
-      params.minRoomLength = Math.min(...TILE_ROOM_SIZES);
+      // which room tiles to build from (in the order of TILE_ROOM_SIZES); left out of the settings when it is the original two
+      let sizes = raw.tileSizes === undefined || raw.tileSizes === null ? TILE_SIZES_DEFAULT : raw.tileSizes;
+      if (!Array.isArray(sizes) || sizes.length === 0 || sizes.some((t) => !TILE_ROOM_SIZES.includes(t))) {
+        errors.tileSizes = Array.isArray(sizes) && sizes.length === 0 ? 'Switch on at least one room tile.' : `Room tiles must be one or more of ${TILE_ROOM_SIZES.join(', ')}.`;
+        sizes = TILE_SIZES_DEFAULT;
+      }
+      sizes = TILE_ROOM_SIZES.filter((t) => sizes.includes(t));
+      if (sizes.join() !== TILE_SIZES_DEFAULT.join()) params.tileSizes = sizes;
+      params.avgRoomSize = Math.round(sizes.reduce((a, t) => a + tileDims(t)[0] * tileDims(t)[1], 0) / sizes.length);
+      params.minRoomWidth = Math.min(...sizes.map((t) => tileDims(t)[0]));
+      params.minRoomLength = Math.min(...sizes.map((t) => tileDims(t)[0]));
       params.sizeVariance = 0;
       params.hallWidth = 1;
       params.roomShapes = ['rect'];
@@ -605,7 +619,7 @@
 
       // a tile room takes doors only where the room tiles have them (see DM.isTileDoor)
       if (shape.tile) {
-        const centered = (e) => DM.isTileDoor(shape.w, e.x - ox, e.y - oy, e.d);
+        const centered = (e) => DM.isTileDoor(shape.w, shape.h, e.x - ox, e.y - oy, e.d);
         edges.splice(0, edges.length, ...edges.filter(centered));
         interiorEdges.splice(0, interiorEdges.length, ...interiorEdges.filter(centered));
       }
@@ -2403,7 +2417,13 @@
     // (tile mode picks each room's size from a stream of numbers of its own)
     const tileRng = params.tileMode ? new DM.Rng(`${seed}:tilesizes`) : null;
     for (let i = 0; i < params.roomCount; i++) {
-      shapes.push(params.tileMode ? DM.makeTileRoom(tileRng.pick(TILE_ROOM_SIZES)) : DM.makeRoomShape(rng, sampleArea(), params.roomShapes, minRoomWidth, minRoomLength));
+      if (params.tileMode) {
+        // a long tile room is turned either way at random (a square one needs no turning, so square-only dungeons are as before)
+        const [a, b] = tileDims(tileRng.pick(params.tileSizes || TILE_SIZES_DEFAULT));
+        shapes.push(a !== b && tileRng.chance(0.5) ? DM.makeTileRoom(b, a) : DM.makeTileRoom(a, b));
+      } else {
+        shapes.push(DM.makeRoomShape(rng, sampleArea(), params.roomShapes, minRoomWidth, minRoomLength));
+      }
     }
 
     // every room shape that is switched on turns up at least once (where there are rooms enough, and a room big enough for it)
@@ -2990,6 +3010,7 @@
   DM.GENERATOR_CONFIG = CONFIG;
   DM.hallSettings = hallSettings; // hallway distances for a given average room size (exposed for tests)
   DM.validateParams = validateParams;
+  DM.TILE_ROOM_SIZES = TILE_ROOM_SIZES;
   DM.generateDungeon = generateDungeon;
   DM.DIRS = { DX, DY, OPP };
 

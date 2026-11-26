@@ -4267,12 +4267,15 @@ console.log('== statistics');
   let dungeons = 0;
   let doorsChecked = 0;
   let shortfalls = 0;
-  const centered = (room, x, y, d) => DM.isTileDoor(room.bbox.w, x - room.bbox.x, y - room.bbox.y, d);
+  const centered = (room, x, y, d) => DM.isTileDoor(room.bbox.w, room.bbox.h, x - room.bbox.x, y - room.bbox.y, d);
   const sizesSeen = {};
   const floorsOf = (dun) => [dun, ...(dun.floors || [])];
   for (let i = 0; i < 300; i++) {
     const raw = { ...randomParams(rng), tileMode: true, layout: rng.pick(DM.LAYOUTS), seed: `tile-${i}` };
     if (rng.chance(0.15)) Object.assign(raw, { levels: rng.int(2, 3), levelStairs: rng.int(1, 2) });
+    // half the dungeons build from a set of room tiles that includes the long ones (none named means 4x4 and 5x5)
+    if (i % 2) { const pickd = DM.TILE_ROOM_SIZES.filter(() => rng.chance(0.6)); raw.tileSizes = pickd.length ? pickd : ['5x7']; }
+    const allowed = raw.tileSizes || ['4x4', '5x5'];
     const v = DM.validateParams(raw);
     if (!v.ok) { fail(`tile ${i}`, `settings rejected: ${JSON.stringify(v.errors)}`); continue; }
     const dun = DM.generateDungeon(raw);
@@ -4285,9 +4288,11 @@ console.log('== statistics');
     for (const fl of floorsOf(dun)) {
       const byId = new Map(fl.rooms.map((r) => [r.id, r]));
       for (const r of fl.rooms) {
-        const ok = (r.bbox.w === 4 || r.bbox.w === 5) && r.bbox.h === r.bbox.w && r.area === r.bbox.w * r.bbox.w;
-        if (!ok) fail(`tile ${i}`, `room ${r.id} is ${r.bbox.w}x${r.bbox.h} (${r.area} squares), not 4x4 or 5x5`);
-        sizesSeen[`${r.bbox.w}x${r.bbox.h}`] = (sizesSeen[`${r.bbox.w}x${r.bbox.h}`] || 0) + 1;
+        const size = [r.bbox.w, r.bbox.h].sort((a, b) => a - b).join('x');
+        const ok = allowed.includes(size) && r.area === r.bbox.w * r.bbox.h;
+        if (!ok) fail(`tile ${i}`, `room ${r.id} is ${r.bbox.w}x${r.bbox.h} (${r.area} squares), not one of ${allowed.join(', ')}`);
+        sizesSeen[size] = (sizesSeen[size] || 0) + 1;
+        if (r.bbox.w !== r.bbox.h) sizesSeen[r.bbox.w < r.bbox.h ? 'tall' : 'wide'] = (sizesSeen[r.bbox.w < r.bbox.h ? 'tall' : 'wide'] || 0) + 1;
       }
       for (const c of fl.connections) {
         for (const o of c.openings) {
@@ -4325,11 +4330,26 @@ console.log('== statistics');
   const plain = DM.generateDungeon({ roomCount: 8, avgRoomSize: 30, sizeVariance: 30, entrances: 1, connectionType: 'hall', seed: 'tile-off' });
   if ('tileMode' in plain.params) fail('tile mode', 'tile mode shows up in the settings of a dungeon made without it');
   console.log(`  ${dungeons} dungeons, ${doorsChecked} doorways checked, ${shortfalls} could not fit every room (warned); room sizes ${JSON.stringify(sizesSeen)}`);
-  if (!sizesSeen['4x4'] || !sizesSeen['5x5']) fail('tile mode', `tile mode should make both 4x4 and 5x5 rooms, made ${JSON.stringify(sizesSeen)}`);
+  for (const k of ['4x4', '5x5', '5x6', '5x7', 'tall', 'wide']) if (!sizesSeen[k]) fail('tile mode', `tile mode should make every room tile size, both ways round, made ${JSON.stringify(sizesSeen)}`);
+  // room tiles: the original two unless named, kept out of the settings then, and checked
+  const tv = (extra) => DM.validateParams({ roomCount: 5, avgRoomSize: 20, sizeVariance: 0, entrances: 1, connectionType: 'hall', tileMode: true, ...extra });
+  if ('tileSizes' in tv({}).params) fail('tile mode', 'the original room tiles should not be written into the settings');
+  if ('tileSizes' in tv({ tileSizes: ['5x5', '4x4'] }).params) fail('tile mode', '4x4 and 5x5 named in another order are still the original two');
+  if (tv({ tileSizes: ['5x7', '4x4'] }).params.tileSizes.join() !== '4x4,5x7') fail('tile mode', 'room tiles should be put in their usual order');
+  for (const bad of [[], ['3x3'], '5x6', ['5x6', 'big']]) if (tv({ tileSizes: bad }).ok) fail('tile mode', `room tiles ${JSON.stringify(bad)} should be refused`);
+  if ('tileSizes' in DM.validateParams({ roomCount: 5, avgRoomSize: 20, sizeVariance: 0, entrances: 1, connectionType: 'hall', tileSizes: ['5x6'] }).params) fail('tile mode', 'room tiles should be left out when tile mode is off');
+  const longOnly = DM.generateDungeon({ roomCount: 10, avgRoomSize: 20, sizeVariance: 0, entrances: 1, connectionType: 'hall', tileMode: true, tileSizes: ['5x6'], seed: 'long-only' });
+  if (longOnly.rooms.some((r) => [r.bbox.w, r.bbox.h].sort().join('x') !== '5x6')) fail('tile mode', 'only 5x6 rooms were asked for');
+  if (longOnly.params.minRoomWidth !== 5 || longOnly.params.avgRoomSize !== 30) fail('tile mode', `5x6 rooms only should set the room size to 30 and the minimum to 5, not ${longOnly.params.avgRoomSize} and ${longOnly.params.minRoomWidth}`);
   // the door spots themselves: the middle of each wall on a 5x5, one square clockwise of the middle on a 4x4
-  const spots = (n) => [0, 1, 2, 3].map((d) => { const out = []; for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const edge = [y === 0, x === n - 1, y === n - 1, x === 0][d]; if (edge && DM.isTileDoor(n, x, y, d)) out.push(`${x},${y}`); } return out.join(' '); }).join(' | ');
+  const spots = (n) => [0, 1, 2, 3].map((d) => { const out = []; for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const edge = [y === 0, x === n - 1, y === n - 1, x === 0][d]; if (edge && DM.isTileDoor(n, n, x, y, d)) out.push(`${x},${y}`); } return out.join(' '); }).join(' | ');
   if (spots(5) !== '2,0 | 4,2 | 2,4 | 0,2') fail('tile mode', `5x5 door spots are ${spots(5)}`);
   if (spots(4) !== '1,0 | 3,1 | 2,3 | 0,2') fail('tile mode', `4x4 door spots are ${spots(4)}`);
+  // and on the long rooms: as near the middle of each wall as a 5 ft door gets, read clockwise, either way round
+  const rspots = (w, h) => [0, 1, 2, 3].map((d) => { const out = []; for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const edge = [y === 0, x === w - 1, y === h - 1, x === 0][d]; if (edge && DM.isTileDoor(w, h, x, y, d)) out.push(`${x},${y}`); } return out.join(' '); }).join(' | ');
+  for (const [w, h, want] of [[5, 6, '2,0 | 4,2 | 2,5 | 0,3'], [6, 5, '2,0 | 5,2 | 3,4 | 0,2'], [5, 7, '2,0 | 4,3 | 2,6 | 0,3'], [7, 5, '3,0 | 6,2 | 3,4 | 0,2']]) {
+    if (rspots(w, h) !== want) fail('tile mode', `${w}x${h} door spots are ${rspots(w, h)}, not ${want}`);
+  }
   if (shortfalls > dungeons * 0.05) fail('tile mode', `${shortfalls} of ${dungeons} tile-mode dungeons could not fit every room`);
 }
 
@@ -4553,6 +4573,7 @@ console.log('== statistics');
       connectionRandomness: rng.pick([0, 14, 50]), hallTypes: rng.pick([undefined, ['short'], ['spine'], ['curly'], ['short', 'spine', 'curly', 'branching']]),
       edgeEntrancesOnly: rng.chance(0.8), spacing: rng.pick(DM.SPACINGS), layout: rng.pick(DM.LAYOUTS), seed: `tl-${i}` };
     if (rng.chance(0.15)) raw.levels = rng.int(2, 3);
+    if (i % 3) raw.tileSizes = rng.pick([['4x4', '5x5', '5x6', '5x7'], ['5x6', '5x7'], ['5x6'], ['5x7'], ['4x4', '5x7']]);
     const dun = DM.generateDungeon(raw);
     const list = DM.tileList(dun, cat);
     dungeons++;

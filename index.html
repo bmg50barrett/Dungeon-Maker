@@ -155,6 +155,18 @@
               <p class="tip" role="tooltip" id="tileModeHint">Off: rooms take any size and shape.</p>
             </div>
 
+            <fieldset class="field chip-group" id="tileSizes" aria-describedby="tileSizesHint err-tileSizes" hidden>
+              <legend>Room tiles</legend>
+              <div class="chips">
+                <label class="chip"><input type="checkbox" name="tileSize" value="4x4" checked><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8"/></svg>4x4</span></label>
+                <label class="chip"><input type="checkbox" name="tileSize" value="5x5" checked><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="3" width="10" height="10"/></svg>5x5</span></label>
+                <label class="chip"><input type="checkbox" name="tileSize" value="5x6"><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="2" width="10" height="12"/></svg>5x6</span></label>
+                <label class="chip"><input type="checkbox" name="tileSize" value="5x7"><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="1" width="10" height="14"/></svg>5x7</span></label>
+              </div>
+              <p class="tip" role="tooltip" id="tileSizesHint">The printed room tiles to build from. 5x6 and 5x7 rooms are turned either way.</p>
+              <p class="error" id="err-tileSizes" role="alert"></p>
+            </fieldset>
+
             <div class="field">
               <label for="avgRoomSize">Average room size</label>
               <div class="with-suffix">

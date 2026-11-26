@@ -106,6 +106,7 @@
     params.connectionType = $('connectionTypeSelect').value;
     params.edgeEntrancesOnly = $('edgeEntrancesOnly').checked;
     params.tileMode = $('tileMode').checked;
+    if (params.tileMode) params.tileSizes = tileSizeBoxes().filter((box) => box.checked).map((box) => box.value);
     params.building = $('building').checked;
     if (params.building) {
       params.footprint = $('footprintSelect').value;
@@ -122,6 +123,10 @@
 
   function shapeBoxes() {
     return Array.from(document.querySelectorAll('input[name="roomShape"]'));
+  }
+
+  function tileSizeBoxes() {
+    return Array.from(document.querySelectorAll('input[name="tileSize"]'));
   }
 
   function hallBoxes() {
@@ -142,6 +147,7 @@
     }
     showGroupError('roomShapes', errors.roomShapes || '');
     showGroupError('hallTypes', errors.hallTypes || '');
+    showGroupError('tileSizes', errors.tileSizes || '');
     showGroupError('hallDoors', errors.hallDoors || '');
     showGroupError('spacing', errors.spacing || '');
     showGroupError('layout', errors.layout || '');
@@ -329,13 +335,17 @@
     rooms: 'No corridors: rooms open into one another',
     mix: 'A corridor leading to a great hall (a three-sided cloister round a courtyard)',
   };
+  const listWords = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
   function updateModes() {
     const tile = $('tileMode').checked;
     const building = $('building').checked;
     $('tileModeState').textContent = tile ? 'On' : 'Off';
+    const sizes = tileSizeBoxes().filter((box) => box.checked).map((box) => box.value);
     $('tileModeHint').textContent = tile
-      ? 'Only what the printed tiles can build: 4x4 and 5x5 rooms with doors where the tiles have them, and 5 ft hallways.'
+      ? `Only what the printed tiles can build: ${sizes.length ? listWords(sizes) : 'the'} rooms with doors where the tiles have them, and 5 ft hallways.`
       : 'Off: rooms take any size and shape.';
+    $('tileSizes').hidden = !tile;
+    if (sizes.length) showGroupError('tileSizes', '');
     $('buildingState').textContent = building ? 'On' : 'Off';
     $('buildingHint').textContent = building
       ? 'Laid out like architecture: a neat outline cut into rooms that share walls.'
@@ -1020,6 +1030,7 @@
     updateModes();
   });
   $('footprintSelect').addEventListener('change', updateModes);
+  for (const box of tileSizeBoxes()) box.addEventListener('change', updateModes);
   $('circulationSelect').addEventListener('change', updateModes);
 
   for (const box of shapeBoxes()) box.addEventListener('change', updateShapesHint);
@@ -1489,6 +1500,8 @@
     if (form.edgeEntrancesOnly !== undefined) $('edgeEntrancesOnly').checked = form.edgeEntrancesOnly;
     $('tileMode').checked = form.tileMode === true; // (off unless the link or kept settings say on)
     $('building').checked = form.building === true && form.tileMode !== true; // (off unless said; never both)
+    const sizes = Array.isArray(form.tileSizes) ? form.tileSizes : ['4x4', '5x5']; // (the original square tiles unless said)
+    for (const box of tileSizeBoxes()) box.checked = sizes.includes(box.value);
     if (form.footprint !== undefined) setSelect('footprintSelect', form.footprint);
     if (form.circulation !== undefined) setSelect('circulationSelect', form.circulation);
     if (form.roomShapes !== undefined) for (const box of shapeBoxes()) box.checked = form.roomShapes.includes(box.value);

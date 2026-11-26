@@ -628,6 +628,476 @@
           ],
           "W": []
         }
+      },
+      "R56-1A": {
+        "name": "Room 5x6 (25x30 ft), 5 ft doors, 1 door, end",
+        "kind": "room",
+        "size": [
+          5,
+          6
+        ],
+        "door_width_ft": 5,
+        "openings": {
+          "N": [
+            [
+              2,
+              1
+            ]
+          ],
+          "E": [],
+          "S": [],
+          "W": []
+        }
+      },
+      "R56-1B": {
+        "name": "Room 5x6 (25x30 ft), 5 ft doors, 1 door, side",
+        "kind": "room",
+        "size": [
+          5,
+          6
+        ],
+        "door_width_ft": 5,
+        "openings": {
+          "N": [],
+          "E": [
+            [
+              2,
+              1
+            ]
+          ],
+          "S": [],
+          "W": []
+        }
+      },
+      "R56-2A": {
+        "name": "Room 5x6 (25x30 ft), 5 ft doors, 2 doors, both ends",
+        "kind": "room",
+        "size": [
+          5,
+          6
+        ],
+        "door_width_ft": 5,
+        "openings": {
+          "N": [
+            [
+              2,
+              1
+            ]
+          ],
+          "E": [],
+          "S": [
+            [
+              2,
+              1
+            ]
+          ],
+          "W": []
+        }
+      },
+      "R56-2B": {
+        "name": "Room 5x6 (25x30 ft), 5 ft doors, 2 doors, both sides",
+        "kind": "room",
+        "size": [
+          5,
+          6
+        ],
+        "door_width_ft": 5,
+        "openings": {
+          "N": [],
+          "E": [
+            [
+              2,
+              1
+            ]
+          ],
+          "S": [],
+          "W": [
+            [
+              2,
+              1
+            ]
+          ]
+        }
+      },
+      "R56-2C": {
+        "name": "Room 5x6 (25x30 ft), 5 ft doors, 2 doors, corner, right",
+        "kind": "room",
+        "size": [
+          5,
+          6
+        ],
+        "door_width_ft": 5,
+        "openings": {
+          "N": [
+            [
+              2,
+              1
+            ]
+          ],
+          "E": [
+            [
+              2,
+              1
+            ]
+          ],
+          "S": [],
+          "W": []
+        }
+      },
+      "R56-2D": {
+        "name": "Room 5x6 (25x30 ft), 5 ft doors, 2 doors, corner, left",
+        "kind": "room",
+        "size": [
+          5,
+          6
+        ],
+        "door_width_ft": 5,
+        "openings": {
+          "N": [
+            [
+              2,
+              1
+            ]
+          ],
+          "E": [],
+          "S": [],
+          "W": [
+            [
+              2,
+              1
+            ]
+          ]
+        }
+      },
+      "R56-3A": {
+        "name": "Room 5x6 (25x30 ft), 5 ft doors, 3 doors, both ends and a side",
+        "kind": "room",
+        "size": [
+          5,
+          6
+        ],
+        "door_width_ft": 5,
+        "openings": {
+          "N": [
+            [
+              2,
+              1
+            ]
+          ],
+          "E": [
+            [
+              2,
+              1
+            ]
+          ],
+          "S": [
+            [
+              2,
+              1
+            ]
+          ],
+          "W": []
+        }
+      },
+      "R56-3B": {
+        "name": "Room 5x6 (25x30 ft), 5 ft doors, 3 doors, both sides and an end",
+        "kind": "room",
+        "size": [
+          5,
+          6
+        ],
+        "door_width_ft": 5,
+        "openings": {
+          "N": [],
+          "E": [
+            [
+              2,
+              1
+            ]
+          ],
+          "S": [
+            [
+              2,
+              1
+            ]
+          ],
+          "W": [
+            [
+              2,
+              1
+            ]
+          ]
+        }
+      },
+      "R56-4": {
+        "name": "Room 5x6 (25x30 ft), 5 ft doors, 4 doors",
+        "kind": "room",
+        "size": [
+          5,
+          6
+        ],
+        "door_width_ft": 5,
+        "openings": {
+          "N": [
+            [
+              2,
+              1
+            ]
+          ],
+          "E": [
+            [
+              2,
+              1
+            ]
+          ],
+          "S": [
+            [
+              2,
+              1
+            ]
+          ],
+          "W": [
+            [
+              2,
+              1
+            ]
+          ]
+        }
+      },
+      "R57-1A": {
+        "name": "Room 5x7 (25x35 ft), 5 ft doors, 1 door, end",
+        "kind": "room",
+        "size": [
+          5,
+          7
+        ],
+        "door_width_ft": 5,
+        "openings": {
+          "N": [
+            [
+              2,
+              1
+            ]
+          ],
+          "E": [],
+          "S": [],
+          "W": []
+        }
+      },
+      "R57-1B": {
+        "name": "Room 5x7 (25x35 ft), 5 ft doors, 1 door, side",
+        "kind": "room",
+        "size": [
+          5,
+          7
+        ],
+        "door_width_ft": 5,
+        "openings": {
+          "N": [],
+          "E": [
+            [
+              3,
+              1
+            ]
+          ],
+          "S": [],
+          "W": []
+        }
+      },
+      "R57-2A": {
+        "name": "Room 5x7 (25x35 ft), 5 ft doors, 2 doors, both ends",
+        "kind": "room",
+        "size": [
+          5,
+          7
+        ],
+        "door_width_ft": 5,
+        "openings": {
+          "N": [
+            [
+              2,
+              1
+            ]
+          ],
+          "E": [],
+          "S": [
+            [
+              2,
+              1
+            ]
+          ],
+          "W": []
+        }
+      },
+      "R57-2B": {
+        "name": "Room 5x7 (25x35 ft), 5 ft doors, 2 doors, both sides",
+        "kind": "room",
+        "size": [
+          5,
+          7
+        ],
+        "door_width_ft": 5,
+        "openings": {
+          "N": [],
+          "E": [
+            [
+              3,
+              1
+            ]
+          ],
+          "S": [],
+          "W": [
+            [
+              3,
+              1
+            ]
+          ]
+        }
+      },
+      "R57-2C": {
+        "name": "Room 5x7 (25x35 ft), 5 ft doors, 2 doors, corner, right",
+        "kind": "room",
+        "size": [
+          5,
+          7
+        ],
+        "door_width_ft": 5,
+        "openings": {
+          "N": [
+            [
+              2,
+              1
+            ]
+          ],
+          "E": [
+            [
+              3,
+              1
+            ]
+          ],
+          "S": [],
+          "W": []
+        }
+      },
+      "R57-2D": {
+        "name": "Room 5x7 (25x35 ft), 5 ft doors, 2 doors, corner, left",
+        "kind": "room",
+        "size": [
+          5,
+          7
+        ],
+        "door_width_ft": 5,
+        "openings": {
+          "N": [
+            [
+              2,
+              1
+            ]
+          ],
+          "E": [],
+          "S": [],
+          "W": [
+            [
+              3,
+              1
+            ]
+          ]
+        }
+      },
+      "R57-3A": {
+        "name": "Room 5x7 (25x35 ft), 5 ft doors, 3 doors, both ends and a side",
+        "kind": "room",
+        "size": [
+          5,
+          7
+        ],
+        "door_width_ft": 5,
+        "openings": {
+          "N": [
+            [
+              2,
+              1
+            ]
+          ],
+          "E": [
+            [
+              3,
+              1
+            ]
+          ],
+          "S": [
+            [
+              2,
+              1
+            ]
+          ],
+          "W": []
+        }
+      },
+      "R57-3B": {
+        "name": "Room 5x7 (25x35 ft), 5 ft doors, 3 doors, both sides and an end",
+        "kind": "room",
+        "size": [
+          5,
+          7
+        ],
+        "door_width_ft": 5,
+        "openings": {
+          "N": [],
+          "E": [
+            [
+              3,
+              1
+            ]
+          ],
+          "S": [
+            [
+              2,
+              1
+            ]
+          ],
+          "W": [
+            [
+              3,
+              1
+            ]
+          ]
+        }
+      },
+      "R57-4": {
+        "name": "Room 5x7 (25x35 ft), 5 ft doors, 4 doors",
+        "kind": "room",
+        "size": [
+          5,
+          7
+        ],
+        "door_width_ft": 5,
+        "openings": {
+          "N": [
+            [
+              2,
+              1
+            ]
+          ],
+          "E": [
+            [
+              3,
+              1
+            ]
+          ],
+          "S": [
+            [
+              2,
+              1
+            ]
+          ],
+          "W": [
+            [
+              3,
+              1
+            ]
+          ]
+        }
       }
     },
     "editions": [
@@ -3751,6 +4221,1602 @@
           "R5-2C": 1,
           "R5-2O": 1,
           "R5-3": 1
+        }
+      },
+      {
+        "id": "rooms-5x6",
+        "name": "5x6 Rooms, 5 ft Doors",
+        "file": "pdf/Dungeon Tiles - 5x6 Rooms.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 5x6 Rooms Cut Guide.pdf",
+        "double_sided": false,
+        "sheets": 5,
+        "pieces": [
+          {
+            "faces": [
+              "R56-1A"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R56-1B"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "R56-2A"
+            ],
+            "sheet": 2,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R56-2B"
+            ],
+            "sheet": 2,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 2,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 2,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 2,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 2,
+            "at": [
+              7,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "R56-2C"
+            ],
+            "sheet": 3,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R56-2D"
+            ],
+            "sheet": 3,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 3,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 3,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 3,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 3,
+            "at": [
+              7,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "R56-3A"
+            ],
+            "sheet": 4,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R56-3B"
+            ],
+            "sheet": 4,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 4,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 4,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 4,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 4,
+            "at": [
+              7,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "R56-4"
+            ],
+            "sheet": 5,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R56-1B"
+            ],
+            "sheet": 5,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 5,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 5,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 5,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 5,
+            "at": [
+              7,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S5": 20,
+          "R56-1A": 1,
+          "R56-1B": 2,
+          "R56-2A": 1,
+          "R56-2B": 1,
+          "R56-2C": 1,
+          "R56-2D": 1,
+          "R56-3A": 1,
+          "R56-3B": 1,
+          "R56-4": 1
+        }
+      },
+      {
+        "id": "rooms-5x6-duplex",
+        "name": "5x6 Rooms, 5 ft Doors, Double-Sided",
+        "file": "pdf/Dungeon Tiles - 5x6 Rooms Double-Sided.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 5x6 Rooms Double-Sided Cut Guide.pdf",
+        "double_sided": true,
+        "sheets": 3,
+        "pieces": [
+          {
+            "faces": [
+              "R56-1A",
+              "R56-3A"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R56-1B",
+              "R56-3B"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "R56-1A",
+              "R56-2C"
+            ],
+            "sheet": 2,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R56-1B",
+              "R56-2D"
+            ],
+            "sheet": 2,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 2,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 2,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 2,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 2,
+            "at": [
+              7,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "R56-2A",
+              "R56-4"
+            ],
+            "sheet": 3,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R56-2B",
+              "R56-1A"
+            ],
+            "sheet": 3,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 3,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 3,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 3,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 3,
+            "at": [
+              7,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S5": 12,
+          "R56-1A": 3,
+          "R56-1B": 2,
+          "R56-2A": 1,
+          "R56-2B": 1,
+          "R56-2C": 1,
+          "R56-2D": 1,
+          "R56-3A": 1,
+          "R56-3B": 1,
+          "R56-4": 1
+        }
+      },
+      {
+        "id": "pack-5x6-a",
+        "name": "5x6 Room Pack A",
+        "file": "pdf/Dungeon Tiles - 5x6 Room Pack A.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 5x6 Room Pack A Cut Guide.pdf",
+        "double_sided": false,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "R56-1A"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R56-1B"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S5": 4,
+          "R56-1A": 1,
+          "R56-1B": 1
+        }
+      },
+      {
+        "id": "pack-5x6-b",
+        "name": "5x6 Room Pack B",
+        "file": "pdf/Dungeon Tiles - 5x6 Room Pack B.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 5x6 Room Pack B Cut Guide.pdf",
+        "double_sided": false,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "R56-2A"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R56-2B"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S5": 4,
+          "R56-2A": 1,
+          "R56-2B": 1
+        }
+      },
+      {
+        "id": "pack-5x6-c",
+        "name": "5x6 Room Pack C",
+        "file": "pdf/Dungeon Tiles - 5x6 Room Pack C.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 5x6 Room Pack C Cut Guide.pdf",
+        "double_sided": false,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "R56-2C"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R56-2D"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S5": 4,
+          "R56-2C": 1,
+          "R56-2D": 1
+        }
+      },
+      {
+        "id": "pack-5x6-duplex-a",
+        "name": "5x6 Room Pack, Double-Sided A",
+        "file": "pdf/Dungeon Tiles - 5x6 Room Pack Double-Sided A.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 5x6 Room Pack Double-Sided A Cut Guide.pdf",
+        "double_sided": true,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "R56-1A",
+              "R56-2A"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R56-1B",
+              "R56-2B"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S5": 4,
+          "R56-1A": 1,
+          "R56-1B": 1,
+          "R56-2A": 1,
+          "R56-2B": 1
+        }
+      },
+      {
+        "id": "pack-5x6-duplex-b",
+        "name": "5x6 Room Pack, Double-Sided B",
+        "file": "pdf/Dungeon Tiles - 5x6 Room Pack Double-Sided B.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 5x6 Room Pack Double-Sided B Cut Guide.pdf",
+        "double_sided": true,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "R56-1A",
+              "R56-2C"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R56-1B",
+              "R56-2D"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S5": 4,
+          "R56-1A": 1,
+          "R56-1B": 1,
+          "R56-2C": 1,
+          "R56-2D": 1
+        }
+      },
+      {
+        "id": "rooms-5x7",
+        "name": "5x7 Rooms, 5 ft Doors",
+        "file": "pdf/Dungeon Tiles - 5x7 Rooms.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 5x7 Rooms Cut Guide.pdf",
+        "double_sided": false,
+        "sheets": 5,
+        "pieces": [
+          {
+            "faces": [
+              "R57-1A"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R57-1B"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "R57-2A"
+            ],
+            "sheet": 2,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R57-2B"
+            ],
+            "sheet": 2,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 2,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 2,
+            "at": [
+              7,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "R57-2C"
+            ],
+            "sheet": 3,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R57-2D"
+            ],
+            "sheet": 3,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 3,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 3,
+            "at": [
+              7,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "R57-3A"
+            ],
+            "sheet": 4,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R57-3B"
+            ],
+            "sheet": 4,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 4,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 4,
+            "at": [
+              7,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "R57-4"
+            ],
+            "sheet": 5,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R57-1B"
+            ],
+            "sheet": 5,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 5,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 5,
+            "at": [
+              7,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S5": 10,
+          "R57-1A": 1,
+          "R57-1B": 2,
+          "R57-2A": 1,
+          "R57-2B": 1,
+          "R57-2C": 1,
+          "R57-2D": 1,
+          "R57-3A": 1,
+          "R57-3B": 1,
+          "R57-4": 1
+        }
+      },
+      {
+        "id": "rooms-5x7-duplex",
+        "name": "5x7 Rooms, 5 ft Doors, Double-Sided",
+        "file": "pdf/Dungeon Tiles - 5x7 Rooms Double-Sided.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 5x7 Rooms Double-Sided Cut Guide.pdf",
+        "double_sided": true,
+        "sheets": 3,
+        "pieces": [
+          {
+            "faces": [
+              "R57-1A",
+              "R57-3A"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R57-1B",
+              "R57-3B"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "R57-1A",
+              "R57-2C"
+            ],
+            "sheet": 2,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R57-1B",
+              "R57-2D"
+            ],
+            "sheet": 2,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 2,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 2,
+            "at": [
+              7,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "R57-2A",
+              "R57-4"
+            ],
+            "sheet": 3,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R57-2B",
+              "R57-1A"
+            ],
+            "sheet": 3,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 3,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 3,
+            "at": [
+              7,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S5": 6,
+          "R57-1A": 3,
+          "R57-1B": 2,
+          "R57-2A": 1,
+          "R57-2B": 1,
+          "R57-2C": 1,
+          "R57-2D": 1,
+          "R57-3A": 1,
+          "R57-3B": 1,
+          "R57-4": 1
+        }
+      },
+      {
+        "id": "pack-5x7-a",
+        "name": "5x7 Room Pack A",
+        "file": "pdf/Dungeon Tiles - 5x7 Room Pack A.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 5x7 Room Pack A Cut Guide.pdf",
+        "double_sided": false,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "R57-1A"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R57-1B"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S5": 2,
+          "R57-1A": 1,
+          "R57-1B": 1
+        }
+      },
+      {
+        "id": "pack-5x7-b",
+        "name": "5x7 Room Pack B",
+        "file": "pdf/Dungeon Tiles - 5x7 Room Pack B.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 5x7 Room Pack B Cut Guide.pdf",
+        "double_sided": false,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "R57-2A"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R57-2B"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S5": 2,
+          "R57-2A": 1,
+          "R57-2B": 1
+        }
+      },
+      {
+        "id": "pack-5x7-c",
+        "name": "5x7 Room Pack C",
+        "file": "pdf/Dungeon Tiles - 5x7 Room Pack C.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 5x7 Room Pack C Cut Guide.pdf",
+        "double_sided": false,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "R57-2C"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R57-2D"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S5": 2,
+          "R57-2C": 1,
+          "R57-2D": 1
+        }
+      },
+      {
+        "id": "pack-5x7-duplex-a",
+        "name": "5x7 Room Pack, Double-Sided A",
+        "file": "pdf/Dungeon Tiles - 5x7 Room Pack Double-Sided A.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 5x7 Room Pack Double-Sided A Cut Guide.pdf",
+        "double_sided": true,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "R57-1A",
+              "R57-2A"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R57-1B",
+              "R57-2B"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S5": 2,
+          "R57-1A": 1,
+          "R57-1B": 1,
+          "R57-2A": 1,
+          "R57-2B": 1
+        }
+      },
+      {
+        "id": "pack-5x7-duplex-b",
+        "name": "5x7 Room Pack, Double-Sided B",
+        "file": "pdf/Dungeon Tiles - 5x7 Room Pack Double-Sided B.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 5x7 Room Pack Double-Sided B Cut Guide.pdf",
+        "double_sided": true,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "R57-1A",
+              "R57-2C"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R57-1B",
+              "R57-2D"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5",
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S5": 2,
+          "R57-1A": 1,
+          "R57-1B": 1,
+          "R57-2C": 1,
+          "R57-2D": 1
         }
       }
     ]
