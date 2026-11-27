@@ -96,6 +96,7 @@
       parts.push(pair('tile', 1));
       // the room tiles, when not the original 4x4 and 5x5 (a tile link without them always means those two)
       if (Array.isArray(params.tileSizes) && params.tileSizes.join() !== '4x4,5x5') parts.push(pair('tsz', params.tileSizes.join(',')));
+      if (params.tileDoors === 'markers') parts.push(pair('tdoor', 'm'));
     }
     // building mode is off unless named; its footprint and circulation go with it
     if (params.building === true) {
@@ -159,6 +160,7 @@
     if (q.get('tile') === '1') {
       form.tileMode = true;
       form.tileSizes = q.get('tsz') ? q.get('tsz').split(',') : ['4x4', '5x5'];
+      form.tileDoors = q.get('tdoor') === 'm' ? 'markers' : 'printed';
     }
     if (q.get('bld') === '1') {
       form.building = true;

@@ -4267,15 +4267,20 @@ console.log('== statistics');
   let dungeons = 0;
   let doorsChecked = 0;
   let shortfalls = 0;
+  let offSpot = 0; // doorways away from the printed tiles' door spots (allowed only with door markers)
   const centered = (room, x, y, d) => DM.isTileDoor(room.bbox.w, room.bbox.h, x - room.bbox.x, y - room.bbox.y, d);
   const sizesSeen = {};
   const floorsOf = (dun) => [dun, ...(dun.floors || [])];
   for (let i = 0; i < 300; i++) {
     const raw = { ...randomParams(rng), tileMode: true, layout: rng.pick(DM.LAYOUTS), seed: `tile-${i}` };
     if (rng.chance(0.15)) Object.assign(raw, { levels: rng.int(2, 3), levelStairs: rng.int(1, 2) });
-    // half the dungeons build from a set of room tiles that includes the long ones (none named means 4x4 and 5x5)
-    if (i % 2) { const pickd = DM.TILE_ROOM_SIZES.filter(() => rng.chance(0.6)); raw.tileSizes = pickd.length ? pickd : ['5x7']; }
+    // half the dungeons build from a set of room tiles that includes the long ones (none named means 4x4 and 5x5); a third
+    // use door markers, with any of the ten sizes and doorways anywhere along a wall
+    const markers = i % 3 === 2;
+    if (markers) raw.tileDoors = 'markers';
+    if (i % 2 || markers) { const pickd = (markers ? DM.TILE_ROOM_SIZES : DM.PRINTED_DOOR_SIZES).filter(() => rng.chance(0.5)); raw.tileSizes = pickd.length ? pickd : ['5x7']; }
     const allowed = raw.tileSizes || ['4x4', '5x5'];
+    const onSpot = (room, x, y, d) => markers || centered(room, x, y, d);
     const v = DM.validateParams(raw);
     if (!v.ok) { fail(`tile ${i}`, `settings rejected: ${JSON.stringify(v.errors)}`); continue; }
     const dun = DM.generateDungeon(raw);
@@ -4299,19 +4304,20 @@ console.log('== statistics');
           const room = byId.get(o.room);
           if (!room) continue;
           doorsChecked++;
-          if (!centered(room, o.x, o.y, o.d)) fail(`tile ${i}`, `doorway at ${o.x},${o.y} is not at room ${o.room}'s tile door spot`);
+          if (!centered(room, o.x, o.y, o.d)) offSpot++;
+          if (!onSpot(room, o.x, o.y, o.d)) fail(`tile ${i}`, `doorway at ${o.x},${o.y} is not at room ${o.room}'s tile door spot`);
           if (c.type === 'door') {
             // the square on the other side belongs to the other room, and must be the middle of its wall too
             const other = byId.get(c.rooms.find((id) => id !== o.room));
             const nx = o.x + DX[o.d];
             const ny = o.y + DY[o.d];
-            if (!other || !centered(other, nx, ny, OPP[o.d])) fail(`tile ${i}`, `doorway between rooms ${c.rooms} is not at both rooms' tile door spots`);
+            if (!other || !onSpot(other, nx, ny, OPP[o.d])) fail(`tile ${i}`, `doorway between rooms ${c.rooms} is not at both rooms' tile door spots`);
           }
         }
       }
       for (const e of fl.entrances || []) {
         const room = byId.get(e.room);
-        if (room && e.kind === 'door' && !centered(room, e.x, e.y, e.d)) fail(`tile ${i}`, `entrance ${e.label} is not at room ${e.room}'s tile door spot`);
+        if (room && e.kind === 'door' && !onSpot(room, e.x, e.y, e.d)) fail(`tile ${i}`, `entrance ${e.label} is not at room ${e.room}'s tile door spot`);
       }
       for (const h of fl.halls) {
         const cells = new Set(h.cells.map(([x, y]) => `${x},${y}`));
@@ -4330,7 +4336,16 @@ console.log('== statistics');
   const plain = DM.generateDungeon({ roomCount: 8, avgRoomSize: 30, sizeVariance: 30, entrances: 1, connectionType: 'hall', seed: 'tile-off' });
   if ('tileMode' in plain.params) fail('tile mode', 'tile mode shows up in the settings of a dungeon made without it');
   console.log(`  ${dungeons} dungeons, ${doorsChecked} doorways checked, ${shortfalls} could not fit every room (warned); room sizes ${JSON.stringify(sizesSeen)}`);
-  for (const k of ['4x4', '5x5', '5x6', '5x7', 'tall', 'wide']) if (!sizesSeen[k]) fail('tile mode', `tile mode should make every room tile size, both ways round, made ${JSON.stringify(sizesSeen)}`);
+  for (const k of [...DM.TILE_ROOM_SIZES, 'tall', 'wide']) if (!sizesSeen[k]) fail('tile mode', `tile mode should make every room tile size, both ways round, made ${JSON.stringify(sizesSeen)}`);
+  if (offSpot === 0) fail('tile mode', 'with door markers, some doorways should land away from the printed door spots');
+  // door markers: the doorless sizes need them, printed doors are the default and left out of the settings
+  const tvm = (extra) => DM.validateParams({ roomCount: 5, avgRoomSize: 20, sizeVariance: 0, entrances: 1, connectionType: 'hall', tileMode: true, ...extra });
+  if (tvm({ tileSizes: ['4x4', '4x7'] }).ok) fail('tile mode', 'a doorless-only size with printed doors should be refused');
+  if (!tvm({ tileDoors: 'markers', tileSizes: ['4x4', '4x7', '6x6'] }).ok) fail('tile mode', 'doorless sizes with door markers should be allowed');
+  if (tvm({ tileDoors: 'paint' }).ok) fail('tile mode', 'an unknown Doors value should be refused');
+  if ('tileDoors' in tvm({ tileDoors: 'printed' }).params) fail('tile mode', 'printed doors should be left out of the settings');
+  if (tvm({ tileDoors: 'markers' }).params.tileDoors !== 'markers') fail('tile mode', 'door markers should be kept in the settings');
+  if ('tileDoors' in DM.validateParams({ roomCount: 5, avgRoomSize: 20, sizeVariance: 0, entrances: 1, connectionType: 'hall', tileDoors: 'markers' }).params) fail('tile mode', 'Doors should be left out when tile mode is off');
   // room tiles: the original two unless named, kept out of the settings then, and checked
   const tv = (extra) => DM.validateParams({ roomCount: 5, avgRoomSize: 20, sizeVariance: 0, entrances: 1, connectionType: 'hall', tileMode: true, ...extra });
   if ('tileSizes' in tv({}).params) fail('tile mode', 'the original room tiles should not be written into the settings');
@@ -4574,6 +4589,9 @@ console.log('== statistics');
       edgeEntrancesOnly: rng.chance(0.8), spacing: rng.pick(DM.SPACINGS), layout: rng.pick(DM.LAYOUTS), seed: `tl-${i}` };
     if (rng.chance(0.15)) raw.levels = rng.int(2, 3);
     if (i % 3) raw.tileSizes = rng.pick([['4x4', '5x5', '5x6', '5x7'], ['5x6', '5x7'], ['5x6'], ['5x7'], ['4x4', '5x7']]);
+    // door markers: doorless room tiles in any size, a marker for every doorway
+    const markers = i % 4 === 3;
+    if (markers) { raw.tileDoors = 'markers'; raw.tileSizes = rng.pick([DM.TILE_ROOM_SIZES, ['4x6', '4x8', '6x6'], ['4x5'], ['5x8', '4x4'], ['4x7', '5x5', '5x7']]); }
     const dun = DM.generateDungeon(raw);
     const list = DM.tileList(dun, cat);
     dungeons++;
@@ -4584,7 +4602,14 @@ console.log('== statistics');
       for (const r of lvl.rooms) {
         roomsTotal++;
         if (r.face) roomsMatched++;
-        else if (!/no doorways/.test(r.problem)) fail(`tile list ${i}`, `room ${r.label} has no tile: ${r.problem}`);
+        else if (markers || !/no doorways/.test(r.problem)) fail(`tile list ${i}`, `room ${r.label} has no tile: ${r.problem}`);
+        // with markers every room is a doorless tile (even one reached by stairs only); without, never
+        if (r.face && /-0$/.test(r.face) !== markers) fail(`tile list ${i}`, `room ${r.label} got ${r.face} ${markers ? 'with' : 'without'} door markers`);
+      }
+      // one marker for every doorway: into hallways, between rooms, and in from outside
+      if (markers) {
+        const want = fl.connections.reduce((a, c) => a + c.openings.length, 0) + (fl.entrances || []).filter((e) => e.kind === 'door').length;
+        if (lvl.openings !== want) fail(`tile list ${i}`, `level ${lvl.level}: counted ${lvl.openings} doorways for markers, not ${want}`);
       }
       // the hallway pieces and the stretches no piece makes cover exactly the hallway squares
       const hallSquares = fl.halls.reduce((a, h) => a + h.cells.length, 0);
@@ -4596,6 +4621,11 @@ console.log('== statistics');
     });
     // the needs are the most any one level needs
     for (const [id, n] of Object.entries(list.needs)) if (n !== Math.max(...list.levels.map((l) => l.needs[id] || 0))) fail(`tile list ${i}`, `${id}: needs ${n}, not the most of any level`);
+    if (markers) {
+      const m = list.markers;
+      if (!m || m.total !== Math.max(...list.levels.map((l) => l.openings)) || m.doors + m.open !== m.total) fail(`tile list ${i}`, `marker count is off: ${JSON.stringify(m)}`);
+      if (!DM.tileListText(list, cat, []).includes(`${m.total} x door marker`)) fail(`tile list ${i}`, 'the text list does not give the door markers');
+    } else if (list.markers) fail(`tile list ${i}`, 'markers counted without door markers on');
     // a print plan covers everything, and a single-sided one has enough copies of each tile
     for (const two of [false, true]) {
       const plan = DM.tilePrintPlan(list.needs, cat, two);

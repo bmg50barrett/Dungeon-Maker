@@ -1098,6 +1098,156 @@
             ]
           ]
         }
+      },
+      "R44-0": {
+        "name": "Room 4x4 (20x20 ft), no doors (use door markers)",
+        "kind": "room",
+        "size": [
+          4,
+          4
+        ],
+        "door_width_ft": null,
+        "openings": {
+          "N": [],
+          "E": [],
+          "S": [],
+          "W": []
+        }
+      },
+      "R45-0": {
+        "name": "Room 4x5 (20x25 ft), no doors (use door markers)",
+        "kind": "room",
+        "size": [
+          4,
+          5
+        ],
+        "door_width_ft": null,
+        "openings": {
+          "N": [],
+          "E": [],
+          "S": [],
+          "W": []
+        }
+      },
+      "R46-0": {
+        "name": "Room 4x6 (20x30 ft), no doors (use door markers)",
+        "kind": "room",
+        "size": [
+          4,
+          6
+        ],
+        "door_width_ft": null,
+        "openings": {
+          "N": [],
+          "E": [],
+          "S": [],
+          "W": []
+        }
+      },
+      "R47-0": {
+        "name": "Room 4x7 (20x35 ft), no doors (use door markers)",
+        "kind": "room",
+        "size": [
+          4,
+          7
+        ],
+        "door_width_ft": null,
+        "openings": {
+          "N": [],
+          "E": [],
+          "S": [],
+          "W": []
+        }
+      },
+      "R48-0": {
+        "name": "Room 4x8 (20x40 ft), no doors (use door markers)",
+        "kind": "room",
+        "size": [
+          4,
+          8
+        ],
+        "door_width_ft": null,
+        "openings": {
+          "N": [],
+          "E": [],
+          "S": [],
+          "W": []
+        }
+      },
+      "R55-0": {
+        "name": "Room 5x5 (25x25 ft), no doors (use door markers)",
+        "kind": "room",
+        "size": [
+          5,
+          5
+        ],
+        "door_width_ft": null,
+        "openings": {
+          "N": [],
+          "E": [],
+          "S": [],
+          "W": []
+        }
+      },
+      "R56-0": {
+        "name": "Room 5x6 (25x30 ft), no doors (use door markers)",
+        "kind": "room",
+        "size": [
+          5,
+          6
+        ],
+        "door_width_ft": null,
+        "openings": {
+          "N": [],
+          "E": [],
+          "S": [],
+          "W": []
+        }
+      },
+      "R57-0": {
+        "name": "Room 5x7 (25x35 ft), no doors (use door markers)",
+        "kind": "room",
+        "size": [
+          5,
+          7
+        ],
+        "door_width_ft": null,
+        "openings": {
+          "N": [],
+          "E": [],
+          "S": [],
+          "W": []
+        }
+      },
+      "R58-0": {
+        "name": "Room 5x8 (25x40 ft), no doors (use door markers)",
+        "kind": "room",
+        "size": [
+          5,
+          8
+        ],
+        "door_width_ft": null,
+        "openings": {
+          "N": [],
+          "E": [],
+          "S": [],
+          "W": []
+        }
+      },
+      "R66-0": {
+        "name": "Room 6x6 (30x30 ft), no doors (use door markers)",
+        "kind": "room",
+        "size": [
+          6,
+          6
+        ],
+        "door_width_ft": null,
+        "openings": {
+          "N": [],
+          "E": [],
+          "S": [],
+          "W": []
+        }
       }
     },
     "editions": [
@@ -5817,6 +5967,1331 @@
           "R57-1B": 1,
           "R57-2C": 1,
           "R57-2D": 1
+        }
+      },
+      {
+        "id": "doorless-4x4",
+        "name": "4x4 Doorless Rooms",
+        "file": "pdf/Dungeon Tiles - 4x4 Doorless Rooms.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 4x4 Doorless Rooms Cut Guide.pdf",
+        "double_sided": false,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "R44-0"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R44-0"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R44-0"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              4
+            ]
+          },
+          {
+            "faces": [
+              "R44-0"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              4
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              9
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              9
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S4": 4,
+          "R44-0": 4
+        }
+      },
+      {
+        "id": "doorless-4x5",
+        "name": "4x5 Doorless Rooms",
+        "file": "pdf/Dungeon Tiles - 4x5 Doorless Rooms.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 4x5 Doorless Rooms Cut Guide.pdf",
+        "double_sided": false,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "R45-0"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R45-0"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R45-0"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "R45-0"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "R45-0": 4
+        }
+      },
+      {
+        "id": "doorless-4x6",
+        "name": "4x6 Doorless Rooms",
+        "file": "pdf/Dungeon Tiles - 4x6 Doorless Rooms.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 4x6 Doorless Rooms Cut Guide.pdf",
+        "double_sided": false,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "R46-0"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R46-0"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R46-0"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              6
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              6
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              6
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S4": 2,
+          "R46-0": 3
+        }
+      },
+      {
+        "id": "doorless-4x7",
+        "name": "4x7 Doorless Rooms",
+        "file": "pdf/Dungeon Tiles - 4x7 Doorless Rooms.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 4x7 Doorless Rooms Cut Guide.pdf",
+        "double_sided": false,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "R47-0"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R47-0"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              7
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              7
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              9
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              9
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S4": 6,
+          "R47-0": 2
+        }
+      },
+      {
+        "id": "doorless-4x8",
+        "name": "4x8 Doorless Rooms",
+        "file": "pdf/Dungeon Tiles - 4x8 Doorless Rooms.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 4x8 Doorless Rooms Cut Guide.pdf",
+        "double_sided": false,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "R48-0"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R48-0"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              9
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              9
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S4": 4,
+          "R48-0": 2
+        }
+      },
+      {
+        "id": "doorless-5x5",
+        "name": "5x5 Doorless Rooms",
+        "file": "pdf/Dungeon Tiles - 5x5 Doorless Rooms.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 5x5 Doorless Rooms Cut Guide.pdf",
+        "double_sided": false,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "R55-0"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R55-0"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              5,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              5,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S5": 6,
+          "R55-0": 2
+        }
+      },
+      {
+        "id": "doorless-5x6",
+        "name": "5x6 Doorless Rooms",
+        "file": "pdf/Dungeon Tiles - 5x6 Doorless Rooms.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 5x6 Doorless Rooms Cut Guide.pdf",
+        "double_sided": false,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "R56-0"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R56-0"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S5": 4,
+          "R56-0": 2
+        }
+      },
+      {
+        "id": "doorless-5x7",
+        "name": "5x7 Doorless Rooms",
+        "file": "pdf/Dungeon Tiles - 5x7 Doorless Rooms.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 5x7 Doorless Rooms Cut Guide.pdf",
+        "double_sided": false,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "R57-0"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R57-0"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S5": 2,
+          "R57-0": 2
+        }
+      },
+      {
+        "id": "doorless-5x8",
+        "name": "5x8 Doorless Rooms",
+        "file": "pdf/Dungeon Tiles - 5x8 Doorless Rooms.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 5x8 Doorless Rooms Cut Guide.pdf",
+        "double_sided": false,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "R58-0"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R58-0"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "R58-0": 2
+        }
+      },
+      {
+        "id": "doorless-6x6",
+        "name": "6x6 Doorless Rooms",
+        "file": "pdf/Dungeon Tiles - 6x6 Doorless Rooms.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - 6x6 Doorless Rooms Cut Guide.pdf",
+        "double_sided": false,
+        "sheets": 1,
+        "pieces": [
+          {
+            "faces": [
+              "R66-0"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R44-0"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              6
+            ]
+          },
+          {
+            "faces": [
+              "R44-0"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              6
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S1"
+            ],
+            "sheet": 1,
+            "at": [
+              7,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S1": 2,
+          "H5-S5": 2,
+          "R44-0": 2,
+          "R66-0": 1
+        }
+      },
+      {
+        "id": "doorless-all",
+        "name": "Doorless Rooms, All Sizes",
+        "file": "pdf/Dungeon Tiles - Doorless Rooms All Sizes.pdf",
+        "cut_guide": "pdf/Dungeon Tiles - Doorless Rooms All Sizes Cut Guide.pdf",
+        "double_sided": false,
+        "sheets": 10,
+        "pieces": [
+          {
+            "faces": [
+              "R44-0"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R44-0"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R44-0"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              4
+            ]
+          },
+          {
+            "faces": [
+              "R44-0"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              4
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              0,
+              9
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 1,
+            "at": [
+              4,
+              9
+            ]
+          },
+          {
+            "faces": [
+              "R45-0"
+            ],
+            "sheet": 2,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R45-0"
+            ],
+            "sheet": 2,
+            "at": [
+              4,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R45-0"
+            ],
+            "sheet": 2,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "R45-0"
+            ],
+            "sheet": 2,
+            "at": [
+              4,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "R46-0"
+            ],
+            "sheet": 3,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R46-0"
+            ],
+            "sheet": 3,
+            "at": [
+              4,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R46-0"
+            ],
+            "sheet": 3,
+            "at": [
+              0,
+              6
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 3,
+            "at": [
+              6,
+              6
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 3,
+            "at": [
+              7,
+              6
+            ]
+          },
+          {
+            "faces": [
+              "R47-0"
+            ],
+            "sheet": 4,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R47-0"
+            ],
+            "sheet": 4,
+            "at": [
+              4,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 4,
+            "at": [
+              0,
+              7
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 4,
+            "at": [
+              4,
+              7
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 4,
+            "at": [
+              0,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 4,
+            "at": [
+              4,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 4,
+            "at": [
+              0,
+              9
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 4,
+            "at": [
+              4,
+              9
+            ]
+          },
+          {
+            "faces": [
+              "R48-0"
+            ],
+            "sheet": 5,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R48-0"
+            ],
+            "sheet": 5,
+            "at": [
+              4,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 5,
+            "at": [
+              0,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 5,
+            "at": [
+              4,
+              8
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 5,
+            "at": [
+              0,
+              9
+            ]
+          },
+          {
+            "faces": [
+              "H5-S4"
+            ],
+            "sheet": 5,
+            "at": [
+              4,
+              9
+            ]
+          },
+          {
+            "faces": [
+              "R55-0"
+            ],
+            "sheet": 6,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R55-0"
+            ],
+            "sheet": 6,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 6,
+            "at": [
+              5,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 6,
+            "at": [
+              5,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 6,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 6,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 6,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 6,
+            "at": [
+              7,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "R56-0"
+            ],
+            "sheet": 7,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R56-0"
+            ],
+            "sheet": 7,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 7,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 7,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 7,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 7,
+            "at": [
+              7,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "R57-0"
+            ],
+            "sheet": 8,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R57-0"
+            ],
+            "sheet": 8,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 8,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 8,
+            "at": [
+              7,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "R58-0"
+            ],
+            "sheet": 9,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R58-0"
+            ],
+            "sheet": 9,
+            "at": [
+              0,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "R66-0"
+            ],
+            "sheet": 10,
+            "at": [
+              0,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "R44-0"
+            ],
+            "sheet": 10,
+            "at": [
+              0,
+              6
+            ]
+          },
+          {
+            "faces": [
+              "R44-0"
+            ],
+            "sheet": 10,
+            "at": [
+              4,
+              6
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 10,
+            "at": [
+              6,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S1"
+            ],
+            "sheet": 10,
+            "at": [
+              6,
+              5
+            ]
+          },
+          {
+            "faces": [
+              "H5-S5"
+            ],
+            "sheet": 10,
+            "at": [
+              7,
+              0
+            ]
+          },
+          {
+            "faces": [
+              "H5-S1"
+            ],
+            "sheet": 10,
+            "at": [
+              7,
+              5
+            ]
+          }
+        ],
+        "faces_available": {
+          "H5-S1": 2,
+          "H5-S4": 16,
+          "H5-S5": 14,
+          "R44-0": 6,
+          "R45-0": 4,
+          "R46-0": 3,
+          "R47-0": 2,
+          "R48-0": 2,
+          "R55-0": 2,
+          "R56-0": 2,
+          "R57-0": 2,
+          "R58-0": 2,
+          "R66-0": 1
         }
       }
     ]

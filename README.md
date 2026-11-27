@@ -42,7 +42,8 @@ Duckweed's Aeldara is a printed-book look: parchment, ink, and two accents, wine
 | Overall layout | A dropdown: Random / Cathedral / Ring / Spiral / Gauntlet / Radial / Main St. / Square / Long / Wide (default Random) | The shape the dungeon as a whole leans towards; see below. Hover over it (or focus it) and a tip says what the one chosen does |
 | Room count | 1-99 | Number of rooms |
 | Tile mode | On / Off (default Off) | In the Rooms column. On: build only what the printed [Dungeon Tiles](https://github.com/bmg50barrett/Dungeon-Tiles) can make; see *Tile mode* below. While it is on, the room size, room shape and hallway width inputs are switched off, and the Room tiles chips appear under it |
-| Room tiles | 4x4, 5x5, 5x6, 5x7, at least one (default 4x4 and 5x5) | Shown while Tile mode is on. Which printed room tiles to build from; rooms are picked evenly among the sizes that are on, and a 5x6 or 5x7 room can lie either way round |
+| Doors | Printed on tiles / Door markers (default Printed on tiles) | Shown while Tile mode is on. *Printed on tiles*: doorways go only where the room tiles have them. *Door markers*: doorless room tiles, with a door marker stood at each doorway, so a doorway can go anywhere along a wall |
+| Room tiles | 4x4, 4x5, 4x6, 4x7, 4x8, 5x5, 5x6, 5x7, 5x8, 6x6, at least one (default 4x4 and 5x5) | Shown while Tile mode is on. Which printed room tiles to build from; rooms are picked evenly among the sizes that are on, and a long room can lie either way round. With printed doors only 4x4, 5x5, 5x6 and 5x7 can be used (the rest come only doorless, and are locked and tinted) |
 | Average room size | 1-999 | Mean room area, in grid squares (1 square = 5 ft x 5 ft) |
 | Minimum room size: width and length | 1-30 each (default 3 x 3 on the page and for Claude) | The least a room can measure across the map (width) and up and down it (length): 3 x 8 means every room is at least 3 wide and 8 long. 1 x 1 means no minimum (and is what the generator uses when a program leaves the minimum out) |
 | Room size variance | 0-100 | Standard deviation of room area, as a % of the average |
@@ -99,13 +100,20 @@ Tile mode makes dungeons you can lay out on the table with the printed
 - Because every door follows that one rule, a few tile layouts cover every room once the tile is turned: 5 for each square
   size (1 door, 2 opposite, 2 at a corner, 3, 4) and 9 for each long size, since a long tile only matches itself turned
   end for end.
+- **Door markers.** With Doors set to *Door markers*, rooms are the doorless room tiles (a solid wall all the way round, in
+  any of ten sizes from 4x4 to 6x6), and each doorway is shown by standing a door marker on the wall line. A doorway can
+  then go anywhere along a wall, not just at the tile's door spot, so rooms are not limited to 4 doors and big dungeons fit
+  their rooms more easily. The tile list matches every room to the doorless tile of its size and counts the markers you
+  need: one per doorway on the busiest level, split into doors and open archways (stand a marker fully open for an open
+  archway). The doorless rooms have no double-sided printing, so a double-sided print plan prints them single-sided and
+  says so.
 - Hallways are 1 square (5 ft) wide, like the hallway tiles.
 - A room has only 4 places for a door, one on each wall. A big dungeon, especially a Radial one, where every hallway runs out
   of the one hub room, can run out of places to hang rooms; it then has fewer rooms than asked for and says so.
 - A shared link keeps tile mode (`tile=1`), and the saved settings record it as `tileMode`. A dungeon made without it has no
   `tileMode` at all, so older dungeons and links are unchanged. The room tiles go in the link as `tsz=` (and in the settings
-  as `tileSizes`) only when they are not the original 4x4 and 5x5, so a tile link made before the long rooms still builds
-  the same dungeon.
+  as `tileSizes`) only when they are not the original 4x4 and 5x5, and door markers as `tdoor=m` (`tileDoors: 'markers'`)
+  only when on, so a tile link made before either still builds the same dungeon.
 - Edit mode does not hold you to it: a room you resize or a door you move by hand can leave tile sizes behind.
 
 ### Building mode

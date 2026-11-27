@@ -69,10 +69,15 @@
     return byRoom;
   }
 
-  function matchRoom(room, doorways, faces) {
+  function matchRoom(room, doorways, faces, markers = false) {
     const b = room.bbox;
     const square = room.area === b.w * b.h;
     if (!square) return { problem: `${b.w * 5}x${b.h * 5} ft ${room.kind === 'rect' ? 'room' : `${room.kind} room`}: no tile has that shape` };
+    // with door markers, any room takes the doorless tile of its size, whatever its doors
+    if (markers) {
+      const id = faces.index.get(faces.sig(b.w, b.h, [[], [], [], []]));
+      return id ? { face: id } : { problem: `${b.w * 5}x${b.h * 5} ft room: no doorless tile that size` };
+    }
     if (doorways.length === 0) return { problem: `${b.w * 5}x${b.h * 5} ft room with no doorways (reached by stairs only): no tile without doors` };
     const sides = [[], [], [], []];
     for (const [x, y, d] of doorways) {
@@ -214,8 +219,13 @@
    *             needs: object, problems: string[], doors: number, stairs: number, catalogVersion: number }}
    *   needs: { faceId: count } the most any one level needs (levels are laid out one at a time)
    */
-  function tileList(dungeon, catalog) {
+  /**
+   * The tiles a dungeon needs. With door markers (dungeon.params.tileDoors 'markers', or opts.markers) the rooms are the
+   * doorless room tiles and every doorway needs a marker, so it also counts those.
+   */
+  function tileList(dungeon, catalog, opts = {}) {
     const faces = faceIndex(catalog);
+    const markers = opts.markers !== undefined ? opts.markers : (dungeon.params || {}).tileDoors === 'markers';
     const many = (dungeon.levels || 1) > 1;
     const levels = floorsOf(dungeon).map((fl) => {
       const tag = (label) => (many ? `${fl.level}-${label}` : `${label}`);
@@ -226,7 +236,7 @@
       for (const r of fl.rooms) for (const [x, y] of r.cells) roomAt.set(cellKey(x, y), r);
       let overlap = 0;
       const rooms = fl.rooms.map((r) => {
-        const m = matchRoom(r, doorways.get(r.id) || [], faces);
+        const m = matchRoom(r, doorways.get(r.id) || [], faces, markers);
         if (m.face) needs[m.face] = (needs[m.face] || 0) + 1;
         else problems.push(`Room ${tag(r.label)}: ${m.problem}`);
         return { label: tag(r.label), ...m };
@@ -241,7 +251,11 @@
       // doorways with a door in them (not open archways), which the tiles show only as an opening
       let doors = 0;
       for (const c of fl.connections) for (const o of c.openings) if (c.type === 'door' || o.style === 'door') doors++;
-      return { level: fl.level, rooms, needs, problems, doors, overlap };
+      // every doorway with a marker on it: into hallways and between rooms (one marker, standing on both walls), and the
+      // doorways in from outside; split into doors and open archways
+      const doorEntrances = (fl.entrances || []).filter((e) => e.kind === 'door').length;
+      const openings = fl.connections.reduce((a, c) => a + c.openings.length, 0);
+      return { level: fl.level, rooms, needs, problems, doors, overlap, openings: openings + doorEntrances, doorEntrances };
     });
     const needs = {};
     for (const l of levels) for (const [id, n] of Object.entries(l.needs)) needs[id] = Math.max(needs[id] || 0, n);
@@ -250,6 +264,12 @@
       needs: Object.fromEntries(Object.entries(needs).sort()),
       problems: levels.flatMap((l) => l.problems),
       doors: Math.max(0, ...levels.map((l) => l.doors)),
+      // door markers: one for every doorway on the busiest level, as that level splits them into doors (the entrances
+      // included) and open archways; a marker can stand either way, so the same ones serve every level
+      markers: markers ? (() => {
+        const l = levels.reduce((a, b) => (b.openings > a.openings ? b : a));
+        return { total: l.openings, doors: l.doors + l.doorEntrances, open: l.openings - l.doors - l.doorEntrances };
+      })() : null,
       overlap: levels.reduce((a, l) => a + l.overlap, 0),
       stairs: (dungeon.stairs || []).length + (dungeon.entrances || []).filter((e) => e.kind === 'stairs').length,
       catalogVersion: catalog.catalog_version,
@@ -300,7 +320,13 @@
    *   missing: { faceId: count } still short when no number of copies can cover it (a face no such edition has)
    */
   function printPlan(needs, catalog, doubleSided = false) {
-    const editions = catalog.editions.filter((e) => !!e.double_sided === !!doubleSided);
+    let editions = catalog.editions.filter((e) => !!e.double_sided === !!doubleSided);
+    if (doubleSided) {
+      // a tile with no double-sided printing at all (the doorless rooms) comes from a single-sided file instead
+      const inDuplex = new Set(editions.flatMap((e) => e.pieces.flatMap((p) => p.faces)));
+      const lacking = Object.keys(needs).filter((id) => !inDuplex.has(id));
+      editions = editions.concat(catalog.editions.filter((e) => !e.double_sided && e.pieces.some((p) => p.faces.some((f) => lacking.includes(f)))));
+    }
     const copies = editions.map(() => 0);
     // the pieces of `cs` printings of each edition, pooled by the faces they carry
     const piecesFor = (cs) => {
@@ -351,7 +377,7 @@
       const can = have.filter((pool) => pool.faces.includes(id)).reduce((a, pool) => a + pool.count, 0);
       if (can < n) missing[id] = n - can;
     }
-    const used = editions.map((e, i) => ({ id: e.id, name: e.name, file: e.file, cutGuide: e.cut_guide, copies: copies[i], sheets: copies[i] * e.sheets })).filter((e) => e.copies > 0);
+    const used = editions.map((e, i) => ({ id: e.id, name: e.name, file: e.file, cutGuide: e.cut_guide, copies: copies[i], sheets: copies[i] * e.sheets, singleSided: doubleSided && !e.double_sided })).filter((e) => e.copies > 0);
     return { editions: used, sheets: used.reduce((a, e) => a + e.sheets, 0), complete: now === total, missing };
   }
 
@@ -367,7 +393,7 @@
     for (const plan of plans) {
       lines.push('');
       lines.push(`To print (${plan.doubleSided ? 'double-sided' : 'single-sided'}): ${plan.sheets} sheet${plan.sheets === 1 ? '' : 's'}${plan.complete ? '' : ', still short of some tiles'}`);
-      for (const e of plan.editions) lines.push(`  ${e.copies} x ${e.name} (${e.sheets} sheet${e.sheets === 1 ? '' : 's'}): ${e.file}`);
+      for (const e of plan.editions) lines.push(`  ${e.copies} x ${e.name} (${e.sheets} sheet${e.sheets === 1 ? '' : 's'}${e.singleSided ? ', single-sided: it has no double-sided version' : ''}): ${e.file}`);
       for (const [id, k] of Object.entries(plan.missing)) lines.push(`  short ${k} x ${id} ${name(id)}: not in these files`);
     }
     lines.push('');
@@ -380,7 +406,10 @@
       for (const p of list.problems) lines.push(`  ${p}`);
     }
     const notes = [];
-    if (list.doors > 0) notes.push(`${list.doors} doorway${list.doors === 1 ? ' has a door' : 's have doors'} on the map; the tiles show every doorway as an opening, so mark doors on the table if you want them`);
+    if (list.markers) {
+      const m = list.markers;
+      lines.splice(1 + Object.keys(list.needs).length, 0, `  ${String(m.total).padStart(3)} x door marker${m.total === 1 ? '' : 's'}${m.open ? ` (${m.doors} as doors, ${m.open} standing open for open archways)` : ''}`);
+    } else if (list.doors > 0) notes.push(`${list.doors} doorway${list.doors === 1 ? ' has a door' : 's have doors'} on the map; the tiles show every doorway as an opening, so mark doors on the table if you want them`);
     if (list.overlap > 0) notes.push(`some straight hallway pieces are longer than their stretch and run under a room tile or a corner, T or crossroads tile (${list.overlap} square${list.overlap === 1 ? '' : 's'} in all): lay the straights first and the other tiles on top`);
     if (list.stairs > 0) notes.push(`${list.stairs} stair${list.stairs === 1 ? '' : 's'} on the map; the room tiles have none, so mark them on the table`);
     if (notes.length) {

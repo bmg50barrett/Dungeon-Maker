@@ -973,12 +973,13 @@ input[aria-invalid='true'] { border-color: var(--heading); box-shadow: inset 0 0
 .locked input[type='number'],
 .locked select,
 .locked .chip-body,
-.locked .chip input:checked + .chip-body {
+.locked .chip input:checked + .chip-body,
+.chip.locked input:checked + .chip-body {
   background: var(--locked, color-mix(in srgb, var(--wine) 14%, var(--field)));
   border-color: color-mix(in srgb, var(--wine) 45%, var(--write-in));
   cursor: not-allowed;
 }
 .locked input[type='number'], .locked select { color: var(--muted); }
 .locked label, .locked legend, .locked .chip, .locked select { cursor: not-allowed; }
-.locked .chip:hover .chip-body { border-color: color-mix(in srgb, var(--wine) 45%, var(--write-in)); }
+.locked .chip:hover .chip-body, .chip.locked:hover .chip-body { border-color: color-mix(in srgb, var(--wine) 45%, var(--write-in)); }
 .locked .link-btn:disabled { cursor: not-allowed; opacity: 0.55; }

@@ -106,7 +106,11 @@
     params.connectionType = $('connectionTypeSelect').value;
     params.edgeEntrancesOnly = $('edgeEntrancesOnly').checked;
     params.tileMode = $('tileMode').checked;
-    if (params.tileMode) params.tileSizes = tileSizeBoxes().filter((box) => box.checked).map((box) => box.value);
+    if (params.tileMode) {
+      params.tileDoors = $('tileDoorsSelect').value;
+      // (a size locked because it only comes doorless is left out, whether or not it is ticked)
+      params.tileSizes = tileSizeBoxes().filter((box) => box.checked && !box.disabled).map((box) => box.value);
+    }
     params.building = $('building').checked;
     if (params.building) {
       params.footprint = $('footprintSelect').value;
@@ -340,7 +344,18 @@
     const tile = $('tileMode').checked;
     const building = $('building').checked;
     $('tileModeState').textContent = tile ? 'On' : 'Off';
-    const sizes = tileSizeBoxes().filter((box) => box.checked).map((box) => box.value);
+    // with doors printed on the tiles, only the sizes printed with doorways can be used; the rest are locked and tinted
+    const markers = $('tileDoorsSelect').value === 'markers';
+    for (const box of tileSizeBoxes()) {
+      const locked = !markers && !DM.PRINTED_DOOR_SIZES.includes(box.value);
+      box.disabled = locked;
+      box.closest('.chip').classList.toggle('locked', locked);
+    }
+    $('tileDoorsField').hidden = !tile;
+    $('tileDoorsHint').textContent = markers
+      ? 'Doorless room tiles, with door markers stood where the doorways are, so a doorway can go anywhere along a wall'
+      : 'Doorways printed on the room tiles, so they go where the tiles have them';
+    const sizes = tileSizeBoxes().filter((box) => box.checked && !box.disabled).map((box) => box.value);
     $('tileModeHint').textContent = tile
       ? `Only what the printed tiles can build: ${sizes.length ? listWords(sizes) : 'the'} rooms with doors where the tiles have them, and 5 ft hallways.`
       : 'Off: rooms take any size and shape.';
@@ -1031,6 +1046,7 @@
   });
   $('footprintSelect').addEventListener('change', updateModes);
   for (const box of tileSizeBoxes()) box.addEventListener('change', updateModes);
+  $('tileDoorsSelect').addEventListener('change', updateModes);
   $('circulationSelect').addEventListener('change', updateModes);
 
   for (const box of shapeBoxes()) box.addEventListener('change', updateShapesHint);
@@ -1337,7 +1353,7 @@
     html.push(`<h3>To print: ${plan.sheets} sheet${plan.sheets === 1 ? '' : 's'} ${doubleSided ? 'double-sided' : 'single-sided'}</h3>`);
     if (plan.editions.length > 0) {
       html.push('<ul>');
-      for (const e of plan.editions) html.push(`<li>${e.copies} &times; <b>${escapeHtml(e.name)}</b> (${e.sheets} sheet${e.sheets === 1 ? '' : 's'}), with its cut guide</li>`);
+      for (const e of plan.editions) html.push(`<li>${e.copies} &times; <b>${escapeHtml(e.name)}</b> (${e.sheets} sheet${e.sheets === 1 ? '' : 's'}${e.singleSided ? ', single-sided: it has no double-sided version' : ''}), with its cut guide</li>`);
       html.push('</ul>');
     }
     const short = Object.entries(plan.missing);
@@ -1351,7 +1367,10 @@
     html.push('<details><summary>Room by room</summary><ul>');
     for (const l of list.levels) for (const r of l.rooms.slice().sort(byNumber)) html.push(`<li>Room ${escapeHtml(r.label)}: ${r.face ? `${name(r.face)} (<code>${escapeHtml(r.face)}</code>)` : `no tile (${escapeHtml(r.problem)})`}</li>`);
     html.push('</ul></details>');
-    if (list.doors > 0) html.push(`<p>${list.doors} doorway${list.doors === 1 ? ' has a door' : 's have doors'} on the map. The tiles show every doorway as an opening, so mark doors on the table if you want them.</p>`);
+    if (list.markers) {
+      const m = list.markers;
+      html.push(`<p>You need <strong>${m.total} door marker${m.total === 1 ? '' : 's'}</strong>${m.open ? `: ${m.doors} as doors and ${m.open} stood open for open archways` : ''}. Stand each on the wall line where a hallway or another room meets the room.</p>`);
+    } else if (list.doors > 0) html.push(`<p>${list.doors} doorway${list.doors === 1 ? ' has a door' : 's have doors'} on the map. The tiles show every doorway as an opening, so mark doors on the table if you want them.</p>`);
     if (list.overlap > 0) html.push(`<p>Some straight hallway pieces are longer than their stretch and run under a room tile or a corner, T or crossroads tile (${list.overlap} square${list.overlap === 1 ? '' : 's'} in all). Lay the straights first and the other tiles on top.</p>`);
     if (list.stairs > 0) html.push(`<p>${list.stairs} stair${list.stairs === 1 ? '' : 's'} on the map. The room tiles have none, so mark them on the table.</p>`);
     html.push(`<p class="hint">Tile catalog version ${escapeHtml(String(cat.catalog_version))}, as kept in the app.</p>`);
@@ -1502,6 +1521,7 @@
     $('building').checked = form.building === true && form.tileMode !== true; // (off unless said; never both)
     const sizes = Array.isArray(form.tileSizes) ? form.tileSizes : ['4x4', '5x5']; // (the original square tiles unless said)
     for (const box of tileSizeBoxes()) box.checked = sizes.includes(box.value);
+    setSelect('tileDoorsSelect', form.tileDoors === 'markers' ? 'markers' : 'printed');
     if (form.footprint !== undefined) setSelect('footprintSelect', form.footprint);
     if (form.circulation !== undefined) setSelect('circulationSelect', form.circulation);
     if (form.roomShapes !== undefined) for (const box of shapeBoxes()) box.checked = form.roomShapes.includes(box.value);

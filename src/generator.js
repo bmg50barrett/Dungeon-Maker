@@ -57,8 +57,11 @@
    * either way). A dungeon uses the ones in params.tileSizes; with none named it uses the first two, the original square
    * tiles, so older tile dungeons and links come out as they always did.
    */
-  const TILE_ROOM_SIZES = ['4x4', '5x5', '5x6', '5x7'];
+  const TILE_ROOM_SIZES = ['4x4', '4x5', '4x6', '4x7', '4x8', '5x5', '5x6', '5x7', '5x8', '6x6'];
   const TILE_SIZES_DEFAULT = ['4x4', '5x5'];
+  // the sizes that come with doorways printed on them; every size comes doorless, for door markers
+  const PRINTED_DOOR_SIZES = ['4x4', '5x5', '5x6', '5x7'];
+  const TILE_DOORS = ['printed', 'markers'];
   const tileDims = (id) => id.split('x').map(Number);
 
   /** Used when a caller does not supply connectionRandomness: 14% is the nearest whole percent to 1 in 7. */
@@ -298,13 +301,18 @@
       errors.layout = `Layout must be one of: ${DM.LAYOUTS.join(', ')}.`;
     }
     // Tile mode: build only what the printed dungeon tiles can make. Every room is a room tile's size (4x4 or 5x5 unless tileSizes says) with its doorways where
-    // the room tiles have them (see DM.isTileDoor), and hallways are 1 square (5 ft) wide, so the settings for room size, shape and hallway width are set to match.
+    // the room tiles have them (see DM.isTileDoor; anywhere along a wall with tileDoors 'markers'), and hallways are 1 square (5 ft) wide, so the settings for room size, shape and hallway width are set to match.
     // (Left out of the settings when off, so dungeons made without it are unchanged.)
     const tileMode = raw.tileMode === undefined || raw.tileMode === null ? false : raw.tileMode;
     if (typeof tileMode !== 'boolean') {
       errors.tileMode = 'Tile mode must be true or false.';
     } else if (tileMode) {
       params.tileMode = true;
+      // how doors are shown: 'printed' on the room tiles (so doorways go only where the tiles have them), or 'markers'
+      // stood on doorless room tiles (so a doorway can go anywhere along a wall). Left out of the settings when printed.
+      const doors = raw.tileDoors === undefined || raw.tileDoors === null ? 'printed' : raw.tileDoors;
+      if (!TILE_DOORS.includes(doors)) errors.tileDoors = 'Doors must be printed or markers.';
+      else if (doors === 'markers') params.tileDoors = 'markers';
       // which room tiles to build from (in the order of TILE_ROOM_SIZES); left out of the settings when it is the original two
       let sizes = raw.tileSizes === undefined || raw.tileSizes === null ? TILE_SIZES_DEFAULT : raw.tileSizes;
       if (!Array.isArray(sizes) || sizes.length === 0 || sizes.some((t) => !TILE_ROOM_SIZES.includes(t))) {
@@ -312,6 +320,10 @@
         sizes = TILE_SIZES_DEFAULT;
       }
       sizes = TILE_ROOM_SIZES.filter((t) => sizes.includes(t));
+      const unprinted = params.tileDoors === 'markers' ? [] : sizes.filter((t) => !PRINTED_DOOR_SIZES.includes(t));
+      if (unprinted.length && !errors.tileSizes) {
+        errors.tileSizes = `${unprinted.join(', ')} room tile${unprinted.length === 1 ? ' comes' : 's come'} only doorless: switch Doors to markers, or use ${PRINTED_DOOR_SIZES.join(', ')}.`;
+      }
       if (sizes.join() !== TILE_SIZES_DEFAULT.join()) params.tileSizes = sizes;
       params.avgRoomSize = Math.round(sizes.reduce((a, t) => a + tileDims(t)[0] * tileDims(t)[1], 0) / sizes.length);
       params.minRoomWidth = Math.min(...sizes.map((t) => tileDims(t)[0]));
@@ -2420,7 +2432,8 @@
       if (params.tileMode) {
         // a long tile room is turned either way at random (a square one needs no turning, so square-only dungeons are as before)
         const [a, b] = tileDims(tileRng.pick(params.tileSizes || TILE_SIZES_DEFAULT));
-        shapes.push(a !== b && tileRng.chance(0.5) ? DM.makeTileRoom(b, a) : DM.makeTileRoom(a, b));
+        const markers = params.tileDoors === 'markers';
+        shapes.push(a !== b && tileRng.chance(0.5) ? DM.makeTileRoom(b, a, markers) : DM.makeTileRoom(a, b, markers));
       } else {
         shapes.push(DM.makeRoomShape(rng, sampleArea(), params.roomShapes, minRoomWidth, minRoomLength));
       }
@@ -3011,6 +3024,7 @@
   DM.hallSettings = hallSettings; // hallway distances for a given average room size (exposed for tests)
   DM.validateParams = validateParams;
   DM.TILE_ROOM_SIZES = TILE_ROOM_SIZES;
+  DM.PRINTED_DOOR_SIZES = PRINTED_DOOR_SIZES;
   DM.generateDungeon = generateDungeon;
   DM.DIRS = { DX, DY, OPP };
 

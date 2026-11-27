@@ -111,7 +111,7 @@ console.log('== defaults: the same as the page');
   if (JSON.stringify(DM.formDefaults()) !== JSON.stringify(APP_DEFAULTS)) fail('defaults', `the share links' usual values ${JSON.stringify(DM.formDefaults())} differ from the page's ${JSON.stringify(APP_DEFAULTS)}`);
   const settings = Object.keys(SETTINGS).sort().join();
   // tile mode and building mode (with its footprint and circulation) are off unless given, so dungeons made without them carry none of them
-  if (settings !== [...Object.keys(APP_DEFAULTS), 'seed', 'tileMode', 'tileSizes', 'building', 'footprint', 'circulation'].sort().join()) fail('defaults', `the settings Claude can give are [${settings}]`);
+  if (settings !== [...Object.keys(APP_DEFAULTS), 'seed', 'tileMode', 'tileDoors', 'tileSizes', 'building', 'footprint', 'circulation'].sort().join()) fail('defaults', `the settings Claude can give are [${settings}]`);
   if (/id="tileMode"[^>]*checked/.test(html) || 'tileMode' in APP_DEFAULTS) fail('defaults', 'tile mode should start off, as on the page');
   // a call with only a seed makes the dungeon the page makes with its starting values
   const { tools, done } = freshTools();
@@ -1038,8 +1038,17 @@ console.log('== tile list');
   if (!/Room 1: R5[67]-/.test(longList) || /Room \d+: R(4P|5)-/.test(longList)) fail('tile list', `a 5x6 and 5x7 dungeon should list only long room tiles: ${longList.slice(0, 200)}`);
   if (!/5x[67] Room/.test(longList)) fail('tile list', 'the print plan should use the long room files');
   if (/no tile/.test(longList)) fail('tile list', `every long room should have a tile: ${longList.slice(0, 300)}`);
-  const badSize = toolError(() => tools.generate_dungeon.run({ seed: 'bad', roomCount: 4, tileMode: true, tileSizes: ['6x6'], picture: false }));
+  const badSize = toolError(() => tools.generate_dungeon.run({ seed: 'bad', roomCount: 4, tileMode: true, tileSizes: ['7x7'], picture: false }));
   if (!badSize) fail('tile list', 'an unknown room tile size should be refused');
+  // door markers: doorless sizes are allowed, rooms get doorless tiles, and the markers are counted
+  const noMarkers = toolError(() => tools.generate_dungeon.run({ seed: 'bad', roomCount: 4, tileMode: true, tileSizes: ['4x7'], picture: false }));
+  if (!noMarkers || !/doorless/.test(noMarkers)) fail('tile list', `a doorless-only size without door markers should be refused, got ${noMarkers}`);
+  tools.generate_dungeon.run({ seed: 'markers-mcp', roomCount: 12, entrances: 2, tileMode: true, tileDoors: 'markers', tileSizes: ['4x6', '4x7', '5x8', '6x6'], picture: false });
+  const mk = tools.tile_list.run({}).text;
+  if (!/Room 1: R(46|47|58|66)-0 /.test(mk)) fail('tile list', `with door markers, rooms should get doorless tiles: ${mk.slice(0, 200)}`);
+  if (!/\d+ x door markers?/.test(mk)) fail('tile list', 'with door markers, the list should count them');
+  if (!/Doorless Rooms/.test(mk)) fail('tile list', 'the print plan should use the doorless room files');
+  if (!/single-sided: it has no double-sided version/.test(mk)) fail('tile list', 'the double-sided plan should say the doorless rooms print single-sided');
   tools.generate_dungeon.run({ seed: 'plain-mcp', roomCount: 6, roomShapes: ['L'], picture: false });
   const plain = tools.tile_list.run({}).text;
   if (!plain.startsWith('This dungeon was not made with tileMode') || !plain.includes('no tile has that shape')) fail('tile list', 'a dungeon without tileMode should be called out, with its rooms listed as having no tile');

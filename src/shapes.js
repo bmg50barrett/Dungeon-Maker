@@ -389,11 +389,15 @@
     return [x === kw, y === kh, x === w - 1 - kw, y === h - 1 - kh][d];
   }
 
-  /** A room for tile mode: a w x h rectangle (as the printed room tiles) whose only door spots are those of isTileDoor. */
-  function makeTileRoom(w = 5, h = w) {
+  /**
+   * A room for tile mode: a w x h rectangle, as the printed room tiles. With doors printed on the tiles its only door spots
+   * are those of isTileDoor; with `markers` (doorless tiles and door markers) a door can go anywhere along a wall.
+   */
+  function makeTileRoom(w = 5, h = w, markers = false) {
     const shape = finishShape({ g: fullGrid(w, h), W: w, H: h, kind: 'rect' });
-    shape.open = shape.open.map((list, d) => list.filter((i) => isTileDoor(w, h, shape.cells[i][0], shape.cells[i][1], d)));
-    shape.tile = true;
+    if (!markers) shape.open = shape.open.map((list, d) => list.filter((i) => isTileDoor(w, h, shape.cells[i][0], shape.cells[i][1], d)));
+    shape.tile = !markers; // (only printed doors need lining up with the tile's door spots)
+    shape.tileMarkers = markers;
     return shape;
   }
 

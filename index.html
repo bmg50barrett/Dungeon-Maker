@@ -155,15 +155,30 @@
               <p class="tip" role="tooltip" id="tileModeHint">Off: rooms take any size and shape.</p>
             </div>
 
+            <div class="field select-field" id="tileDoorsField" hidden>
+              <label for="tileDoorsSelect">Doors</label>
+              <select id="tileDoorsSelect" name="tileDoors" aria-describedby="tileDoorsHint">
+                <option value="printed" selected>Printed on tiles</option>
+                <option value="markers">Door markers</option>
+              </select>
+              <p class="tip" role="tooltip" id="tileDoorsHint">Doorways printed on the room tiles, so they go where the tiles have them</p>
+            </div>
+
             <fieldset class="field chip-group" id="tileSizes" aria-describedby="tileSizesHint err-tileSizes" hidden>
               <legend>Room tiles</legend>
               <div class="chips">
-                <label class="chip"><input type="checkbox" name="tileSize" value="4x4" checked><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8"/></svg>4x4</span></label>
-                <label class="chip"><input type="checkbox" name="tileSize" value="5x5" checked><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="3" width="10" height="10"/></svg>5x5</span></label>
-                <label class="chip"><input type="checkbox" name="tileSize" value="5x6"><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="2" width="10" height="12"/></svg>5x6</span></label>
-                <label class="chip"><input type="checkbox" name="tileSize" value="5x7"><span class="chip-body"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="1" width="10" height="14"/></svg>5x7</span></label>
+                <label class="chip"><input type="checkbox" name="tileSize" value="4x4" checked><span class="chip-body">4x4</span></label>
+                <label class="chip"><input type="checkbox" name="tileSize" value="4x5"><span class="chip-body">4x5</span></label>
+                <label class="chip"><input type="checkbox" name="tileSize" value="4x6"><span class="chip-body">4x6</span></label>
+                <label class="chip"><input type="checkbox" name="tileSize" value="4x7"><span class="chip-body">4x7</span></label>
+                <label class="chip"><input type="checkbox" name="tileSize" value="4x8"><span class="chip-body">4x8</span></label>
+                <label class="chip"><input type="checkbox" name="tileSize" value="5x5" checked><span class="chip-body">5x5</span></label>
+                <label class="chip"><input type="checkbox" name="tileSize" value="5x6"><span class="chip-body">5x6</span></label>
+                <label class="chip"><input type="checkbox" name="tileSize" value="5x7"><span class="chip-body">5x7</span></label>
+                <label class="chip"><input type="checkbox" name="tileSize" value="5x8"><span class="chip-body">5x8</span></label>
+                <label class="chip"><input type="checkbox" name="tileSize" value="6x6"><span class="chip-body">6x6</span></label>
               </div>
-              <p class="tip" role="tooltip" id="tileSizesHint">The printed room tiles to build from. 5x6 and 5x7 rooms are turned either way.</p>
+              <p class="tip" role="tooltip" id="tileSizesHint">The printed room tiles to build from. Long rooms are turned either way.</p>
               <p class="error" id="err-tileSizes" role="alert"></p>
             </fieldset>
 
